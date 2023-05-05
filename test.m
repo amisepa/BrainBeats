@@ -14,8 +14,8 @@ EEG = pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG','heart_chann
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
 % EEG = pop_BrainBeats(EEG);  % GUI mode
-EEG = pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
-    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',false,'rr_correct','linear','vis',true);
+pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
+    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'rr_correct','linear','vis',true);
 
 %% MODE 3: Feature-based
 
@@ -25,14 +25,9 @@ outputs = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'}, 'vis',true);
 
+%% Save figures (edit name)
 
-
-
-
-
-
-
-
+exportgraphics(gcf, fullfile('figures','clean_EEG.png'),'Resolution',300)
 
 
 
@@ -84,8 +79,3 @@ outputs = pop_BrainBeats(EEG,'heart_signal','ECG','heart_channels',{'EXG5' 'EXG6
 %     'hrv_features', {'SDNN' 'RMSSD' 'pNN50' 'ULF' 'VLF' 'LF' 'HF' 'LF/HF' 'Total' 'ENT' 'FRAC' 'DFA'},...
 %     'vis',true);
 
-%% Save figures
-
-exportgraphics(gcf, fullfile('figures','clean_EEG.png'),'Resolution',300)
-
-exportgraphics(gcf, fullfile('figures','heartcomp_topo.png'),'Resolution',300)

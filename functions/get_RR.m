@@ -120,6 +120,16 @@ b1 = [-7.757327341237223e-05  -2.357742589814283e-04 -6.689305101192819e-04 -0.0
 b1 = resample(b1,srate,250);
 sig = filtfilt(b1,1,signal_seg)';
 
+% Plot spectra 
+% figure; 
+% subplot(2,1,1)
+% Fs = 250;
+% [pwr, f] = get_psd(sig,Fs*2,'hann',50,[],Fs,[0 60],'psd');
+% plot(f, pwr);
+% subplot(2,1,2)
+% spectrogram(sig,kaiser(256,5),220,512,Fs);
+% view(-45,65); colormap bone; xlim([0 50])
+
 % If 20% of the samples have an absolute amplitude which is higher
 % than min_amp then we are good to go.
 if length(find(abs(sig)>min_amp))/nSamp > 0.20

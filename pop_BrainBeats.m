@@ -86,8 +86,6 @@ end
 EEG.data = double(EEG.data);  % ensure double precision
 ECG = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
 if params.clean_eeg
-    % EEG = pop_eegfiltnew(EEG,'locutoff',1);
-    % EEG = pop_eegfiltnew(EEG,'hicutoff',45,'filtorder',200);
     EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',846);
     EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
 
@@ -103,40 +101,42 @@ if params.clean_eeg
         'WindowCriterion','off','BurstRejection','off','Distance','off');
 
     % Identify periods with large artifacts using ASR
-    cutoff = 60;
-    useriemannian = false;
-    m = memory;
-    maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)
-    cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],false,useriemannian,maxmem);
-    mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
-    EEG.etc.clean_sample_mask = ~mask;
-    badData = reshape(find(diff([false mask false])),2,[])';
-    badData(:,2) = badData(:,2)-1;
-    if ~isempty(badData) % ignore very small artifacts (<5 samples)
-        smallIntervals = diff(badData')' < 5;
-        badData(smallIntervals,:) = [];
-    end
+    % cutoff = 60;
+    % useriemannian = false;
+    % m = memory;
+    % maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)
+    % cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],false,useriemannian,maxmem);
+    % mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
+    % EEG.etc.clean_sample_mask = ~mask;
+    % badData = reshape(find(diff([false mask false])),2,[])';
+    % badData(:,2) = badData(:,2)-1;
+    % if ~isempty(badData) % ignore very small artifacts (<5 samples)
+    %     smallIntervals = diff(badData')' < 5;
+    %     badData(smallIntervals,:) = [];
+    % end
 
-    % Remove bad segments
-    EEG = pop_select(EEG,'nopoint',badData);
-    ECG = pop_select(ECG,'nopoint',badData);
-    fprintf('%g %% of data were considered to be large artifacts and removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
-
-    % Visualize what was removed
-    if params.vis
-        vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
-    end
+    % % Remove bad segments
+    % EEG = pop_select(EEG,'nopoint',badData);
+    % if strcmp(params.analysis,'hep')
+    %     ECG = pop_select(ECG,'nopoint',badData);
+    % end
+    % fprintf('%g %% of data were considered to be large artifacts and removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
+    % 
+    % % Visualize what was removed
+    % if params.vis
+    %     vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
+    % end
 
     % Interpolate bad channels
     EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
 
-    % Add ECG channels back
-    EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
-    EEG.nbchan = EEG.nbchan + ECG.nbchan;
-    for iChan = 1:ECG.nbchan
-        EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
-    end
-    EEG = eeg_checkset(EEG);
+    % % Add ECG channels back
+    % EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
+    % EEG.nbchan = EEG.nbchan + ECG.nbchan;
+    % for iChan = 1:ECG.nbchan
+    %     EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+    % end
+    % EEG = eeg_checkset(EEG);
 
 end
 
@@ -200,7 +200,7 @@ if contains(params.analysis, {'features' 'hep'})
         % sqi = sqi(best_elec,:);
         sqi = [sqi_times(best_elec,:); sqi(best_elec,:)];
 
-        SQI = round(SQI(best_elec),2);
+        SQI = SQI(best_elec);
         sig_t = sig_t(best_elec,:);
         sig_filt = sig_filt(best_elec,:);
         SQIthresh2 = .2;   % 20% of file can contain SQI<.9
@@ -225,16 +225,6 @@ if contains(params.analysis, {'features' 'hep'})
         error("Unknown heart signal. Should be 'ecg' or 'ppg' ");
     end
 
-    % Plot filtered ECG and RR series of best electrode
-    if params.vis
-        figure('color','w');
-        subplot(2,1,1)
-        scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
-        % plot(sig_t, sig_filt,'color','#0072BD'); hold on;
-        % plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');
-        title('Filtered ECG signal + R peaks'); ylabel('mV'); %set(gca,'XTick',[]);
-    end
-
     % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
     vis = false;    % to visualize artifacts that are inteprolated
     [NN, NN_times,flagged] = clean_rr(RR_t, RR, sqi, params, vis);
@@ -257,8 +247,18 @@ if contains(params.analysis, {'features' 'hep'})
     outputs.HRV.NN_times = NN_times;
     outputs.HRV.flagged_heartbeats = flagged;
 
-    % Plot artifacts that were interpolated (if any)
+    % Plot filtered ECG and RR series of best electrode and interpolated
+    % RR artifacts (if any)
     if params.vis
+        figure('color','w');
+
+        subplot(2,1,1)
+        scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
+        % plot(sig_t, sig_filt,'color','#0072BD'); hold on;
+        % plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');        
+        % title(sprintf('Filtered ECG signal + R peaks (portion of artifacts: %1.2f%%)',SQI)); ylabel('mV'); %set(gca,'XTick',[]);
+        title('Filtered ECG signal + R peaks'); ylabel('mV'); %set(gca,'XTick',[]);
+
         subplot(2,1,2)
         if sum(flagged) == 0
             plot(RR_t,RR,'-','color','#0072BD','linewidth',1);
@@ -274,15 +274,22 @@ if contains(params.analysis, {'features' 'hep'})
     %%%%%%%%%%%%%%%%%% Heartbeat-evoked potentials (HEP) %%%%%%%%%%%%%%%%%%
     if strcmp(params.analysis,'hep')
 
-        nEv = length(EEG.event);
+        nEv = length(EEG.event); % number of existing events in the EEG structure
         urevents = num2cell(nEv+1:nEv+length(Rpeaks));
         evt = num2cell(Rpeaks);
-        types = repmat({'R-peak'},1,length(evt));
+        types = repmat({'ECG'},1,length(evt));
 
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).latency] = evt{:};
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).type] = types{:};
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};
+        % [EEG.event(1,nEv+1:nEv+length(Rpeaks)).latency] = evt{:};       % assign latencies
+        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).latency] = Rpeaks;       % assign latencies        
+        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).type] = types{:};        % assign types
+        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index        
         EEG = eeg_checkset(EEG);
+        
+        % Calculate average distance and .9 quantile between markers
+        
+        % Epoch
+
+        % Check that there epochs are at least 1 s long
 
         if params.vis
             eegplot(EEG.data,'winlength',15,'srate',EEG.srate,'events',EEG.event,'spacing',100);
