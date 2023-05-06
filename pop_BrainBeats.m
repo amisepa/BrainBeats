@@ -121,14 +121,15 @@ if params.clean_eeg
     %     ECG = pop_select(ECG,'nopoint',badData);
     % end
     % fprintf('%g %% of data were considered to be large artifacts and removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
-    % 
+    %
     % % Visualize what was removed
-    % if params.vis
-    %     vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
-    % end
+    if params.vis
+        vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
+    end
 
     % Interpolate bad channels
     EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
+    EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
 
     % % Add ECG channels back
     % EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
@@ -142,38 +143,14 @@ end
 
 params.fs = EEG.srate;
 
-%%%%%%%%%%%%% MODE 1: remove heart components from EEG signals %%%%%%%%%%%%
-if strcmp(params.analysis,'rm_heart')
-    if strcmp(params.heart_signal,'ecg')
-        dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
-        % if exist('picard.m','file')
-        %     EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
-        % else
-        EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
-        % end
+%%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 
-        % end
-        EEG = pop_iclabel(EEG,'default');
-        EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.95 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
-        heart_comp = find(EEG.reject.gcompreject);
-        EEG = eeg_checkset(EEG);
-        if params.vis, pop_selectcomps(EEG,heart_comp); end
-        if ~isempty(heart_comp)
-            fprintf('Removing %g heart component(s). \n', length(heart_comp));
-            oriEEG = EEG;
-            EEG = pop_subcomp(EEG, heart_comp, 0);  % ADD: option to keep ECG channels by adding them back?
-            if params.vis, vis_artifacts(EEG,oriEEG); end
-            EEG = pop_select(EEG,'nochannel', params.heart_channels);
-        else
-            fprintf('Sorry, no heart component was detected. Make sure the ECG channel you selected is correct. You may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended) and try again.')
-        end
-    else
-        error("This method is only supported with ECG signal")
-    end
+if strcmp(params.analysis,'rm_heart')
+    remove_heartcomp(EEG, params);
 end
 
 
-%%%%%%%%%%%%%%%%%%%% MODE 2 & 3: RR/NN intervals and SQI %%%%%%%%%%%%%%%%%%%%
+%%%%% MODE 2 & 3: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
 
     % Get RR series and signal quality index (SQI)
@@ -255,7 +232,7 @@ if contains(params.analysis, {'features' 'hep'})
         subplot(2,1,1)
         scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
         % plot(sig_t, sig_filt,'color','#0072BD'); hold on;
-        % plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');        
+        % plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');
         % title(sprintf('Filtered ECG signal + R peaks (portion of artifacts: %1.2f%%)',SQI)); ylabel('mV'); %set(gca,'XTick',[]);
         title('Filtered ECG signal + R peaks'); ylabel('mV'); %set(gca,'XTick',[]);
 
@@ -271,52 +248,36 @@ if contains(params.analysis, {'features' 'hep'})
         set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold'); box on
     end
 
-    %%%%%%%%%%%%%%%%%% Heartbeat-evoked potentials (HEP) %%%%%%%%%%%%%%%%%%
+    %%%%% MODE 2: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
+        run_HEP(EEG, params, Rpeaks)
+    end
 
-        nEv = length(EEG.event); % number of existing events in the EEG structure
-        urevents = num2cell(nEv+1:nEv+length(Rpeaks));
-        evt = num2cell(Rpeaks);
-        types = repmat({'ECG'},1,length(evt));
+    %%%%% MODE 3: HRV features %%%%%
+    if strcmp(params.analysis,'features') && params.hrv
+        if SQI >= .2
+            params.hrv_norm = true;  % default for now
+            file_length = floor(EEG.xmax)-1;
+            if file_length < 300
+                warning('File length is shorter than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+            end
+            params.file_length = file_length;
 
-        % [EEG.event(1,nEv+1:nEv+length(Rpeaks)).latency] = evt{:};       % assign latencies
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).latency] = Rpeaks;       % assign latencies        
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).type] = types{:};        % assign types
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index        
-        EEG = eeg_checkset(EEG);
-        
-        % Calculate average distance and .9 quantile between markers
-        
-        % Epoch
+            outputs = get_hrv_features(NN, NN_times, params);
 
-        % Check that there epochs are at least 1 s long
-
-        if params.vis
-            eegplot(EEG.data,'winlength',15,'srate',EEG.srate,'events',EEG.event,'spacing',100);
+        else
+            error('Signal quality of the RR series is too low. HRV features should not be computed.')
         end
+    end
+
+
+    %%%%% MODE 3: EEG features %%%%%
+    if strcmp(params.analysis,'features') && params.eeg
 
     end
 
-    %%%%%%%%%%%%%%%%%% HRV features %%%%%%%%%%%%%%%%%%
-    if params.hrv
-
-        % if sum(sqi < .9) / length(sqi) <= .2  % FIXME: this is before interpolation so not accurate
-        params.hrv_norm = true;  % default for now
-        file_length = floor(EEG.xmax)-1;
-        if file_length < 300
-            warning('File length is shorter than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
-        end
-        params.file_length = file_length;
-
-        outputs = get_hrv(NN, NN_times, params);
-
-        % else
-        % fprintf('Signal quality index (SQI) is under threshold! Aborting HRV analysis for this file. \n')
-        % return
-        % end
-
-    end
 end
 
+disp('Done.')
 
 

@@ -8,7 +8,7 @@ dataDir = fileparts(which('pop_BrainBeats.m'));
 
 EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(dataDir,'sample_data'));
 % EEG = pop_BrainBeats(EEG);  % GUI mode
-EEG = pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG','heart_channels',{'ECG'},'vis',true);
+pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG','heart_channels',{'ECG'},'vis',true);
 
 %% MODE 2: Run HEP on sample_data2
 
@@ -21,13 +21,14 @@ pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
 outputs = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',false,'rr_correct','linear', ...
+    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true,'rr_correct','linear', ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
-    'hrv_features', {'time' 'frequency' 'nonlinear'}, 'vis',true);
+    'hrv_features', {'time' 'frequency' 'nonlinear'}, 'vis',true)
+
 
 %% Save figures (edit name)
 
-exportgraphics(gcf, fullfile('figures','clean_EEG.png'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','HEP_epoched_clean.png'),'Resolution',300)
 
 
 
