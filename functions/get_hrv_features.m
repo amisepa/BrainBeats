@@ -45,9 +45,9 @@ if params.hrv_time
 
     disp('Extracting HRV features in the time domain...')
 
-    if NN_times(end) < 300
-        warning('File length is too short to reliably estimate HRV time-domain metrics. At least 5 minutes of data are recommended (see Shaffer and Ginsberg, 2017).')
-    end
+    % if NN_times(end) < 300
+    %     warning('File length is too short to reliably estimate HRV time-domain metrics. At least 5 minutes of data are recommended (see Shaffer and Ginsberg, 2017).')
+    % end
 
     % NN statistics
     HRV.time.NN_mean = mean(NN.*1000);      % in ms

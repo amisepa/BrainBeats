@@ -320,11 +320,11 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features
         if params.eeg
-            eeg_features = get_eeg_features(EEG);
+            % eeg_features = get_eeg_features(EEG);
         end
 
         % Final output with everything
-        Features.EEG = eeg_features;
+        % Features.EEG = eeg_features;
 
     end
 
