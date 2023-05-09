@@ -2,6 +2,9 @@
 %
 % Potential names: BrainBeats, CardioNeuroSync (CNS), NeuroPulse, CardioCortex
 %
+% INPUTS: 
+%   'rr_correct' - method to interpolate RR artifacts (e.g. 'linear','cubic') 
+% 
 % Cedric Cannad, 2023
 
 function [Features, com] = pop_BrainBeats(EEG, varargin)
@@ -256,6 +259,7 @@ if contains(params.analysis, {'features' 'hep'})
 
     %%%%% MODE 3: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
+
         if SQI <= .2 % <20% of RR interval is artifacts
             
             % defaults
@@ -339,13 +343,14 @@ if contains(params.analysis, {'features' 'hep'})
                 mfe = HRV.nonlinear.MFE;
                 scales = HRV.nonlinear.MFE_scales;
                 area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-                xlabel('Time scales'); ylabel('entropy')
+                title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
 
                 set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
                 % set(gca,'FontSize',12,'layer','top','fontweight','bold');
 
             end
 
+            % Final output with everything
             Features.HRV = HRV;
 
         else
@@ -355,6 +360,18 @@ if contains(params.analysis, {'features' 'hep'})
 
     %%%%% MODE 3: EEG features %%%%%
     if strcmp(params.analysis,'features') && params.eeg
+        
+        eeg_features = get_eeg_features(EEG);
+
+
+
+
+
+
+
+
+        % Final output with everything
+        Features = EEG;
 
     end
 
