@@ -84,75 +84,27 @@ if params.vis
     end
 end
 
-%%%%%%%%%%%%% PREPROCESS DATA %%%%%%%%%%%%%
+%%%%%%%%%%%%% PREPROCESS EEG DATA %%%%%%%%%%%%%
 
 EEG.data = double(EEG.data);  % ensure double precision
-if ~iscell(params.heart_channels) params.heart_channels = {params.heart_channels}; end
+params.fs = EEG.srate;
+if ~iscell(params.heart_channels)
+    params.heart_channels = {params.heart_channels};
+end
 ECG = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
+
+% Filter, re-reference, remove bad channels
 if params.clean_eeg
-    EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',846);
-    EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
-
-    % Reference to infinity
-    if ~isfield(EEG,'ref') || isempty(EEG.ref) || strcmp(EEG.ref,'')
-        EEG = reref_inf(EEG); % my function
-    end
-
-    % Remove bad channels
-    oriEEG = EEG;
-    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',10,'ChannelCriterion',.85, ...
-        'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
-        'WindowCriterion','off','BurstRejection','off','Distance','off');
-
-    % Identify periods with large artifacts using ASR
-    % cutoff = 60;
-    % useriemannian = false;
-    % m = memory;
-    % maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)
-    % cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],false,useriemannian,maxmem);
-    % mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
-    % EEG.etc.clean_sample_mask = ~mask;
-    % badData = reshape(find(diff([false mask false])),2,[])';
-    % badData(:,2) = badData(:,2)-1;
-    % if ~isempty(badData) % ignore very small artifacts (<5 samples)
-    %     smallIntervals = diff(badData')' < 5;
-    %     badData(smallIntervals,:) = [];
-    % end
-
-    % % Remove bad segments
-    % EEG = pop_select(EEG,'nopoint',badData);
-    % if strcmp(params.analysis,'hep')
-    %     ECG = pop_select(ECG,'nopoint',badData);
-    % end
-    % fprintf('%g %% of data were considered to be large artifacts and removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
-    %
-    % % Visualize what was removed
-    if params.vis
-        vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
-    end
-
-    % Interpolate bad channels
-    EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
-    EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
-
-    % % Add ECG channels back
-    % EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
-    % EEG.nbchan = EEG.nbchan + ECG.nbchan;
-    % for iChan = 1:ECG.nbchan
-    %     EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
-    % end
-    % EEG = eeg_checkset(EEG);
-
+    params.clean_eeg_step = 0;
+    [EEG, params] = clean_eeg(EEG, params);    
 end
 
-params.fs = EEG.srate;
 
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 
 if strcmp(params.analysis,'rm_heart')
     remove_heartcomp(EEG, params);
 end
-
 
 %%%%% MODE 2 & 3: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
@@ -361,12 +313,11 @@ if contains(params.analysis, {'features' 'hep'})
     %%%%% MODE 3: EEG features %%%%%
     if strcmp(params.analysis,'features') && params.eeg
         
+        % Clean EEG data
+        [EEG, params] = clean_eeg(EEG, params);
+
+        % Extract EEG features
         eeg_features = get_eeg_features(EEG);
-
-
-
-
-
 
 
 
