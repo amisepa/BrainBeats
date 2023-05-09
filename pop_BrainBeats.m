@@ -4,9 +4,9 @@
 %
 % Cedric Cannad, 2023
 
-function [outputs, com] = pop_BrainBeats(EEG, varargin)
+function [Features, com] = pop_BrainBeats(EEG, varargin)
 
-outputs = [];
+Features = [];
 com = '';
 
 % Add path to subfolders
@@ -214,15 +214,15 @@ if contains(params.analysis, {'features' 'hep'})
     end
 
     % Outputs
-    outputs.HRV.ECG_filtered = sig_filt;
-    outputs.HRV.ECG_times = sig_t;
-    outputs.HRV.SQI = SQI;
-    outputs.HRV.RR = RR;
-    outputs.HRV.RR_times = RR_t;
-    outputs.HRV.HR = HR;
-    outputs.HRV.NN = NN;
-    outputs.HRV.NN_times = NN_times;
-    outputs.HRV.flagged_heartbeats = flagged;
+    Features.HRV.ECG_filtered = sig_filt;
+    Features.HRV.ECG_times = sig_t;
+    Features.HRV.SQI = SQI;
+    Features.HRV.RR = RR;
+    Features.HRV.RR_times = RR_t;
+    Features.HRV.HR = HR;
+    Features.HRV.NN = NN;
+    Features.HRV.NN_times = NN_times;
+    Features.HRV.flagged_heartbeats = flagged;
 
     % Plot filtered ECG and RR series of best electrode and interpolated
     % RR artifacts (if any)
@@ -255,21 +255,90 @@ if contains(params.analysis, {'features' 'hep'})
 
     %%%%% MODE 3: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
-        if SQI >= .2
-            params.hrv_norm = true;  % default for now
+        if SQI <= .2 % <20% of RR interval is artifacts
+            
+            % defaults
+            params.hrv_norm = false;  % default
+            params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
+            params.hrv_overlap =  0.25; % 25%
+
+            % File length (we take the whole series for now to allow ULF and VLF as much as possible)
             file_length = floor(EEG.xmax)-1;
             if file_length < 300
                 warning('File length is shorter than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
             end
             params.file_length = file_length;
+            
+            % Extract HRV measures
+            HRV = get_hrv_features(NN, NN_times, params);
 
-            outputs = get_hrv_features(NN, NN_times, params);
+            % Visualize HRV outputs
+            if params.vis
+                figure('color','w');
+
+                % Power spectra
+                subplot(2,2,1);
+                hold on
+                pwr = HRV.frequency.pwr;
+                bandNames = {'ULF' 'VLF' 'LH' 'HF'};
+                if isfield(HRV.frequency, 'ulf_idx')
+                    x = find(HRV.frequency.ulf_idx);
+                    y = pwr(HRV.frequency.ulf_idx);
+                    area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                else
+                    bandNames(1) = [];
+                end
+                if isfield(HRV.frequency, 'vlf_idx')
+                    x = find(HRV.frequency.vlf_idx);
+                    y = pwr(HRV.frequency.vlf_idx);
+                    area(x,y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+                else
+                    bandNames(2) = [];
+                end
+                if isfield(HRV.frequency, 'lf_idx')
+                    x = find(HRV.frequency.lf_idx);
+                    y = pwr(HRV.frequency.lf_idx);
+                    area(x,y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+                else
+                    bandNames(3) = [];
+                end
+                if isfield(HRV.frequency, 'hf_idx')
+                    x = find(HRV.frequency.hf_idx);
+                    y = pwr(HRV.frequency.hf_idx);
+                    area(x,y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+                else
+                    bandNames(4) = [];
+                end
+                xticklabels(unique(reshape(HRV.frequency.bands,1,[])));
+                xtickangle(45); axis tight; box on
+                xlabel('Frequency (Hz)');
+                if params.hrv_norm
+                    ylabel('Power (ms^2 normalized)');
+                else
+                    ylabel('Power (ms^2)');
+                end
+                legend(bandNames)
+                title(sprintf('Power spectral density - HRV'))
+
+                % Multiscale fuzzy entropy (MFE)
+                subplot(2,2,3); hold on
+                pwr = HRV.frequency.pwr;
+                x = find(HRV.frequency(1).ulf_idx);
+                y = pwr(HRV.frequency(1).ulf_idx);
+                area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                my_ticks = [x(1) x(end)];
+
+                set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+                % set(gca,'FontSize',12,'layer','top','fontweight','bold');
+
+            end
+
+            Features.HRV = HRV;
 
         else
             error('Signal quality of the RR series is too low. HRV features should not be computed.')
         end
     end
-
 
     %%%%% MODE 3: EEG features %%%%%
     if strcmp(params.analysis,'features') && params.eeg

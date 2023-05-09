@@ -79,7 +79,6 @@ if params.hrv_frequency
 
     % HRV frequency bands (ULF; VLF; LF; HF)
     bands = [ [0 .003]; [0.003 .04]; [.04 .15]; [0.15 0.40] ];  %
-    bandNames = {'ULF' 'VLF' 'LF' 'HF'};
 
     % Minimum data length requirements for each band
     % minULF = 86400;    % 24 hours
@@ -119,7 +118,7 @@ if params.hrv_frequency
                 % pwelch or FFT
                 else
                     % Resample
-                    NN_resamp = resample_NN([start_idx end_idx],NN(win_idx),7,'cub'); % resample RR
+                    NN_resamp = resample_NN([NN_times(start_idx) NN_times(end_idx)],NN(win_idx),7,'cub'); % resample RR
             
                     % Pwelch
                     if strcmp(params.hrv_spec, 'pwelch')
@@ -155,30 +154,18 @@ if params.hrv_frequency
                     HRV.frequency.hf = sum(pwr(freq_idx)*freq_res) * 1e6;    % HF
                 end
                 
-                % LF/HF ratio
-                if isfield(HRV.frequency,'lf') && isfield(HRV.frequency,'hf')
-                    HRV.frequency.lfhf = round(HRV.frequency.lf/HRV.frequency.hf * 100)/100; % LF/HF ratio
-                end
-
                 % Total power and normalize if all bands are present
                 if isfield(HRV.frequency,'ulf') && isfield(HRV.frequency,'vlf') ...
                         && isfield(HRV.frequency,'lf') && isfield(HRV.frequency,'hf')
-                    
-                    HRV.frequency.ttlpwr = sum([HRV.frequency.ulf HRV.frequency.vlf HRV.frequency.lf HRV.frequency.hf]);  % TTLPWR
 
-                    if params.norm
-                        disp('Normalizing power')
-                        HRV.frequency.ulf = HRV.frequency.ulf / HRV.frequency.ttlpwr;
-                        HRV.frequency.vlf = HRV.frequency.vlf / HRV.frequency.ttlpwr;
-                        HRV.frequency.lf = HRV.frequency.lf / HRV.frequency.ttlpwr;
-                        HRV.frequency.hf = HRV.frequency.hf / HRV.frequency.ttlpwr;
-                        HRV.frequency.lfhf = round(HRV.frequency.lf / HRV.frequency.hf *100)/100;
-                    end
                 end
+
             end
+                
         else
-            warning('File length is too short for estimating %s power reliably. At least %1.1f minutes are required. Cannot export this variable.', bandNames{iBand}, minULF/60)
+            warning('File length is too short for estimating ULF power reliably. At least %1.1f minutes are required. Cannot export this variable.', minULF/60)
         end
+
     end
 
 
@@ -190,7 +177,18 @@ if params.hrv_frequency
     % vlf = sum(pwr(vlf_idx)*space) * 1e6;    % VLF in ms^2
     % lf = sum(pwr(lf_idx)*space) * 1e6;      % LF in ms^2
     % hf = sum(pwr(hf_idx)*space) * 1e6;      % HF in ms^2
+    lfhf = round(lf/hf*100)/100;            % lf/hf ratio in ms^2
+    ttlpwr = sum([ulf vlf lf hf]);          % total power in ms^2
 
+    % Normalized
+    if params.hrv_norm
+        disp('Normalizing power')
+        ulf = ulf/ttlpwr;
+        vlf = vlf/ttlpwr;
+        lf = lf/ttlpwr;
+        hf = hf/ttlpwr;
+        lfhf = round(lf/hf *100)/100;
+    end
 
     if NN_times(end) < minVLF
         warning('File length is too short for estimating VLF power reliably. At least %1.1f minutes are required. Cannot export this variable.', minVLF/60)
@@ -283,27 +281,33 @@ end
 
 end
 
-%% Resample NN intervals to compute PSD with pwelch or FFT
+%% Resampling
+
+%   OVERVIEW: Resampling of RR intervals before to apply methods that
+%             require resampled data for frequency domain analysis
 %
 %   INPUT:
-%       win_idx         - start and end time of the NN interval
-%       NN              - vector of NN intervals to be resampled
-%       sf              - 7
-%       interp_method   - 'cub' 
-% 
+%       time_bounds  - start and end time of the NN interval
+%       rr_0         - vector of rr intervals to be resampled
+%       HRVparams   - struct of settings for hrv_toolbox analysis that can
+%                     be obtained using InitializeHRVparams.m function
+%                     HRVparams = InitializeHRVparams();
 %   OUTPUT
-%       NN_resamp      - resampled NN intervals
+%       rr_int      - resampled rr intervals
 
-function NN_resamp = resample_NN(win_idx,NN,sf,interp_method)
+function rr_int = resample_NN(time_bounds,resamp_NN,sf,interp_method)
 
-% time index
-ti = win_idx(1):1/sf:win_idx(end);     
+ti = time_bounds(1):1/sf:time_bounds(end);       % time values for interp.
 
-% Resample with interpolation method of choice
+% Chose the resampling method to use
 switch interp_method
     case 'cub'
-        NN_resamp = interp1(win_idx,NN,ti','spline')'; % cubic spline interpolation (default)
+        rr_int = interp1(t_win,resamp_NN,ti','spline')'; % cubic spline interpolation
     case 'lin'
-        NN_resamp = interp1(win_idx,NN,ti','linear')'; % linear interpolation
+        rr_int = interp1(t_win,resamp_NN,ti','linear')'; %linear interpolation
+    otherwise
+        warning('using cubic spline method')
+        rr_int = interp1(t_win,resamp_NN,ti','spline')'; % cubic spline interpolation
 end
+
 end

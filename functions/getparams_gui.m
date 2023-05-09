@@ -90,23 +90,23 @@ end
 % RR artfact correction method
 if ~isempty(params.rr_correct)
     switch params.rr_correct
-        case 'Linear interpolation'
-            params.rr_correct = 'linear';
-        case 'Cubic interpolation'
-            params.rr_correct = 'cubic';
-        case 'Nearest neighbor interpolation'
-            params.rr_correct = 'nearest';
-        case 'Next neighbor interpolation'
-            params.rr_correct = 'next';
-        case 'Previous interpolation'
-            params.rr_correct = 'previous';
-        case 'Spline interpolation'
-            params.rr_correct = 'spline';
-        case 'Shape-preserving piecewise cubic interpolation (default)'
+        case 1
             params.rr_correct = 'pchip';
-        case 'Cubic convolution interpolation'
+        case 2            
+            params.rr_correct = 'linear';
+        case 3
             params.rr_correct = 'cubic';
-        case 'Modified Akima cubic interpolation'
+        case 4
+            params.rr_correct = 'nearest';
+        case 5
+            params.rr_correct = 'next';
+        case 6
+            params.rr_correct = 'previous';
+        case 7
+            params.rr_correct = 'spline';
+        case 8
+            params.rr_correct = 'cubic';
+        case 9
             params.rr_correct = 'makima';
         case 'Remove'
             params.rr_correct = 'remove';

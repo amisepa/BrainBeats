@@ -4,9 +4,9 @@
 %
 % Cedric Cannad, 2023
 
-function [outputs, com] = pop_BrainBeats(EEG, varargin)
+function [Features, com] = pop_BrainBeats(EEG, varargin)
 
-outputs = [];
+Features = [];
 com = '';
 
 % Add path to subfolders
@@ -121,14 +121,15 @@ if params.clean_eeg
     %     ECG = pop_select(ECG,'nopoint',badData);
     % end
     % fprintf('%g %% of data were considered to be large artifacts and removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
-    % 
+    %
     % % Visualize what was removed
-    % if params.vis
-    %     vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
-    % end
+    if params.vis
+        vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
+    end
 
     % Interpolate bad channels
     EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
+    EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
 
     % % Add ECG channels back
     % EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
@@ -142,38 +143,14 @@ end
 
 params.fs = EEG.srate;
 
-%%%%%%%%%%%%% MODE 1: remove heart components from EEG signals %%%%%%%%%%%%
-if strcmp(params.analysis,'rm_heart')
-    if strcmp(params.heart_signal,'ecg')
-        dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
-        % if exist('picard.m','file')
-        %     EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
-        % else
-        EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
-        % end
+%%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 
-        % end
-        EEG = pop_iclabel(EEG,'default');
-        EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.95 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
-        heart_comp = find(EEG.reject.gcompreject);
-        EEG = eeg_checkset(EEG);
-        if params.vis, pop_selectcomps(EEG,heart_comp); end
-        if ~isempty(heart_comp)
-            fprintf('Removing %g heart component(s). \n', length(heart_comp));
-            oriEEG = EEG;
-            EEG = pop_subcomp(EEG, heart_comp, 0);  % ADD: option to keep ECG channels by adding them back?
-            if params.vis, vis_artifacts(EEG,oriEEG); end
-            EEG = pop_select(EEG,'nochannel', params.heart_channels);
-        else
-            fprintf('Sorry, no heart component was detected. Make sure the ECG channel you selected is correct. You may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended) and try again.')
-        end
-    else
-        error("This method is only supported with ECG signal")
-    end
+if strcmp(params.analysis,'rm_heart')
+    remove_heartcomp(EEG, params);
 end
 
 
-%%%%%%%%%%%%%%%%%%%% MODE 2 & 3: RR/NN intervals and SQI %%%%%%%%%%%%%%%%%%%%
+%%%%% MODE 2 & 3: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
 
     % Get RR series and signal quality index (SQI)
@@ -237,15 +214,15 @@ if contains(params.analysis, {'features' 'hep'})
     end
 
     % Outputs
-    outputs.HRV.ECG_filtered = sig_filt;
-    outputs.HRV.ECG_times = sig_t;
-    outputs.HRV.SQI = SQI;
-    outputs.HRV.RR = RR;
-    outputs.HRV.RR_times = RR_t;
-    outputs.HRV.HR = HR;
-    outputs.HRV.NN = NN;
-    outputs.HRV.NN_times = NN_times;
-    outputs.HRV.flagged_heartbeats = flagged;
+    Features.HRV.ECG_filtered = sig_filt;
+    Features.HRV.ECG_times = sig_t;
+    Features.HRV.SQI = SQI;
+    Features.HRV.RR = RR;
+    Features.HRV.RR_times = RR_t;
+    Features.HRV.HR = HR;
+    Features.HRV.NN = NN;
+    Features.HRV.NN_times = NN_times;
+    Features.HRV.flagged_heartbeats = flagged;
 
     % Plot filtered ECG and RR series of best electrode and interpolated
     % RR artifacts (if any)
@@ -255,7 +232,7 @@ if contains(params.analysis, {'features' 'hep'})
         subplot(2,1,1)
         scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
         % plot(sig_t, sig_filt,'color','#0072BD'); hold on;
-        % plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');        
+        % plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');
         % title(sprintf('Filtered ECG signal + R peaks (portion of artifacts: %1.2f%%)',SQI)); ylabel('mV'); %set(gca,'XTick',[]);
         title('Filtered ECG signal + R peaks'); ylabel('mV'); %set(gca,'XTick',[]);
 
@@ -271,95 +248,105 @@ if contains(params.analysis, {'features' 'hep'})
         set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold'); box on
     end
 
-    %%%%%%%%%%%%%%%%%% Heartbeat-evoked potentials (HEP) %%%%%%%%%%%%%%%%%%
+    %%%%% MODE 2: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
-        
-        % Add heartbeat markers in the signals, taking into account
-        % existing events
-        nEv = length(EEG.event);
-        urevents = num2cell(nEv+1:nEv+length(Rpeaks));
-        evt = num2cell(Rpeaks);
-        types = repmat({'R-peak'},1,length(evt));
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).latency] = evt{:};       % assign latencies
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).type] = types{:};        % assign types
-        [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index        
-        EEG = eeg_checkset(EEG);
-        
-        % Calculate minimum distance between R peaks (in s)
-        minEpoch = min(diff(Rpeaks)/EEG.srate);
-        
-        % Epoch
-        EEG = pop_epoch(EEG,{},[-minEpoch minEpoch],'epochinfo','yes');
+        run_HEP(EEG, params, Rpeaks)
+    end
 
-        if params.clean_eeg
+    %%%%% MODE 3: HRV features %%%%%
+    if strcmp(params.analysis,'features') && params.hrv
+        if SQI <= .2 % <20% of RR interval is artifacts
             
-            % Remove bad trials
-            disp('Looking for bad trials...')
-            b = design_fir(100,[2*[0 45 50]/EEG.srate 1],[1 1 0 0]);
-            sigRMS = rms(squeeze(rms(EEG.data,2)),1);
-            badRMS = isoutlier(sigRMS,'mean');
-            snr = nan(1,size(EEG.data,3));
-            for iEpoch = 1:size(EEG.data,3)
-                tmp = filtfilt_fast(b,1, squeeze(EEG.data(:,:,iEpoch))');
-                snr(:,iEpoch) = rms(mad(squeeze(EEG.data(:,:,iEpoch)) - tmp'));
+            % defaults
+            params.hrv_norm = false;  % default
+            params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
+            params.hrv_overlap =  0.25; % 25%
+
+            % File length (we take the whole series for now to allow ULF and VLF as much as possible)
+            file_length = floor(EEG.xmax)-1;
+            if file_length < 300
+                warning('File length is shorter than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
             end
-            badSNR = isoutlier(snr,'grubbs');
-            badTrials = unique([find(badRMS) find(badSNR)]);
-            pop_eegplot(EEG,1,1,1);
-            EEG = pop_rejepoch(EEG, badTrials, 0);
+            params.file_length = file_length;
             
-            % Run ICAlabel
-            dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
-            % if exist('picard.m','file')
-            %     EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
-            % else
-                EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
-            % end
+            % Extract HRV measures
+            HRV = get_hrv_features(NN, NN_times, params);
 
-            EEG = pop_iclabel(EEG,'default');
-            EEG = pop_icflag(EEG,[NaN NaN; .95 1; .95 1; NaN NaN; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
-            badComp = find(EEG.reject.gcompreject);
-            EEG = eeg_checkset(EEG);
-            if params.vis, pop_selectcomps(EEG,1:30); end
-            if ~isempty(badComp)
-                fprintf('Removing %g bad component(s). \n', length(badComp));
-                oriEEG = EEG;
-                EEG = pop_subcomp(EEG, badComp, 0);  % ADD: option to keep ECG channels by adding them back?
-                if params.vis, vis_artifacts(EEG,oriEEG); end
+            % Visualize HRV outputs
+            if params.vis
+                figure('color','w');
+
+                % Power spectra
+                subplot(2,2,1);
+                hold on
+                pwr = HRV.frequency.pwr;
+                bandNames = {'ULF' 'VLF' 'LH' 'HF'};
+                if isfield(HRV.frequency, 'ulf_idx')
+                    x = find(HRV.frequency.ulf_idx);
+                    y = pwr(HRV.frequency.ulf_idx);
+                    area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                else
+                    bandNames(1) = [];
+                end
+                if isfield(HRV.frequency, 'vlf_idx')
+                    x = find(HRV.frequency.vlf_idx);
+                    y = pwr(HRV.frequency.vlf_idx);
+                    area(x,y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+                else
+                    bandNames(2) = [];
+                end
+                if isfield(HRV.frequency, 'lf_idx')
+                    x = find(HRV.frequency.lf_idx);
+                    y = pwr(HRV.frequency.lf_idx);
+                    area(x,y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+                else
+                    bandNames(3) = [];
+                end
+                if isfield(HRV.frequency, 'hf_idx')
+                    x = find(HRV.frequency.hf_idx);
+                    y = pwr(HRV.frequency.hf_idx);
+                    area(x,y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+                else
+                    bandNames(4) = [];
+                end
+                xticklabels(unique(reshape(HRV.frequency.bands,1,[])));
+                xtickangle(45); axis tight; box on
+                xlabel('Frequency (Hz)');
+                if params.hrv_norm
+                    ylabel('Power (ms^2 normalized)');
+                else
+                    ylabel('Power (ms^2)');
+                end
+                legend(bandNames)
+                title(sprintf('Power spectral density - HRV'))
+
+                % Multiscale fuzzy entropy (MFE)
+                subplot(2,2,3); hold on
+                pwr = HRV.frequency.pwr;
+                x = find(HRV.frequency(1).ulf_idx);
+                y = pwr(HRV.frequency(1).ulf_idx);
+                area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                my_ticks = [x(1) x(end)];
+
+                set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+                % set(gca,'FontSize',12,'layer','top','fontweight','bold');
+
             end
-        end
 
-        if params.vis
-            pop_eegplot(EEG,1,1,1);
-            % eegplot(EEG.data,'winlength',15,'srate',EEG.srate,'events',EEG.event,'spacing',100);
+            Features.HRV = HRV;
+
+        else
+            error('Signal quality of the RR series is too low. HRV features should not be computed.')
         end
-        
-        % Save
-        newname = sprintf('%s_HEP.set', EEG.filename(1:end-4));
-        pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);
+    end
+
+    %%%%% MODE 3: EEG features %%%%%
+    if strcmp(params.analysis,'features') && params.eeg
 
     end
 
-    %%%%%%%%%%%%%%%%%% HRV features %%%%%%%%%%%%%%%%%%
-    if params.hrv
-
-        % if sum(sqi < .9) / length(sqi) <= .2  % FIXME: this is before interpolation so not accurate
-        params.hrv_norm = true;  % default for now
-        file_length = floor(EEG.xmax)-1;
-        if file_length < 300
-            warning('File length is shorter than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
-        end
-        params.file_length = file_length;
-
-        outputs = get_hrv(NN, NN_times, params);
-
-        % else
-        % fprintf('Signal quality index (SQI) is under threshold! Aborting HRV analysis for this file. \n')
-        % return
-        % end
-
-    end
 end
 
+disp('Done.')
 
 
