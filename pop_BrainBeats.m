@@ -2,6 +2,9 @@
 %
 % Potential names: BrainBeats, CardioNeuroSync (CNS), NeuroPulse, CardioCortex
 %
+% INPUTS: 
+%   'rr_correct' - method to interpolate RR artifacts (e.g. 'linear','cubic') 
+% 
 % Cedric Cannad, 2023
 
 function [Features, com] = pop_BrainBeats(EEG, varargin)

@@ -15,22 +15,23 @@ pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG','heart_channels',{
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
 % EEG = pop_BrainBeats(EEG);  % GUI mode
 pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
-    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'rr_correct','linear','vis',true);
+    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'vis',true); 
 
 %% MODE 3: Feature-based
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
-% outputs = pop_BrainBeats(EEG);  % GUI mode
-outputs = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true,'rr_correct','linear', ...
+% Features = pop_BrainBeats(EEG);  % GUI mode
+Features = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
+    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',false, ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'}, 'vis',true)
 
 
 %% Save figures (edit name)
 
-exportgraphics(gcf, fullfile('figures','ECG_RR_NN.png'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','HRV_power_entropy.png'),'Resolution',300)
 
+exportgraphics(gcf, fullfile('figures','GUI_mode3.png'),'Resolution',300)
 
 
 
