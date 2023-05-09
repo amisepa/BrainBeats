@@ -25,11 +25,6 @@ if params.clean_eeg
     [EEG, params] = clean_eeg(EEG,params);
 end
 
-if params.vis
-    pop_eegplot(EEG,1,1,1);
-    % eegplot(EEG.data,'winlength',15,'srate',EEG.srate,'events',EEG.event,'spacing',100);
-end
-
 % Save
 newname = sprintf('%s_HEP.set', EEG.filename(1:end-4));
 pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);

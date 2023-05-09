@@ -34,6 +34,7 @@ if params.clean_eeg_step == 0
     % end
     % EEG = eeg_checkset(EEG);
 
+    % update tracker
     params.clean_eeg_step = 1;
 
 % Remove bad trials for HEP, aritfacts for Features
@@ -41,6 +42,7 @@ elseif params.clean_eeg_step == 1
 
     % HEP
     if strcmp(params.analysis, 'hep')
+
         % Remove bad trials
         disp('Looking for bad trials...')
         b = design_fir(100,[2*[0 45 50]/EEG.srate 1],[1 1 0 0]);
@@ -56,37 +58,16 @@ elseif params.clean_eeg_step == 1
         % pop_eegplot(EEG,1,1,1);
         EEG = pop_rejepoch(EEG, badTrials, 0);
 
-        % Run ICAlabel
-        dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
-        if exist('picard.m','file')
-            EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
-        else
-            EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
-        end
-
-        EEG = pop_iclabel(EEG,'default');
-        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .95 1; NaN NaN; NaN NaN; NaN NaN; NaN NaN]);
-        badComp = find(EEG.reject.gcompreject);
-        EEG = eeg_checkset(EEG);
-        if params.vis, pop_selectcomps(EEG,1:6); end
-        if ~isempty(badComp)
-            fprintf('Removing %g bad component(s). \n', length(badComp));
-            oriEEG = EEG;
-            EEG = pop_subcomp(EEG, badComp, 0);
-            % if params.vis, vis_artifacts(EEG,oriEEG); end
-        end
-
-        params.clean_eeg_step = 2;
-
     % Features
     elseif strcmp(params.analysis, 'features')
 
         % Identify artifacts using ASR
-        cutoff = 20;
+        oriEEG = EEG;
+        cutoff = 30;
         useriemannian = false;
-        % m = memory;
-        % maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)
-        cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],false,useriemannian);
+        m = memory;
+        maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)
+        cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],false,useriemannian,maxmem);
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
         EEG.etc.clean_sample_mask = ~mask;
         badData = reshape(find(diff([false mask false])),2,[])';
@@ -100,12 +81,51 @@ elseif params.clean_eeg_step == 1
 
         % Remove them
         EEG = pop_select(EEG,'nopoint',badData);
-        if strcmp(params.analysis,'hep')
-            ECG = pop_select(ECG,'nopoint',badData);
+        % if strcmp(params.analysis,'hep')
+        %     ECG = pop_select(ECG,'nopoint',badData);
+        % end
+        fprintf('%g %% of data were considered to be artifacts and were removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
+        
+        if params.vis
+            vis_artifacts(EEG,oriEEG); 
         end
-        fprintf('%g %% of data were considered to be large artifacts and removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
+
+    end
+    
+    % Run IClabel
+    dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
+    if exist('picard.m','file')
+        EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
+    else
+        EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
+    end
+    EEG = pop_iclabel(EEG,'default');
+    EEG = pop_icflag(EEG,[NaN NaN; .95 1; .95 1; NaN NaN; NaN NaN; NaN NaN; NaN NaN]);
+    badComp = find(EEG.reject.gcompreject);
+    EEG = eeg_checkset(EEG);
+    
+    % Visualize tagged components
+    if params.vis
+        pop_selectcomps(EEG,1:20); 
+    end
+    
+    % Remove bad components
+    if ~isempty(badComp)
+        fprintf('Removing %g bad component(s). \n', length(badComp));
+        EEG = pop_subcomp(EEG, badComp, 0);
+    end
+    
+    % plot final cleaned data
+    if params.vis
+        if strcmp(params.analysis, 'hep')
+            pop_eegplot(EEG,1,1,1);
+        elseif strcmp(params.analysis, 'features')
+            eegplot(EEG.data,'winlength',15,'srate',EEG.srate, ...
+                'events',EEG.event,'spacing',50);
+        end
     end
 
+    % update tracker
     params.clean_eeg_step = 2;
 
-end
+end 

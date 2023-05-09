@@ -23,9 +23,9 @@ pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
 % Features = pop_BrainBeats(EEG);  % GUI mode
 Features = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',false, ...
+    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
-    'hrv_features', {'time' 'frequency' 'nonlinear'}, 'vis',true)
+    'hrv_features', {'time' 'frequency' 'nonlinear'},'vis',true)
 
 
 %% Save figures (edit name)
@@ -36,7 +36,10 @@ exportgraphics(gcf, fullfile('figures','GUI_mode3.png'),'Resolution',300)
 
 
 
-%% MODE 2: Run HEP statistics on group
+
+
+
+%% MODE 2: Run HEP anlaysis on group
 
 % Continuous data: mindwandering vs trance
 % EEG = pop_biosig('G:\Shared drives\Grants\Post Award Grants\(736) Bial Full-trance 2017\Research\Data\EEG\BDF_files\subj06_1.bdf');
@@ -50,6 +53,9 @@ for iSub = 1%1:13
                 filename = sprintf('sub-%2.2d_trance.set',iSub);
         end
         EEG = pop_loadset('filename',filename,'filepath',dataDir);
+        pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
+            'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'vis',true); 
+
     end
 end
 
