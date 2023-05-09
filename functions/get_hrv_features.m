@@ -242,7 +242,7 @@ if params.hrv_nonlinear
 
     % Multiscale fuzzy entropy
     [HRV.nonlinear.MFE, HRV.nonlinear.MFE_scales] = compute_mfe(NN, ...
-        m, r, tau, coarseType, nScales, filtData, [], n, useGPU);
+        m, r, tau, coarseType, nScales, filtData, params.fs, n, useGPU);
     % figure; area(HRV.MFE_scales, HRV.nonlinear.multiscale_fuzzy_entropy); axis tight
 
     % Phase rectified signal averaging (PRSA) (FIXME)
