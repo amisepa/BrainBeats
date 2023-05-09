@@ -55,7 +55,8 @@ uilist = { ...
 [res,~,~,params] = inputgui(uigeom,uilist,'pophelp(''pop_BrainBeats'')','BrainBeats EEGLAB plugin',EEG);
 
 % Exit if no input
-if sum([res{:}]) == 0, return; end
+% if sum([res{:}]) == 0, return; end
+if isempty(res), return; end
 
 % Analysis choice and check data compatibility for that analysis
 if params.analysis == 1
