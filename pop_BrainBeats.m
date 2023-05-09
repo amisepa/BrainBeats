@@ -256,10 +256,11 @@ if contains(params.analysis, {'features' 'hep'})
 
     %%%%% MODE 3: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
+
         if SQI <= .2 % <20% of RR interval is artifacts
             
             % defaults
-            params.hrv_norm = false;  % default
+            params.hrv_norm = true;  % default
             params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
             params.hrv_overlap =  0.25; % 25%
 
@@ -336,17 +337,17 @@ if contains(params.analysis, {'features' 'hep'})
 
                 % Multiscale fuzzy entropy (MFE)
                 subplot(2,2,3); hold on
-                pwr = HRV.frequency.pwr;
-                x = find(HRV.frequency.ulf_idx);
-                y = pwr(HRV.frequency.ulf_idx);
-                area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-                my_ticks = [x(1) x(end)];
+                mfe = HRV.nonlinear.MFE;
+                scales = HRV.nonlinear.MFE_scales;
+                area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
 
                 set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
                 % set(gca,'FontSize',12,'layer','top','fontweight','bold');
 
             end
 
+            % Final output with everything
             Features.HRV = HRV;
 
         else
@@ -356,6 +357,18 @@ if contains(params.analysis, {'features' 'hep'})
 
     %%%%% MODE 3: EEG features %%%%%
     if strcmp(params.analysis,'features') && params.eeg
+        
+        eeg_features = get_eeg_features(EEG);
+
+
+
+
+
+
+
+
+        % Final output with everything
+        Features = EEG;
 
     end
 

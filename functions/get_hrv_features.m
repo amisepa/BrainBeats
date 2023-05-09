@@ -222,9 +222,9 @@ if params.hrv_nonlinear
     SDRR = std(NN);
     SD1 = (1 / sqrt(2)) * SDSD;     % measures the width of poincare cloud
     SD2 = sqrt((2 * SDRR^2) - (0.5 * SDSD^2));      % measures the length of the poincare cloud
-    HRV.Poincare.SD1 = SD1*1000;      % in ms
-    HRV.Poincare.SD2 = SD2*1000;      % in ms
-    HRV.Poincare.SD1SD2 = SD1/SD2;
+    HRV.nonlinear.Poincare.SD1 = SD1*1000;      % in ms
+    HRV.nonlinear.Poincare.SD2 = SD2*1000;      % in ms
+    HRV.nonlinear.Poincare.SD1SD2 = SD1/SD2;
 
     % Entropy
     % FIXME: ADD CHECK THAT get_entropy plugin is installed in EEGLAB
@@ -238,10 +238,10 @@ if params.hrv_nonlinear
     useGPU = false;
 
     % Fuzzy entropy
-    HRV.nonlinear.fuzzy_entropy = compute_fe(NN, m, r, n, tau);
+    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau);
 
     % Multiscale fuzzy entropy
-    [HRV.nonlinear.multiscale_fuzzy_entropy, HRV.MFE_scales] = compute_mfe(NN, ...
+    [HRV.nonlinear.MFE, HRV.nonlinear.MFE_scales] = compute_mfe(NN, ...
         m, r, tau, coarseType, nScales, filtData, [], n, useGPU);
     % figure; area(HRV.MFE_scales, HRV.nonlinear.multiscale_fuzzy_entropy); axis tight
 

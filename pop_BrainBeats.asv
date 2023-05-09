@@ -259,7 +259,7 @@ if contains(params.analysis, {'features' 'hep'})
         if SQI <= .2 % <20% of RR interval is artifacts
             
             % defaults
-            params.hrv_norm = false;  % default
+            params.hrv_norm = true;  % default
             params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
             params.hrv_overlap =  0.25; % 25%
 
@@ -284,9 +284,9 @@ if contains(params.analysis, {'features' 'hep'})
                 freqs = HRV.frequency.pwr_freqs;
                 bandNames = {'ULF' 'VLF' 'LF' 'HF'};
 
-                idx = strcmp(bandNames,'ULF');
+                idx = find(strcmp(bandNames,'ULF'));
                 if isfield(HRV.frequency, 'ulf_idx')
-                    x = find(HRV.frequency.ulf_idx);
+                    x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
                     y = pwr(HRV.frequency.ulf_idx);
                     area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
                 else
@@ -294,9 +294,9 @@ if contains(params.analysis, {'features' 'hep'})
                     HRV.frequency.bands(idx,:) = [];
                 end
 
-                idx = strcmp(bandNames,'VLF');
+                idx = find(strcmp(bandNames,'VLF'));
                 if isfield(HRV.frequency, 'vlf_idx')
-                    x = find(HRV.frequency.vlf_idx);
+                    x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
                     y = pwr(HRV.frequency.vlf_idx);
                     area(x,y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
                 else
@@ -304,19 +304,19 @@ if contains(params.analysis, {'features' 'hep'})
                     HRV.frequency.bands(idx,:) = [];
                 end
                 
-                idx = strcmp(bandNames,'LF');
+                idx = find(strcmp(bandNames,'LF'));
                 if isfield(HRV.frequency, 'lf_idx')
                     x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
-                    y = pwr(:,freqs >= 0.04 & freqs <= 0.15);
+                    y = pwr(freqs >= 0.04 & freqs <= 0.15);
                     area(x,y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
                 else
                     bandNames(idx) = [];
                     HRV.frequency.bands(idx,:) = [];
                 end
 
-                idx = strcmp(bandNames,'HF');
+                idx = find(strcmp(bandNames,'HF'));
                 if isfield(HRV.frequency, 'hf_idx')
-                    x = find(freqs >= 0.15 & freqs <= 0.4);
+                    x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
                     y = pwr(freqs >= 0.15 & freqs <= 0.4);
                     area(x,y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
                 else
@@ -336,11 +336,10 @@ if contains(params.analysis, {'features' 'hep'})
 
                 % Multiscale fuzzy entropy (MFE)
                 subplot(2,2,3); hold on
-                pwr = HRV.frequency.pwr;
-                x = find(HRV.frequency.ulf_idx);
-                y = pwr(HRV.frequency.ulf_idx);
-                area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-                my_ticks = [x(1) x(end)];
+                mfe = HRV.nonlinear.MFE;
+                scales = HRV.nonlinear.MFE_scales;
+                area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                xlabel('Time scales'); ylabel('entropy')
 
                 set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
                 % set(gca,'FontSize',12,'layer','top','fontweight','bold');
