@@ -8,7 +8,8 @@ dataDir = fileparts(which('pop_BrainBeats.m'));
 
 EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(dataDir,'sample_data'));
 % EEG = pop_BrainBeats(EEG);  % GUI mode
-pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG','heart_channels',{'ECG'},'vis',true);
+pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',false,'vis',true);
 
 %% MODE 2: Run HEP on sample_data2
 
