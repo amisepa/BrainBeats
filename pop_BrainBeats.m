@@ -84,6 +84,7 @@ end
 %%%%%%%%%%%%% PREPROCESS DATA %%%%%%%%%%%%%
 
 EEG.data = double(EEG.data);  % ensure double precision
+if ~iscell(params.heart_channels) params.heart_channels = { params.heart_channels }; end
 ECG = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
 if params.clean_eeg
     EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',846);
