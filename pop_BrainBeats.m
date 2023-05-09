@@ -294,7 +294,7 @@ if contains(params.analysis, {'features' 'hep'})
                 subplot(2,2,3); hold on
                 mfe = HRV.nonlinear.MFE;
                 scales = HRV.nonlinear.MFE_scales;
-                area(scales,[mfe;mfe],'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
                 title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
 
                 set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
@@ -360,7 +360,7 @@ if contains(params.analysis, {'features' 'hep'})
             bandNames(idx) = [];
             HRV.frequency.bands(idx,:) = [];
         end
-
+        
         idx = find(strcmp(bandNames,'LF'));
         if isfield(HRV.frequency, 'lf_idx')
             x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));

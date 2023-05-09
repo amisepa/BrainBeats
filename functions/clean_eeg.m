@@ -3,7 +3,7 @@ function [EEG, params] = clean_eeg(EEG, params)
 % Remove bad channels
 if params.clean_eeg_step == 0
 
-    EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',846);
+    EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',1650);
     EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
 
     % Reference to infinity

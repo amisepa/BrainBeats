@@ -226,8 +226,7 @@ if params.hrv_nonlinear
     HRV.nonlinear.Poincare.SD2 = SD2*1000;      % in ms
     HRV.nonlinear.Poincare.SD1SD2 = SD1/SD2;
 
-    % Entropy
-    % FIXME: ADD CHECK THAT get_entropy plugin is installed in EEGLAB
+    % Entropy (FIXME: install get_entropy plugin if not already installed)
     tau = 1;
     m = 2;
     coarseType = 'Standard deviation';
@@ -236,14 +235,14 @@ if params.hrv_nonlinear
     n = 2;
     filtData = false;
     useGPU = false;
-
     % Fuzzy entropy
     HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau);
-
     % Multiscale fuzzy entropy
     [HRV.nonlinear.MFE, HRV.nonlinear.MFE_scales] = compute_mfe(NN, ...
         m, r, tau, coarseType, nScales, filtData, params.fs, n, useGPU);
     % figure; area(HRV.MFE_scales, HRV.nonlinear.multiscale_fuzzy_entropy); axis tight
+    
+
 
     % Phase rectified signal averaging (PRSA) (FIXME)
     thresh = 20;
