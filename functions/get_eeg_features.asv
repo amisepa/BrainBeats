@@ -1,0 +1,46 @@
+%% Extract EEG features in time, fequency, and nonlinear domains. 
+
+function EEG = get_eeg_features(signals,times,fs)
+
+
+% Time domain
+EEG.time.mean = mean(signals,2); 
+EEG.time.trimmed_mean = trimmean(signals,20,2); 
+EEG.time.median = median(signals,2); 
+EEG.time.mode = mode(signals,2); 
+EEG.time.var = var(signals,0,2); 
+EEG.time.skewness = skewness(signals,0,2); 
+EEG.time.kurtosis = kurtosis(signals,0,2); 
+EEG.time.iqr = iqr(signals,2); 
+
+
+% Frequency domain
+nChan = size(signals,1);
+fRange = [1 45];    % WARNING: make sure these are within filtered signal
+winSize = 2;        % window size (in s). default = 2 (recommended by Smith et al (2017)
+winType = 'hamming';
+overlap = 50;       % 50% default (Smith et al. 2017)
+
+pwr = zeros(nChan, 90);
+disp('Computing power spectral density (PSD) on EEG data...')
+for iChan = 1:nChan
+
+    % Compute PSD using pwelch
+    [pwr(iChan,:), freqs] = get_psd(signals(iChan,:),fs*winSize,winType,overlap,[],fs,fRange,'psd');
+
+    % Delta
+    idx = freqs >= 1 & freqs <= 3;
+    EEG.frequency(iChan,:).delta = pwr(iChan,idx);
+
+    % Theta
+    idx = freqs >= 3.5 & freqs <= ;
+    EEG.frequency(iChan,:).delta = pwr(iChan,idx);
+end
+
+
+
+
+
+
+
+

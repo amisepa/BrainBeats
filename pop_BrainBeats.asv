@@ -229,9 +229,83 @@ if contains(params.analysis, {'features' 'hep'})
             % Extract HRV measures
             HRV = get_hrv_features(NN, NN_times, params);
 
+            % Visualize HRV outputs
+            if params.vis
+                figure('color','w');
+
+                % Power spectra
+                subplot(2,2,1);
+                hold on
+                pwr = HRV.frequency.pwr; % power already averaged across windows
+                freqs = HRV.frequency.pwr_freqs;
+                bandNames = {'ULF' 'VLF' 'LF' 'HF'};
+                bands = HRV.frequency.bands;
+
+                idx = find(strcmp(bandNames,'ULF'));
+                if isfield(HRV.frequency, 'ulf')
+                    x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
+                    y = pwr(x);
+                    area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                else
+                    bandNames(idx) = [];
+                    bands(idx,:) = [];
+                end
+
+                idx = find(strcmp(bandNames,'VLF'));
+                if isfield(HRV.frequency, 'vlf')
+                    x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
+                    y = pwr(x);
+                    area(x,y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+                else
+                    bandNames(idx) = [];
+                    bands(idx,:) = [];
+                end
+                
+                idx = find(strcmp(bandNames,'LF'));
+                if isfield(HRV.frequency, 'lf')
+                    x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
+                    y = pwr(x);
+                    area(x,y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+                else
+                    bandNames(idx) = [];
+                    bands(idx,:) = [];
+                end
+
+                idx = find(strcmp(bandNames,'HF'));
+                if isfield(HRV.frequency, 'hf')
+                    x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
+                    y = pwr(x);
+                    area(x,y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+                else
+                    bandNames(idx) = [];
+                    bands(idx,:) = [];
+                end
+                legend(bandNames)
+                xticklabels(unique(reshape(bands,1,[])));
+                xtickangle(45); axis tight; box on
+                xlabel('Frequency (Hz)');
+                if params.hrv_norm
+                    ylabel('Power (ms^2 normalized)');
+                else
+                    ylabel('Power (ms^2)');
+                end
+                title(sprintf('Power spectral density - HRV'))
+
+                % Multiscale fuzzy entropy (MFE)
+                subplot(2,2,3); hold on
+                mfe = HRV.nonlinear.MFE;
+                scales = HRV.nonlinear.MFE_scales;
+                area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+                title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
+
+                set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+                % set(gca,'FontSize',12,'layer','top','fontweight','bold');
+
+            end
+
             % Final output with everything
             Features.HRV = HRV;
-            
+
         else
             error('Signal quality of the RR series is too low. HRV features should not be computed.')
         end
@@ -247,11 +321,11 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features
         if params.eeg
-            eeg_features = get_eeg_features(EEG.data, EEG.times, EEG.srate);
+            % eeg_features = get_eeg_features(EEG);
         end
 
         % Final output with everything
-        Features.EEG = eeg_features;
+        % Features.EEG = eeg_features;
 
     end
 
@@ -262,53 +336,53 @@ if contains(params.analysis, {'features' 'hep'})
         figure('color','w');
 
         % Power spectra
-        subplot(2,2,1); hold on
+        subplot(2,2,1);
+        hold on
         pwr = HRV.frequency.pwr; % power already averaged across windows
         freqs = HRV.frequency.pwr_freqs;
         bandNames = {'ULF' 'VLF' 'LF' 'HF'};
-        bands = HRV.frequency.bands;
 
         idx = find(strcmp(bandNames,'ULF'));
-        if isfield(HRV.frequency, 'ulf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+        if isfield(HRV.frequency, 'ulf_idx')
+            x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
+            y = pwr(HRV.frequency.ulf_idx);
+            area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
         else
             bandNames(idx) = [];
-            bands(idx,:) = [];
+            HRV.frequency.bands(idx,:) = [];
         end
 
         idx = find(strcmp(bandNames,'VLF'));
-        if isfield(HRV.frequency, 'vlf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+        if isfield(HRV.frequency, 'vlf_idx')
+            x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
+            y = pwr(HRV.frequency.vlf_idx);
+            area(x,y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
         else
             bandNames(idx) = [];
-            bands(idx,:) = [];
+            HRV.frequency.bands(idx,:) = [];
         end
         
         idx = find(strcmp(bandNames,'LF'));
-        if isfield(HRV.frequency, 'lf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+        if isfield(HRV.frequency, 'lf_idx')
+            x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
+            y = pwr(freqs >= 0.04 & freqs <= 0.15);
+            area(x,y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
         else
             bandNames(idx) = [];
-            bands(idx,:) = [];
+            HRV.frequency.bands(idx,:) = [];
         end
 
         idx = find(strcmp(bandNames,'HF'));
-        if isfield(HRV.frequency, 'hf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+        if isfield(HRV.frequency, 'hf_idx')
+            x = find(freqs >= HRV.frequency.bands(idx,1) & freqs <= HRV.frequency.bands(idx,2));
+            y = pwr(freqs >= 0.15 & freqs <= 0.4);
+            area(x,y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
         else
             bandNames(idx) = [];
-            bands(idx,:) = [];
+            HRV.frequency.bands(idx,:) = [];
         end
         legend(bandNames)
-        xticklabels(unique(reshape(bands,1,[])));
+        xticklabels(unique(reshape(HRV.frequency.bands,1,[])));
         xtickangle(45); axis tight; box on
         xlabel('Frequency (Hz)');
         if params.hrv_norm
@@ -319,9 +393,9 @@ if contains(params.analysis, {'features' 'hep'})
         title(sprintf('Power spectral density - HRV'))
 
         % Multiscale fuzzy entropy (MFE)
-        subplot(2,2,2); hold on
+        subplot(2,2,3); hold on
         mfe = HRV.nonlinear.MFE;
-        scales = HRV.nonlinear.MFE_scales;
+        scales = HRV.nonlinear.MFE_scales(1,:);
         area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
         title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
 

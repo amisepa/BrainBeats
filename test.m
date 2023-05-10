@@ -20,21 +20,20 @@ pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
 
 %% MODE 3: Feature-based
 
-
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
 % Features = pop_BrainBeats(EEG);  % GUI mode
 Features = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
-    'hrv_features', {'time' 'frequency' 'nonlinear'},'vis',true)
+    'hrv_features', {'time' 'frequency' 'nonlinear'},'vis',true);
 
-%% MODE 3: Feature-based
+%% MODE 3: Feature-based (Arno's file)
 
 EEG = pop_loadset('filename','sub-024_task-Post1_eeg.set','filepath','C:\Users\Tracy\Downloads');
 Features = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG'}, 'clean_eeg',false, ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
-    'hrv_features', {'time' 'frequency' 'nonlinear'},'vis',true)
+    'hrv_features', {'time' 'frequency' 'nonlinear'},'vis',true);
 
 
 %% Save figures (edit name)

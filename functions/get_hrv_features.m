@@ -76,7 +76,7 @@ if params.hrv_frequency
     disp('Extracting HRV features in the frequency domain...')
 
     % HRV frequency bands (ULF; VLF; LF; HF)
-    bands = [ [0 .003]; [0.003 .04]; [.04 .15]; [0.15 0.40] ];  %
+    bands = [ 0 .003; 0.003 .04; .04 .15; 0.15 0.40 ];
     bandNames = {'ULF' 'VLF' 'LF' 'HF'};
 
     % Minimum data length requirements for each band
@@ -143,16 +143,16 @@ if params.hrv_frequency
 
                 % Power for each band in ms^2
                 if iBand == 1
-                    HRV.frequency.ulf_idx = freq_idx;
+                    % HRV.frequency.ulf_idx = freq_idx;
                     HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % ULF
                 elseif iBand == 2
-                    HRV.frequency.vlf_idx = freq_idx;
+                    % HRV.frequency.vlf_idx = freq_idx;
                     HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % VLF
                 elseif iBand == 3
-                    HRV.frequency.lf_idx = freq_idx;
+                    % HRV.frequency.lf_idx = freq_idx;
                     HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % LF
                 elseif iBand == 4
-                    HRV.frequency.hf_idx = freq_idx;
+                    % HRV.frequency.hf_idx = freq_idx;
                     HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % HF
                 end
                 
@@ -230,7 +230,7 @@ if params.hrv_nonlinear
     tau = 1;
     m = 2;
     coarseType = 'Standard deviation';
-    nScales = 30;
+    nScales = 20;
     r = .15;
     n = 2;
     filtData = false;
