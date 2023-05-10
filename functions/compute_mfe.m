@@ -27,7 +27,7 @@
 %
 % Cedric Cannard, 2022
 
-function [mfe, scales] = compute_mfe(signal, m, r, tau, coarseType, nScales, filtData, fs, n, usegpu)
+function [mfe, scales] = compute_mfe(signal, m, r, tau, coarseType, nScales, filtData, fs, n, useGPU)
 
 % FIXME: Determine max number of scales using file length. As a rough guideline, 
 % some researchers suggest having at least 10 times as many data points as 
@@ -36,6 +36,9 @@ function [mfe, scales] = compute_mfe(signal, m, r, tau, coarseType, nScales, fil
 % least 20 data points in each coarse-grained time series. So, the maximum 
 % scale factor τ_max that you could use would be approximately N/20 when 
 % using an embedding dimension of 2.
+
+% Lowest_freq = 1 / (length(signal)/1000)
+% highest_freq = fs / (2*nScales)
 
 if ~exist('m','var'), m = 2; end
 if ~exist('r','var'), r = .15; end
@@ -48,6 +51,16 @@ if exist('fs','var')
     nf = fs/2;
     if nScales >= nf
         warning("Scale factor cannot be as high as the Nyquist frequency. Lowering it to %g", nf-1);
+    end
+end
+
+% Move it to GPU if applicable
+if useGPU && length(signal) > 1000
+    try
+        signal = gpuArray(signal);
+        disp('Using GPU computing')
+    catch
+        disp('Could not use GPU computing.')
     end
 end
 
@@ -68,15 +81,6 @@ for iScale = 1:nScales
     % Make copy of signal in case it is bandpass-filtered at each scale
     sig = signal;
 
-    % Move it to GPU if applicable
-    if usegpu && length(signal) > 1000
-        try
-            sig = gpuArray(sig);
-            disp('Using GPU computing')
-        catch
-            disp('Could not use GPU computing.')
-        end
-    end
 
     % Bandpass filter outside these bounds to control for spectral bias (see Kosciessa et al 2020)
     if filtData
@@ -142,7 +146,7 @@ for iScale = 1:nScales
             sig = var(y,'omitnan');
     end
 
-    mfe(:,iScale) = compute_fe(sig, m, r, n, tau);
+    mfe(:,iScale) = compute_fe(sig, m, r, n, tau,useGPU);
 
 end
 

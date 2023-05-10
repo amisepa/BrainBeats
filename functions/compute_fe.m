@@ -11,6 +11,7 @@
 %   fe  - scalar quantity - the FuzEn of x
 %   p   - a vector of length 2 (the global quantity in dimension m, the
 %           global quantity in dimension m+1)
+%   useGPU - use GPU computing (true) or not (false)
 %
 % Based on:
 %   [1] H. Azami and J. Escudero, "Refined Multiscale Fuzzy Entropy based on Standard Deviation for Biomedical Signal Analysis", 
@@ -20,13 +21,17 @@
 % 
 % Cedric Cannard
 
-function [fe, p] = compute_fe(signal,m,r,n,tau)
+function [fe, p] = compute_fe(signal,m,r,n,tau,useGPU)
 
 if ~exist('m','var'), m = 2; end
 if ~exist('r','var'), r = .15; end
 if ~exist('n','var'), n = 2; end
 if ~exist('tau','var'), tau = 1; end
 if tau > 1, signal = downsample(signal, tau); end
+
+if useGPU
+    signal = gpuArray(signal);
+end
 
 % z-score signal
 signal = zscore(signal);  % remove mean and divide by sd

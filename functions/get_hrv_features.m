@@ -236,7 +236,7 @@ if params.hrv_nonlinear
     filtData = false;
     useGPU = false;
     % Fuzzy entropy
-    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau);
+    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau,useGPU);
     % Multiscale fuzzy entropy
     [HRV.nonlinear.MFE, HRV.nonlinear.MFE_scales] = compute_mfe(NN, ...
         m, r, tau, coarseType, nScales, filtData, params.fs, n, useGPU);

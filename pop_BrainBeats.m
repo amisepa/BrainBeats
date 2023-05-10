@@ -9,12 +9,14 @@
 
 function [Features, com] = pop_BrainBeats(EEG, varargin)
 
+pop_editoptions('option_single', 0); % ensure double precision
 Features = [];
 com = '';
 
 % Add path to subfolders
 mainpath = fileparts(which('pop_BrainBeats.m'));
 addpath(fullfile(mainpath, 'functions'));
+addpath(fullfile(mainpath, 'functions', 'restingIAF'));
 
 % Basic checks
 if ~exist('EEG','var')
@@ -247,13 +249,14 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features
         if params.eeg
-            eeg_features = get_eeg_features(EEG.data, EEG.times, EEG.srate);
+            eeg_features = get_eeg_features(EEG.data, EEG.times, params);
         end
 
         % Final output with everything
         Features.EEG = eeg_features;
 
     end
+
 
     %%%%%% PLOT EEG AND HRV FEATURES %%%%%%%
 
