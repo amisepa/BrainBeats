@@ -2,24 +2,33 @@ function [EEG, params] = clean_eeg(EEG, params)
 
 % Remove bad channels
 if params.clean_eeg_step == 0
-
+    
     EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',1650);
     EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
-
+    
     % Reference to infinity
     if ~isfield(EEG,'ref') || isempty(EEG.ref) || strcmp(EEG.ref,'')
-        EEG = reref_inf(EEG); % my function
+        if EEG.nbchan >= 30
+            EEG = reref_inf(EEG); % my function
+        else
+            warning('Cannot reference these EEG data to infinity as low-density montages. Low-density montages require alternative referencing (e.g., linked mastoids).')
+        end
     end
-
+    
     % Remove bad channels
     oriEEG = EEG;
-    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',10,'ChannelCriterion',.85, ...
+    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
         'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
-        'WindowCriterion','off','BurstRejection','off','Distance','off');
-
+        'WindowCriterion','off','BurstRejection','off','Distance','off');    
+    badChan = ~contains({oriEEG.chanlocs.labels}, {EEG.chanlocs.labels});
+    fprintf(1, 'Bad channels were: ');
+    fprintf(1, '%s ', oriEEG.chanlocs(badChan).labels )
+    fprintf(1, '\n')
+    
     % Visualize removed channels
     if params.vis
-        vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
+        vis_artifacts(EEG,oriEEG);
+        % vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
     end
 
     % Interpolate them

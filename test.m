@@ -14,6 +14,8 @@ pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG', ...
 %% MODE 2: Run HEP on sample_data2
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
+% EEG.data(10,:) = EEG.data(10,:).*15;
+% EEG.data(35,:) = EEG.data(35,:).*15;
 % EEG = pop_BrainBeats(EEG);  % GUI mode
 pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
     'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'vis',true); 
