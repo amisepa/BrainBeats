@@ -64,7 +64,7 @@ if useGPU && length(signal) > 1000
     end
 end
 
-% Signal is centered and normalised to standard deviation 1
+% Center and normalize signal to SD of 1
 signal = zscore(signal);
 
 % Simplify SD coarse-graining name
@@ -152,11 +152,10 @@ end
 
 % scale numbers instead of freqs for NN series
 if ~filtData
-    scales = 1:nScales;
+    scales(~isnan(mfe)) = find(~isnan(mfe));
 end
 
 % Remove NaN scales
-idx = isnan(mfe);    
-mfe(idx) = [];
-scales(idx) = [];
+scales(isnan(mfe)) = [];
+mfe(isnan(mfe)) = [];
 
