@@ -259,11 +259,11 @@ if contains(params.analysis, {'features' 'hep'})
 
 
     %%%%%% PLOT EEG AND HRV FEATURES %%%%%%%
-
+    
     % Visualize HRV outputs
     if strcmp(params.analysis,'features') && params.vis
         figure('color','w');
-
+        
         % Power spectra
         subplot(2,2,1); hold on
         pwr = HRV.frequency.pwr; % power already averaged across windows

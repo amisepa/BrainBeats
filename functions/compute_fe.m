@@ -39,14 +39,14 @@ signal = zscore(signal);  % remove mean and divide by sd
 N = length(signal);
 p = zeros(1,2);
 xMat = zeros(m+1,N-m);
-for i = 1:m+1
+parfor i = 1:m+1
     xMat(i,:) = signal(i:N-m+i-1);
 end
 
 for k = m:m+1
     count = zeros(1,N-m);
     tmp = xMat(1:k,:);
-    for i = 1:N-k
+    parfor i = 1:N-k
 
         % calculate Chebyshev distance without counting self-matches
         dist = max(abs(tmp(:,i+1:N-m) - repmat(tmp(:,i),1,N-m-i)));

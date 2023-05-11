@@ -30,28 +30,24 @@ for iChan = 1:nChan
     
     fprintf('EEG CHANNEL %g \n', iChan)
     
-    % Compute PSD using pwelch
-    [pwr(iChan,:), pwr_dB(iChan,:), freqs] = compute_psd(signals(iChan,:), ...
-        fs*winSize,winType,overlap,[],fs,fRange,'psd', useGPU);
-    
-    % if params.norm
-    %     pwr = 10*log10(pwr);
-    % end
-    
-    % Delta
-    EEG.frequency(iChan,:).delta = pwr_dB(iChan,freqs >= fRange(1) & freqs <= 3);
-    
-    % Theta
-    EEG.frequency(iChan,:).theta = pwr_dB(iChan,freqs >= 3 & freqs <= 7);
-    
-    % Alpha
-    EEG.frequency(iChan,:).alpha = pwr_dB(iChan,freqs >= 8 & freqs <= 13);
-    
-    % Beta
-    EEG.frequency(iChan,:).beta = pwr_dB(iChan,freqs >= 13 & freqs <= 30);
-
-    % Low gamma
-    EEG.frequency(iChan,:).gamma = pwr_dB(iChan,freqs >= 31 & freqs <= fRange(2));
+    % % Compute PSD using pwelch
+    % [pwr(iChan,:), pwr_dB(iChan,:), freqs] = compute_psd(signals(iChan,:), ...
+    %     fs*winSize,winType,overlap,[],fs,fRange,'psd', useGPU);
+    % 
+    % % Delta
+    % EEG.frequency(iChan,:).delta = pwr_dB(iChan,freqs >= fRange(1) & freqs <= 3);
+    % 
+    % % Theta
+    % EEG.frequency(iChan,:).theta = pwr_dB(iChan,freqs >= 3 & freqs <= 7);
+    % 
+    % % Alpha
+    % EEG.frequency(iChan,:).alpha = pwr_dB(iChan,freqs >= 8 & freqs <= 13);
+    % 
+    % % Beta
+    % EEG.frequency(iChan,:).beta = pwr_dB(iChan,freqs >= 13 & freqs <= 30);
+    % 
+    % % Low gamma
+    % EEG.frequency(iChan,:).gamma = pwr_dB(iChan,freqs >= 31 & freqs <= fRange(2));
     
     % Fuzzy entropy
     m = 2;
@@ -87,7 +83,7 @@ for iChan = 1:nChan
         % warning('Lowest frequency captured by MFE after downsampling = %g', )
         
         % Fuzzy entropy
-        EEG.nonlinear(iChan,:).FE = compute_fe(signals_res(iChan,:), m, r, n, tau,useGPU);
+        % EEG.nonlinear(iChan,:).FE = compute_fe(signals_res(iChan,:), m, r, n, tau,useGPU);
         
         % Multiscale fuzzy entropy
         [EEG.nonlinear(iChan,:).MFE, EEG.nonlinear(iChan,:).MFE_scales] = compute_mfe(signals_res(iChan,:), ...
@@ -96,7 +92,7 @@ for iChan = 1:nChan
 
     else
         % Fuzzy entropy
-        EEG.nonlinear(iChan,:).FE = compute_fe(signals(iChan,:), m, r, n, tau,useGPU);
+        % EEG.nonlinear(iChan,:).FE = compute_fe(signals(iChan,:), m, r, n, tau,useGPU);
         
         % Multiscale fuzzy entropy
         [EEG.nonlinear(iChan,:).MFE, EEG.nonlinear(iChan,:).MFE_scales] = compute_mfe(signals(iChan,:), ...
@@ -112,6 +108,13 @@ end
 % IAF
 [pSum, pChans, f] = restingIAF(signals, size(signals,1), 3, [1 30], fs, [7 13], 11, 5)
 
+
+
+% Asymmetry (use log(pwr) no pwr_dB)
+
+
+
+% EEG coherence
 
 
 

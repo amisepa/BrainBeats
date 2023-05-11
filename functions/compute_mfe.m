@@ -74,7 +74,7 @@ end
 
 mfe = nan(1,nScales);
 scales = nan(1,nScales);
-for iScale = 1:nScales
+parfor iScale = 1:nScales
 
     fprintf('   scale %d \n', iScale)
   
