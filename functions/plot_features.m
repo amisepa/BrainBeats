@@ -1,4 +1,4 @@
-function plot_features(Features)
+function plot_features(Features,params)
 
 HRV = Features.HRV;
 eeg_features = Features.EEG;
