@@ -1,20 +1,20 @@
 %% Extract EEG features in time, fequency, and nonlinear domains. 
 
-function EEG = get_eeg_features(signals,times,params)
+function eeg_features = get_eeg_features(signals,times,params)
 
 disp('Extracting EEG features...')
 
 fs = params.fs; 
 
 % Time domain
-EEG.time.mean = mean(signals,2); 
-EEG.time.trimmed_mean = trimmean(signals,20,2); 
-EEG.time.median = median(signals,2); 
-EEG.time.mode = mode(signals,2); 
-EEG.time.var = var(signals,0,2); 
-EEG.time.skewness = skewness(signals,0,2); 
-EEG.time.kurtosis = kurtosis(signals,0,2); 
-EEG.time.iqr = iqr(signals,2); 
+eeg_features.time.mean = mean(signals,2); 
+eeg_features.time.trimmed_mean = trimmean(signals,20,2); 
+eeg_features.time.median = median(signals,2); 
+eeg_features.time.mode = mode(signals,2); 
+eeg_features.time.var = var(signals,0,2); 
+eeg_features.time.skewness = skewness(signals,0,2); 
+eeg_features.time.kurtosis = kurtosis(signals,0,2); 
+eeg_features.time.iqr = iqr(signals,2); 
 
 
 % Frequency domain
@@ -31,23 +31,26 @@ for iChan = 1:nChan
     fprintf('EEG CHANNEL %g \n', iChan)
     
     % % Compute PSD using pwelch
-    % [pwr(iChan,:), pwr_dB(iChan,:), freqs] = compute_psd(signals(iChan,:), ...
-    %     fs*winSize,winType,overlap,[],fs,fRange,'psd', useGPU);
-    % 
+    [pwr(iChan,:), pwr_dB(iChan,:), freqs] = compute_psd(signals(iChan,:), ...
+            fs*winSize,winType,overlap,[],fs,fRange,'psd', useGPU);
+    eeg_features.frequency.pwr(iChan,:) = pwr(iChan,:);
+    eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB(iChan,:);
+    eeg_features.frequency.freqs(iChan,:) = freqs;
+    
     % % Delta
-    % EEG.frequency(iChan,:).delta = pwr_dB(iChan,freqs >= fRange(1) & freqs <= 3);
+    % EEG.frequency.delta(iChan,:) = pwr_dB(iChan,freqs >= fRange(1) & freqs <= 3);
     % 
     % % Theta
-    % EEG.frequency(iChan,:).theta = pwr_dB(iChan,freqs >= 3 & freqs <= 7);
+    % EEG.frequency.theta(iChan,:) = pwr_dB(iChan,freqs >= 3 & freqs <= 7);
     % 
     % % Alpha
-    % EEG.frequency(iChan,:).alpha = pwr_dB(iChan,freqs >= 8 & freqs <= 13);
+    % EEG.frequency.alpha(iChan,:) = pwr_dB(iChan,freqs >= 8 & freqs <= 13);
     % 
     % % Beta
-    % EEG.frequency(iChan,:).beta = pwr_dB(iChan,freqs >= 13 & freqs <= 30);
+    % EEG.frequency.beta(iChan,:) = pwr_dB(iChan,freqs >= 13 & freqs <= 30);
     % 
     % % Low gamma
-    % EEG.frequency(iChan,:).gamma = pwr_dB(iChan,freqs >= 31 & freqs <= fRange(2));
+    % EEG.frequency.gamma(iChan,:) = pwr_dB(iChan,freqs >= 31 & freqs <= fRange(2));
     
     % Fuzzy entropy
     m = 2;
@@ -83,19 +86,19 @@ for iChan = 1:nChan
         % warning('Lowest frequency captured by MFE after downsampling = %g', )
         
         % Fuzzy entropy
-        % EEG.nonlinear(iChan,:).FE = compute_fe(signals_res(iChan,:), m, r, n, tau,useGPU);
+        % EEG.nonlinear.FE(iChan,:) = compute_fe(signals_res(iChan,:), m, r, n, tau,useGPU);
         
         % Multiscale fuzzy entropy
-        [EEG.nonlinear(iChan,:).MFE, EEG.nonlinear(iChan,:).MFE_scales] = compute_mfe(signals_res(iChan,:), ...
+        [eeg_features.nonlinear.MFE(iChan,:), eeg_features.nonlinear.MFE_scales(iChan,:)] = compute_mfe(signals_res(iChan,:), ...
             m, r, tau, coarseType, nScales, filtData, fs, n, useGPU);
-        % figure; plot(EEG.nonlinear(iChan,:).MFE_scales,EEG.nonlinear(iChan,:).MFE);
+        % figure; plot(EEG.nonlinear.MFE_scales(iChan,:),EEG.nonlinear.MFE(iChan,:));
 
     else
         % Fuzzy entropy
-        % EEG.nonlinear(iChan,:).FE = compute_fe(signals(iChan,:), m, r, n, tau,useGPU);
+        % EEG.nonlinear.FE(iChan,:) = compute_fe(signals(iChan,:), m, r, n, tau,useGPU);
         
         % Multiscale fuzzy entropy
-        [EEG.nonlinear(iChan,:).MFE, EEG.nonlinear(iChan,:).MFE_scales] = compute_mfe(signals(iChan,:), ...
+        [eeg_features.nonlinear.MFE(iChan,:), eeg_features.nonlinear(iChan,:).MFE_scales] = compute_mfe(signals(iChan,:), ...
             m, r, tau, coarseType, nScales, filtData, fs, n, useGPU);
         
     end
@@ -106,9 +109,9 @@ for iChan = 1:nChan
 end
 
 % IAF
-[pSum, pChans, f] = restingIAF(signals, size(signals,1), 3, [1 30], fs, [7 13], 11, 5)
-
-
+[pSum, pChans, f] = restingIAF(signals, size(signals,1), 3, [1 30], fs, [7 13], 11, 5);
+eeg_features.frequency.IAF_mean = pSum.cog;
+eeg_features.frequency.IAF = [pChans.gravs];
 
 % Asymmetry (use log(pwr) no pwr_dB)
 

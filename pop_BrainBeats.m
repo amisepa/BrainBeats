@@ -242,7 +242,7 @@ if contains(params.analysis, {'features' 'hep'})
     %%%%% MODE 3: EEG features %%%%%
     if strcmp(params.analysis,'features') && params.eeg
 
-        % Clean EEG data
+        % Clean EEG artifacts with ASR
         if params.clean_eeg
             [EEG, params] = clean_eeg(EEG, params);
         end
@@ -253,7 +253,7 @@ if contains(params.analysis, {'features' 'hep'})
         end
 
         % Final output with everything
-        Features.EEG = eeg_features;
+        % Features.EEG = eeg_features;
 
     end
 
@@ -264,7 +264,7 @@ if contains(params.analysis, {'features' 'hep'})
     if strcmp(params.analysis,'features') && params.vis
         figure('color','w');
         
-        % Power spectra
+        % PSD - HRV
         subplot(2,2,1); hold on
         pwr = HRV.frequency.pwr; % power already averaged across windows
         freqs = HRV.frequency.pwr_freqs;
@@ -321,12 +321,39 @@ if contains(params.analysis, {'features' 'hep'})
         end
         title(sprintf('Power spectral density - HRV'))
 
-        % Multiscale fuzzy entropy (MFE)
-        subplot(2,2,2); hold on
+        % Multiscale fuzzy entropy (MFE) - HRV
+        subplot(2,2,3); hold on
         mfe = HRV.nonlinear.MFE;
         scales = HRV.nonlinear.MFE_scales;
         area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
         title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
+        axis tight;
+        
+        % PSD - EEG
+        load('C:\Users\Tracy\Desktop\eeg_features.mat')
+        load('C:\Users\Tracy\Desktop\PWR.mat')
+        EEG.frequency.pwr = PWR.pwr;
+        EEG.frequency.pwr_dB = PWR.pwr_dB;
+        EEG.frequency.freqs = PWR.freqs;
+        
+        subplot(2,2,2); hold on
+        pwr = EEG.frequency.pwr; % power already averaged across windows
+        freqs = HRV.frequency.pwr_freqs;
+        bandNames = {'ULF' 'VLF' 'LF' 'HF'};
+        bands = HRV.frequency.bands;
+
+        idx = find(strcmp(bandNames,'ULF'));
+        if isfield(HRV.frequency, 'ulf')
+            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
+            y = pwr(x);
+            area(find(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+        else
+            bandNames(idx) = [];
+            bands(idx,:) = [];
+        end
+
+
+
 
         set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
         % set(gca,'FontSize',12,'layer','top','fontweight','bold');
