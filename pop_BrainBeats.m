@@ -272,6 +272,8 @@ if contains(params.analysis, {'features' 'hep'})
 
 end
 
-disp('Done.')
+save('features.mat','Features'); %FIXME: ASK USER FOR OUTPUT DIR
+
+disp('Done!'); gong
 
 

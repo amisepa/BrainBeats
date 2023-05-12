@@ -2,7 +2,7 @@
 %
 % Cedric Cannard, 2023
 
-function run_HEP(EEG, params, Rpeaks)
+function EEG = run_HEP(EEG, params, Rpeaks)
 
 % Add heartbeat markers in the signals, taking into account
 % existing events
