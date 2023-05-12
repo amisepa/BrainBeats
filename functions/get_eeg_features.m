@@ -143,12 +143,15 @@ eeg_features.frequency.IAF = [pChans.gravs];
 
 
 % Asymmetry (use log(pwr) no pwr_dB) - on all pairs
+% asymmetry = log(mean(eeg_features.frequency.alpha(2,:))) - log(mean(eeg_features.frequency.alpha(1,:))); 
+
 
 
 
 
 % EEG coherence (only pairs with medium-long distance; see Nunez 2016)
-
+% [cohr,f] = mscohere(EEG.data(1,:),EEG.data(2,:),hamming(EEG.srate*2),EEG.srate,[],EEG.srate);
+% plot(f(f>=0 & f<30), squeeze(cohr(iWin,f>=0 & f<30))); grid on; hold on;
 
 
 
