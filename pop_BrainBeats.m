@@ -213,7 +213,7 @@ if contains(params.analysis, {'features' 'hep'})
 
     %%%%% MODE 2: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
-        run_HEP(EEG, params, Rpeaks)
+        EEG = run_HEP(EEG, params, Rpeaks);
     end
 
     %%%%% MODE 3: HRV features %%%%%
@@ -272,7 +272,7 @@ if contains(params.analysis, {'features' 'hep'})
 
 end
 
-save('features.mat','Features'); %FIXME: ASK USER FOR OUTPUT DIR
+save(fullfile(outDir, 'features.mat'),'Features'); %FIXME: ASK USER FOR OUTPUT DIR
 
 disp('Done!'); gong
 
