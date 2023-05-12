@@ -7,7 +7,7 @@
 %
 % Cedric Cannad, 2023
 
-function [Features, com] = pop_BrainBeats(EEG, varargin)
+function [EEG, Features, com] = pop_BrainBeats(EEG, varargin)
 
 pop_editoptions('option_single', 0); % ensure double precision
 Features = [];
