@@ -105,3 +105,11 @@ else
     disp('Visualization not defined. Visualization is turned ON by default')
     params.vis = true;
 end
+
+% GPU computing
+idx = find(contains(inputs,'gpu'));
+if ~isempty(idx)
+    params.gpu = logical(varargin{idx*2});
+else
+    params.gpu = false;
+end

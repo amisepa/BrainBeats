@@ -76,7 +76,7 @@ elseif params.clean_eeg_step == 1
         useriemannian = false;
         m = memory;
         maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)
-        cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],false,useriemannian,maxmem);
+        cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],params.gpu,useriemannian,maxmem);
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
         EEG.etc.clean_sample_mask = ~mask;
         badData = reshape(find(diff([false mask false])),2,[])';

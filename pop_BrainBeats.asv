@@ -86,6 +86,11 @@ if params.vis
     end
 end
 
+% GPU computing
+if ~isfield(params,'gpu') % not available from GUI yet
+    params.gpu = false;
+end
+
 %%%%%%%%%%%%% PREPROCESS EEG DATA %%%%%%%%%%%%%
 
 EEG.data = double(EEG.data);  % ensure double precision
@@ -249,11 +254,13 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features
         if params.eeg
+            tic
             eeg_features = get_eeg_features(EEG.data, EEG.times, params);
+            toc
         end
 
         % Final output with everything
-        % Features.EEG = eeg_features;
+        Features.EEG = eeg_features;
 
     end
 
@@ -262,97 +269,8 @@ if contains(params.analysis, {'features' 'hep'})
     
     % Visualize HRV outputs
     if strcmp(params.analysis,'features') && params.vis
-        figure('color','w');
-        
-        % PSD - HRV
-        subplot(2,2,1); hold on
-        pwr = HRV.frequency.pwr; % power already averaged across windows
-        freqs = HRV.frequency.pwr_freqs;
-        bandNames = {'ULF' 'VLF' 'LF' 'HF'};
-        bands = HRV.frequency.bands;
 
-        idx = find(strcmp(bandNames,'ULF'));
-        if isfield(HRV.frequency, 'ulf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-        else
-            bandNames(idx) = [];
-            bands(idx,:) = [];
-        end
-
-        idx = find(strcmp(bandNames,'VLF'));
-        if isfield(HRV.frequency, 'vlf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
-        else
-            bandNames(idx) = [];
-            bands(idx,:) = [];
-        end
-        
-        idx = find(strcmp(bandNames,'LF'));
-        if isfield(HRV.frequency, 'lf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
-        else
-            bandNames(idx) = [];
-            bands(idx,:) = [];
-        end
-
-        idx = find(strcmp(bandNames,'HF'));
-        if isfield(HRV.frequency, 'hf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
-        else
-            bandNames(idx) = [];
-            bands(idx,:) = [];
-        end
-        legend(bandNames)
-        xticklabels(unique(reshape(bands,1,[])));
-        xtickangle(45); axis tight; box on
-        xlabel('Frequency (Hz)');
-        if params.hrv_norm
-            ylabel('Power (ms^2 normalized)');
-        else
-            ylabel('Power (ms^2)');
-        end
-        title(sprintf('Power spectral density - HRV'))
-
-        % Multiscale fuzzy entropy (MFE) - HRV
-        subplot(2,2,3); hold on
-        mfe = HRV.nonlinear.MFE;
-        scales = HRV.nonlinear.MFE_scales;
-        area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-        title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
-        axis tight;
-        
-        % PSD - EEG
-        % load('C:\Users\Tracy\Desktop\eeg_features.mat')
-
-        subplot(2,2,2); hold on
-        pwr = EEG.frequency.pwr; % power already averaged across windows
-        freqs = HRV.frequency.pwr_freqs;
-        bandNames = {'ULF' 'VLF' 'LF' 'HF'};
-        bands = HRV.frequency.bands;
-
-        idx = find(strcmp(bandNames,'ULF'));
-        if isfield(HRV.frequency, 'ulf')
-            x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-            y = pwr(x);
-            area(find(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-        else
-            bandNames(idx) = [];
-            bands(idx,:) = [];
-        end
-
-
-
-
-        set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
-        % set(gca,'FontSize',12,'layer','top','fontweight','bold');
+        plot_features(Features);
 
     end
 end
