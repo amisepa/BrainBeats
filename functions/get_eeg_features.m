@@ -6,6 +6,15 @@ disp('Extracting EEG features...')
 
 fs = params.fs; 
 
+% default entropy parameters
+m = 2;
+r = .15;
+n = 2;
+tau = 1;
+coarseType = 'Standard deviation';
+nScales = 20;
+filtData = false;
+
 % Time domain
 eeg_features.time.mean = mean(signals,2); 
 eeg_features.time.trimmed_mean = trimmean(signals,20,2); 
@@ -22,15 +31,19 @@ fRange = [1 45];    % WARNING: make sure these are within filtered signal
 winSize = 3;        % window size (in s). default = 2 (recommended by Smith et al (2017)
 winType = 'hamming';
 overlap = 50;       % 50% default (Smith et al. 2017)
-% ps = parallel.Settings; ps.Pool.AutoCreate = params.parpool;
-useGPU = true;
+ps = parallel.Settings; ps.Pool.AutoCreate = params.parpool; % use parallel computing
 
 % Use Multiple GPUs in Parallel Pool
-if params.parpool && params.gpr
+if params.parpool && params.gpu
     availableGPUs = gpuDeviceCount("available");
-    parpool('Processes',availableGPUs);
+    if availableGPUs > 1
+        parpool('Processes',availableGPUs);
+        fprintf('%g GPUs detected. Using them in parallel pool. \n',availableGPUs)
+    else
+        fprintf('Only one GPU detected. Using normal GPU and parallel pool computing. \n')     
+    end
 end
-
+        
 % Initiate progressbar (only when not in parpool)
 if ~params.parpool
     progressbar('Extracting EEG features on EEG channels')
@@ -42,7 +55,7 @@ for iChan = 1:nChan
     
     % Compute PSD using pwelch
     [pwr(iChan,:), pwr_dB(iChan,:), freqs] = compute_psd(signals(iChan,:), ...
-            fs*winSize,winType,overlap,[],fs,fRange,'psd', useGPU);
+            fs*winSize,winType,overlap,[],fs,fRange,'psd', params.gpu);
     eeg_features.frequency.pwr(iChan,:) = pwr(iChan,:);
     eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB(iChan,:);
     eeg_features.frequency.freqs(iChan,:) = freqs;
@@ -62,16 +75,6 @@ for iChan = 1:nChan
     % Low gamma
     eeg_features.frequency.gamma(iChan,:) = pwr_dB(iChan,freqs >= 31 & freqs <= fRange(2));
     
-    % Fuzzy entropy
-    m = 2;
-    r = .15;
-    n = 2;
-    tau = 1;
-    coarseType = 'Standard deviation';
-    nScales = 20;
-    filtData = false;
-    useGPU = params.gpu;
-
     % Entropy
     % if length(times) > 5000 % Downsample to accelerate on data with more than 5,000 samples
     %     new_fs = 90;
@@ -96,25 +99,26 @@ for iChan = 1:nChan
     %     % warning('Lowest frequency captured by MFE after downsampling = %g', )
     % 
     %     % Fuzzy entropy
-    %     EEG.nonlinear.FE(iChan,:) = compute_fe(signals_res(iChan,:), m, r, n, tau,useGPU);
+    %     EEG.nonlinear.FE(iChan,:) = compute_fe(signals_res(iChan,:), m, r, n, tau,params.gpu);
     % 
     %     % Multiscale fuzzy entropy
     %     [eeg_features.nonlinear.MFE(iChan,:), eeg_features.nonlinear.MFE_scales(iChan,:)] = compute_mfe(signals_res(iChan,:), ...
-    %         m, r, tau, coarseType, nScales, filtData, fs, n, useGPU);
+    %         m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
     %     % figure; plot(EEG.nonlinear.MFE_scales(iChan,:),EEG.nonlinear.MFE(iChan,:));
     % 
     % else
     
         % Fuzzy entropy
         disp('Computing fuzzy entropy...')
-        eeg_features.nonlinear.FE(iChan,:) = compute_fe(signals(iChan,:), m, r, n, tau,useGPU);
+        eeg_features.nonlinear.FE(iChan,:) = compute_fe(signals(iChan,:), m, r, n, tau, params.gpu);
         
         % Multiscale fuzzy entropy
         disp('Computing multiscale fuzzy entropy...')
         [eeg_features.nonlinear.MFE(iChan,:), eeg_features.nonlinear.MFE_scales(iChan,:)] = compute_mfe(signals(iChan,:), ...
-            m, r, tau, coarseType, nScales, filtData, fs, n, useGPU);
+            m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
         
     % end
+    
     
     % Individual alpha frequency (IAF) (my code, not working)
     % iaf = detect_iaf(pwr(iChan,:), freqs, winSize, params)

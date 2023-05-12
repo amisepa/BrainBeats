@@ -72,6 +72,10 @@ if contains(lower(coarseType), 'standard')
     coarseType = 'SD';
 end
 
+if filtData
+    disp('Applying bandpasss-filter to remove spectral bias at each scale (please reference Kosciessa et al. (2020).')
+end
+
 mfe = nan(1,nScales);
 scales = nan(1,nScales);
 parfor iScale = 1:nScales
@@ -84,7 +88,6 @@ parfor iScale = 1:nScales
 
     % Bandpass filter outside these bounds to control for spectral bias (see Kosciessa et al 2020)
     if filtData
-        disp('Applying bandpasss-filter to remove spectral bias (please reference Kosciessa et al. (2020).')
 
         % Scale frequency bounds
         upperBound = (1/iScale).*nf + .05*((1./iScale).*nf);

@@ -254,7 +254,9 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features
         if params.eeg
+            tic
             eeg_features = get_eeg_features(EEG.data, EEG.chanlocs, params);
+            toc
         end
 
         % Final output with everything

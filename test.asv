@@ -31,6 +31,7 @@ EEG = pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
 %% MODE 3: Feature-based
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
+EEG.data(30,:) = EEG.data(30,end:-1:1);
 % Features = pop_BrainBeats(EEG);  % GUI mode
 [EEG, Features] = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...
@@ -61,11 +62,10 @@ commands = {};
 count = 0;
 for iSub = 1%1:13
     for iCond = 1%:2
-        switch iCond
-            case 1
-                filename = sprintf('sub-%2.2d_mindwandering.set',iSub);
-            case 2
-                filename = sprintf('sub-%2.2d_trance.set',iSub);
+        if iCond == 1
+            filename = sprintf('sub-%2.2d_mindwandering.set',iSub);
+        else
+            filename = sprintf('sub-%2.2d_trance.set',iSub);
         end
         EEG = pop_loadset('filename',filename,'filepath',dataDir);
 
@@ -73,35 +73,27 @@ for iSub = 1%1:13
             'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'gpu',true,'vis',true); 
         EEG.subject = sprintf('sub-%2.2d',iSub);
         EEG.session = 1;
-        EEG.condition = 
-    end
-end
+        if iCond == 1
+            EEG.condition = {'mindwandering'};
+        else
+            EEG.condition = {'trance'};
+        end
 
-for i = 1:length(EEG)
-    fprintf('*********************\n')
-    fprintf('%s session %d\n', EEG(i).subject, EEG(i).session);
-    fprintf('*********************\n')
-    for iEvent = 1:2:12
-        TMPEEG = eeg_checkset(EEG(i), 'loaddata');
-        % fprintf('%13s to %13s: %d\n', TMPEEG.event(iEvent).type, TMPEEG.event(iEvent+1).type, ...
-        %     round((TMPEEG.event(iEvent+1).latency - TMPEEG.event(iEvent).latency)/TMPEEG(1).srate));
-        TMPEEG.condition = EEG(i).event(iEvent).type(1:4);
-        TMPEEG = pop_select(TMPEEG, 'point', [ TMPEEG.event(iEvent).latency+TMPEEG.srate*10 TMPEEG.event(iEvent+1).latency-TMPEEG.srate*1 ]);
-        TMPEEG.run = (iEvent-1)/2+1;
-        filename = sprintf('%s-sess%d_run%d_%s.set', TMPEEG.subject, TMPEEG.session, TMPEEG.run, TMPEEG.condition);
-        TMPEEG.saved = 'no';
-        pop_saveset(TMPEEG, 'filepath', TMPEEG.filepath, 'filename', filename);
+        EEG.saved = 'no';
+        pop_saveset(EEG, 'filepath', EEG.filepath, 'filename', filename);
+
         count = count+1;
-        commands = {commands{:} 'index' count 'load' fullfile(TMPEEG.filepath, filename)};
+        commands = {commands{:} 'index' count 'load' fullfile(EEG.filepath, filename)};
+
     end
 end
 
-% % Create study
-% [STUDY, ALLEEG] = std_editset([],[],'name','Trance','task','Trance',...
-%         'filename','trance_parsed.study','resave', 'on', ...
-%         'filepath', outputDir,'commands',commands);
-% EEG = ALLEEG; CURRENTSET = 1:length(ALLEEG); CURRENTSTUDY = 1;
-% 
+% Create study
+[STUDY, ALLEEG] = std_editset([],[],'name','Trance','task','Trance',...
+        'filename','trance.study','resave', 'on', ...
+        'filepath', dataDir,'commands',commands);
+EEG = ALLEEG; CURRENTSET = 1:length(ALLEEG); CURRENTSTUDY = 1;
+
 % % plot results
 % STUDY = pop_specparams(STUDY, 'topofreq',[9 11] );
 % STUDY = pop_statparams(STUDY, 'condstats','on','mcorrect','fdr');

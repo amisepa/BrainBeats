@@ -17,16 +17,26 @@ if params.clean_eeg_step == 0
     
     % Remove bad channels
     oriEEG = EEG;
-    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
+    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.9, ...
         'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
         'WindowCriterion','off','BurstRejection','off','Distance','off');    
-    badChan = ~contains({oriEEG.chanlocs.labels}, {EEG.chanlocs.labels});
+    % disp('Detecting flat line...')
+    % EEG = clean_flatlines(EEG,5,20); 
+    % try 
+    %     EEG = clean_channels(EEG, .8, 4, 5, .6, 100); 
+    % catch
+    %     disp('Your dataset appears to lack correct channel locations; using a location-free channel cleaning method.');
+    %     EEG = clean_channels_nolocs(EEG,.45,.2,10,.33,true); 
+    % end
+    badChan = ~contains({oriEEG.chanlocs.labels}, {EEG.chanlocs.labels});    
     fprintf(1, 'Bad channels were: ');
     fprintf(1, '%s ', oriEEG.chanlocs(badChan).labels )
     fprintf(1, '\n')
     
     % Visualize removed channels
     if params.vis
+        % EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
+        % EEG.etc.clean_channel_mask(badChan) = false;
         vis_artifacts(EEG,oriEEG);
         % vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
     end
