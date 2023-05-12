@@ -15,8 +15,7 @@
 %
 % OUTPUTS:
 %   mfe: entropy values for each scale factor
-%   scales: scale factors
-%   scales_bounds: lower and upper frequency bounds of each time scale
+%   scales: lower and upper frequency bounds of each time scale
 % 
 % Ref:
 %   [1] Azami & Escudero (2016), "Refined Multiscale Fuzzy Entropy based on
@@ -68,6 +67,8 @@ if filtData
     disp('Applying bandpasss-filter to remove spectral bias at each scale (please reference Kosciessa et al. (2020).')
 end
 
+mfe = nan(1,nScales);
+
 % Move it to GPU if applicable
 if useGPU && length(signal) > 1000
     try
@@ -78,7 +79,6 @@ if useGPU && length(signal) > 1000
     end
 end
 
-mfe = nan(1,nScales);
 parfor iScale = 1:nScales
 
     fprintf('   scale %d \n', iScale)
@@ -88,7 +88,7 @@ parfor iScale = 1:nScales
 
     % Corresponding scale frequency bounds
     if iScale == 1
-        upperBound = nf;
+            upperBound = nf;
     else
         upperBound = (1/iScale).*nf + .05*((1./iScale).*nf);
     end
@@ -159,9 +159,10 @@ parfor iScale = 1:nScales
 end
 
 % scale factors
-scales = 1:nScales;
+scales = nan(1,nScales);
+scales(~isnan(mfe)) = find(~isnan(mfe));
 
 % Remove NaN scales
-scales(isnan(mfe)) = [];
+scales(isnan(mfe),:) = [];
 scale_bounds(isnan(mfe),:) = [];
 mfe(isnan(mfe)) = [];

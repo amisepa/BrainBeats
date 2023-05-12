@@ -1,10 +1,10 @@
-%% Extract EEG features in time, fequency, and nonlinear domains. 
+%% Extract EEG features in time, fequency, and nonlinear domains.
 
 function eeg_features = get_eeg_features(signals,chanlocs,params)
 
 disp('Extracting EEG features...')
 
-fs = params.fs; 
+fs = params.fs;
 
 % default entropy parameters
 m = 2;
@@ -13,17 +13,17 @@ n = 2;
 tau = 1;
 coarseType = 'Standard deviation';
 nScales = 20;
-filtData = false;
+filtData = true;
 
 % Time domain
-eeg_features.time.mean = mean(signals,2); 
-eeg_features.time.trimmed_mean = trimmean(signals,20,2); 
-eeg_features.time.median = median(signals,2); 
-eeg_features.time.mode = mode(signals,2); 
-eeg_features.time.var = var(signals,0,2); 
-eeg_features.time.skewness = skewness(signals,0,2); 
-eeg_features.time.kurtosis = kurtosis(signals,0,2); 
-eeg_features.time.iqr = iqr(signals,2); 
+eeg_features.time.mean = mean(signals,2);
+eeg_features.time.trimmed_mean = trimmean(signals,20,2);
+eeg_features.time.median = median(signals,2);
+eeg_features.time.mode = mode(signals,2);
+eeg_features.time.var = var(signals,0,2);
+eeg_features.time.skewness = skewness(signals,0,2);
+eeg_features.time.kurtosis = kurtosis(signals,0,2);
+eeg_features.time.iqr = iqr(signals,2);
 
 % Frequency domain
 nChan = size(signals,1);
@@ -40,26 +40,26 @@ if params.parpool && params.gpu
         parpool('Processes',availableGPUs);
         fprintf('%g GPUs detected. Using them in parallel pool. \n',availableGPUs)
     else
-        fprintf('Only one GPU detected. Using normal GPU and parallel pool computing. \n')     
+        fprintf('Only one GPU detected. Using normal GPU and parallel pool computing. \n')
     end
 end
-        
+
 % Initiate progressbar (only when not in parpool)
 if ~params.parpool
     progressbar('Extracting EEG features on EEG channels')
 end
 
 for iChan = 1:nChan
-    
+
     fprintf('EEG CHANNEL %g \n', iChan)
-    
+
     % Compute PSD using pwelch
     [pwr(iChan,:), pwr_dB(iChan,:), freqs] = compute_psd(signals(iChan,:), ...
-            fs*winSize,winType,overlap,[],fs,fRange,'psd', params.gpu);
+        fs*winSize,winType,overlap,[],fs,fRange,'psd', params.gpu);
     eeg_features.frequency.pwr(iChan,:) = pwr(iChan,:);
     eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB(iChan,:);
     eeg_features.frequency.freqs(iChan,:) = freqs;
-    
+
     % Delta
     eeg_features.frequency.delta(iChan,:) = pwr_dB(iChan,freqs >= fRange(1) & freqs <= 3);
 
@@ -74,55 +74,66 @@ for iChan = 1:nChan
 
     % Low gamma
     eeg_features.frequency.gamma(iChan,:) = pwr_dB(iChan,freqs >= 31 & freqs <= fRange(2));
-    
+
     % Entropy
-    % if length(times) > 5000 % Downsample to accelerate on data with more than 5,000 samples
-    %     new_fs = 90;
-    %     fac = fs / new_fs; % downsample factor
-    % 
-    %     % downsample if integer, otherwise decimate to round factor
-    %     if fac ~= floor(fac)
-    %         fac = round(fac);
-    %         signals_res(iChan,:) = decimate(signals(iChan,:), fac);
-    %         fprintf('Decimating EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
-    %     else
-    %         signals_res(iChan,:) = resample(signals(iChan,:), 1, fac);
-    %         fprintf('Downsampling EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
-    %     end
-    %     % Plot to check
-    %     % times_res = (0:1/new_fs:(length(signals_res(iChan,:))-1)/new_fs)*1000;
-    %     % figure; plot(times(1:fs*5), signals(iChan,1:fs*5)); % plot 5 s of data
-    %     % hold on; plot(times_res(1:new_fs*5), signals_res(iChan,1:new_fs*5));   
-    % 
-    %     % Lowest_freq = 1 / (length(signals(iChan,:))/1000)
-    %     % highest_freq = new_fs / (2*nScales)
-    %     % warning('Lowest frequency captured by MFE after downsampling = %g', )
-    % 
-    %     % Fuzzy entropy
-    %     EEG.nonlinear.FE(iChan,:) = compute_fe(signals_res(iChan,:), m, r, n, tau,params.gpu);
-    % 
-    %     % Multiscale fuzzy entropy
-    %     [eeg_features.nonlinear.MFE(iChan,:), eeg_features.nonlinear.MFE_scales(iChan,:)] = compute_mfe(signals_res(iChan,:), ...
-    %         m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
-    %     % figure; plot(EEG.nonlinear.MFE_scales(iChan,:),EEG.nonlinear.MFE(iChan,:));
-    % 
-    % else
-    
+    if size(signals,2) > 5000 % Downsample to accelerate on data with more than 5,000 samples
+        new_fs = 90;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
+        fac = fs / new_fs; % downsample factor
+
+        % downsample if integer, otherwise decimate to round factor
+        if fac ~= floor(fac)
+            fac = round(fac);
+            signals_res(iChan,:) = decimate(signals(iChan,:), fac);
+            fprintf('Decimating EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
+        else
+            signals_res(iChan,:) = resample(signals(iChan,:), 1, fac);
+            fprintf('Downsampling EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
+        end
+        % Plot to check
+        % times_res = (0:1/new_fs:(length(signals_res(iChan,:))-1)/new_fs)*1000;
+        % figure; plot(times(1:fs*5), signals(iChan,1:fs*5)); % plot 5 s of data
+        % hold on; plot(times_res(1:new_fs*5), signals_res(iChan,1:new_fs*5));
+
+        % Lowest_freq = 1 / (length(signals(iChan,:))/1000)
+        % highest_freq = new_fs / (2*nScales)
+        % warning('Lowest frequency captured by MFE after downsampling = %g', )
+
+        % Fuzzy entropy
+        eeg_features.nonlinear.FE(iChan,:) = compute_fe(signals_res(iChan,:), m, r, n, tau, params.gpu);
+
+        % Multiscale fuzzy entropy
+        [mfe, scales, scale_bounds] = compute_mfe(signals_res(iChan,:), m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
+        % figure; subplot(2,1,1);
+        % area(scales(end:-1:1),mfe(end:-1:1)); title('downsampled'); axis tight; box on; grid on
+        % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
+
+    else
+
         % Fuzzy entropy
         disp('Computing fuzzy entropy...')
         eeg_features.nonlinear.FE(iChan,:) = compute_fe(signals(iChan,:), m, r, n, tau, params.gpu);
-        
+    
         % Multiscale fuzzy entropy
         disp('Computing multiscale fuzzy entropy...')
-        [eeg_features.nonlinear.MFE(iChan,:), eeg_features.nonlinear.MFE_scales(iChan,:)] = compute_mfe(signals(iChan,:), ...
-            m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
-        
-    % end
-    
-    
+        [mfe, scales, scale_bounds] = compute_mfe(signals(iChan,:), m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
+        % subplot(2,1,2); area(scales(end:-1:1),mfe(end:-1:1)); axis tight; box on; grid on
+        % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
+
+    end
+
+    eeg_features.nonlinear.MFE_scales(iChan,:,:) = scales;
+    eeg_features.nonlinear.MFE_scale_bounds(iChan,:,:) = scale_bounds;
+    eeg_features.nonlinear.MFE(iChan,:) = mfe;
+    eeg_features.nonlinear.MFE_mean(iChan,:) = mean(mfe);
+    eeg_features.nonlinear.MFE_sd(iChan,:) = std(mfe);
+    eeg_features.nonlinear.MFE_var(iChan,:) = var(mfe);
+    eeg_features.nonlinear.MFE_area(iChan,:) = trapz(mfe);
+    [~,eeg_features.nonlinear.MFE_peak(iChan,:)] = max(mfe);
+
+
     % Individual alpha frequency (IAF) (my code, not working)
     % iaf = detect_iaf(pwr(iChan,:), freqs, winSize, params)
-    
+
     if ~params.parpool
         progressbar(iChan/nChan)
     end
@@ -143,10 +154,9 @@ eeg_features.frequency.IAF = [pChans.gravs];
 
 
 % Asymmetry (use log(pwr) no pwr_dB) - on all pairs
-alpha1 = mean(eeg_features.frequency.alpha(2,:)) = pwr_dB(iChan,freqs >= 8 & freqs <= 13);
-
-asy_temp_mu = log(mean(alpha(2,:)) - log(alpha_mu(1,:)); 
-
+% asymmetry = log(mean(eeg_features.frequency.alpha(2,:))) - log(mean(eeg_features.frequency.alpha(1,:)));
+front_left = find(strcmpi({chanlocs.labels},'F3'));
+front_right = find(strcmpi({chanlocs.labels},'F4'));
 
 
 
@@ -157,4 +167,4 @@ asy_temp_mu = log(mean(alpha(2,:)) - log(alpha_mu(1,:));
 
 
 
-
+end

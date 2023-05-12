@@ -86,13 +86,12 @@ ylabel('Power (ms^2)'); axis tight;
 subplot(2,2,4); hold on
 scales = eeg_features.nonlinear.MFE_scales(1,:);
 % mfe = trimmean(eeg_features.nonlinear.MFE,20,1);
-mfe = eeg_features.nonlinear.MFE(31,:);
-% for i = 1:size(eeg_features.nonlinear.MFE,1)
-    % mfe = eeg_features.nonlinear.MFE(i,:);
+for i = 1:size(eeg_features.nonlinear.MFE,1)
+    mfe = eeg_features.nonlinear.MFE(i,:);
     area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-    % title(sprintf('Channel %g', i));
-    % pause(0.8)
-% end
+    title(sprintf('Channel %g', i));
+    pause(0.5)
+end
 title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
 axis tight;
 

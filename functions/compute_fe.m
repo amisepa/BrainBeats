@@ -46,9 +46,9 @@ end
 for k = m:m+1
     count = zeros(1,N-m);
     tmp = xMat(1:k,:);
-    parfor i = 1:N-k
 
-        % calculate Chebyshev distance without counting self-matches
+    % calculate Chebyshev distance without counting self-matches
+    parfor i = 1:N-k
         dist = max(abs(tmp(:,i+1:N-m) - repmat(tmp(:,i),1,N-m-i)));
         df = exp((-dist.^n)/r);
         count(i) = sum(df)/(N-m);

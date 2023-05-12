@@ -269,7 +269,7 @@ if contains(params.analysis, {'features' 'hep'})
     
     % Visualize HRV outputs
     if strcmp(params.analysis,'features') && params.vis
-        plot_features(Features)
+        plot_features(Features,params)
     end
 
 end
