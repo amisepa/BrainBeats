@@ -254,7 +254,7 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features
         if params.eeg
-            eeg_features = get_eeg_features(EEG.data, chanlocs, params);
+            eeg_features = get_eeg_features(EEG.data, EEG.chanlocs, params);
         end
 
         % Final output with everything
@@ -269,7 +269,7 @@ if contains(params.analysis, {'features' 'hep'})
     if strcmp(params.analysis,'features') && params.vis
         plot_features(Features)
     end
-    
+
 end
 
 disp('Done.')
