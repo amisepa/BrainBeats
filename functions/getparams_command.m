@@ -106,7 +106,15 @@ else
     params.vis = true;
 end
 
-% GPU computing
+% Parallel computing (FIXME: add to GUI)
+idx = find(contains(inputs,'parpool'));
+if ~isempty(idx)
+    params.parpool = logical(varargin{idx*2});
+else
+    params.parpool = false;
+end
+
+% GPU computing (FIXEM: add to GUI)
 idx = find(contains(inputs,'gpu'));
 if ~isempty(idx)
     params.gpu = logical(varargin{idx*2});

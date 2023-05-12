@@ -22,7 +22,19 @@ fRange = [1 45];    % WARNING: make sure these are within filtered signal
 winSize = 3;        % window size (in s). default = 2 (recommended by Smith et al (2017)
 winType = 'hamming';
 overlap = 50;       % 50% default (Smith et al. 2017)
+% ps = parallel.Settings; ps.Pool.AutoCreate = params.parpool;
 useGPU = true;
+
+% Use Multiple GPUs in Parallel Pool
+if params.parpool && params.gpr
+    availableGPUs = gpuDeviceCount("available");
+    parpool('Processes',availableGPUs);
+end
+
+% Initiate progressbar (only when not in parpool)
+if ~params.parpool
+    progressbar('Extracting EEG features on EEG channels')
+end
 
 for iChan = 1:nChan
     
@@ -94,17 +106,28 @@ for iChan = 1:nChan
     % else
     
         % Fuzzy entropy
-        % EEG.nonlinear.FE(iChan,:) = compute_fe(signals(iChan,:), m, r, n, tau,useGPU);
+        disp('Computing fuzzy entropy...')
+        eeg_features.nonlinear.FE(iChan,:) = compute_fe(signals(iChan,:), m, r, n, tau,useGPU);
         
         % Multiscale fuzzy entropy
+        disp('Computing multiscale fuzzy entropy...')
         [eeg_features.nonlinear.MFE(iChan,:), eeg_features.nonlinear.MFE_scales(iChan,:)] = compute_mfe(signals(iChan,:), ...
             m, r, tau, coarseType, nScales, filtData, fs, n, useGPU);
         
     % end
     
-    % Individual alpha frequency (IAF) (Caution: do not use normalized power)
+    % Individual alpha frequency (IAF) (my code, not working)
     % iaf = detect_iaf(pwr(iChan,:), freqs, winSize, params)
     
+    if ~params.parpool
+        progressbar(iChan/nChan)
+    end
+
+end
+
+% shut down parallel pool
+if params.parpool
+    delete(gcp('nocreate'));
 end
 
 % IAF (only export CoG)
