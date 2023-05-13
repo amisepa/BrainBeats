@@ -18,7 +18,7 @@ dataDir = fileparts(which('pop_BrainBeats.m'));
 
 EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(dataDir,'sample_data'));
 % EEG = pop_BrainBeats(EEG);  % GUI mode
-pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG', ...
+EEG = pop_BrainBeats(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,'vis',true);
 
 %% MODE 2: Run HEP on sample_data2
@@ -28,6 +28,15 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 EEG = pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
     'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'gpu',true,'vis',true); 
 
+figure; 
+subplot(3,1,1)
+pop_erpimage(EEG,1, elec,[],'HEP (Fcz)',10,1,{},[],'','yerplabel','\muV','erp','on','cbar','on','topo', { 1 EEG.chanlocs EEG.chaninfo } );
+subplot(3,1,2)
+pop_timtopo(EEG, [EEG.times(1) EEG.times(end)], [250 350 450]);
+subplot(3,1,3)
+pop_plottopo(EEG, 1:EEG.nbchan, 'HEP data', 0, 'ydir',1);
+figure; pop_headplot(EEG, 1, 0, 'HEP', [1  1], 'setup',{fullfile(dataDir,'sample_data','sample_data2_HEP.spl'),'meshfile','mheadnew.mat','transform',[-1.136 7.7523 11.4527 -0.027117 0.015531 -1.5455 0.91234 0.93161 0.80698] });
+
 %% MODE 3: Feature-based
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
@@ -35,7 +44,7 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 % EEG.data(50,:) = EEG.data(50,end:-1:1).*10;
 % Features = pop_BrainBeats(EEG);  % GUI mode
 [EEG, Features] = pop_BrainBeats(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',false, ...
+    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
     'gpu',true,'parpool',true,'vis',true);

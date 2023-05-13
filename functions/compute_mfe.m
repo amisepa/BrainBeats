@@ -18,13 +18,20 @@
 %   scales: scale factors
 %   scales_bounds: lower and upper frequency bounds of each time scale
 % 
-% Ref:
+% Please cite:
 %   [1] Azami & Escudero (2016), "Refined Multiscale Fuzzy Entropy based on
 %   Standard Deviation for Biomedical Signal Analysis", Medical & Biological
 %   Engineering & Computing.
 % 
 %   [2] Costa, Goldberger, Peng (2002). Multiscale entropy analysis of 
 %   complex physiologic time series. Phys Rev Lett. 
+% 
+%   [3] Kosciessa, Kloosterman, Garrett (2020). Standard multiscale entropy 
+%   reflects neural dynamics at mismatched temporal scales: What's signal 
+%   irregularity got to do with it? Plos Comput Biol.
+% 
+%   [4] Grandy, Garrett, Schmiedek, Werkle-Bergner (2016). On the estimation 
+%   of brain signal entropy from sparse neuroimaging data. Sci Rep.
 %
 % Cedric Cannard, 2022
 
@@ -157,6 +164,7 @@ parfor iScale = 1:nScales
     mfe(:,iScale) = compute_fe(sig, m, r, n, tau, useGPU);
 
 end
+
 
 % scale factors
 scales = 1:nScales;

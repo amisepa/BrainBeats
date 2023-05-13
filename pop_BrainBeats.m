@@ -17,6 +17,7 @@ com = '';
 mainpath = fileparts(which('pop_BrainBeats.m'));
 addpath(fullfile(mainpath, 'functions'));
 addpath(fullfile(mainpath, 'functions', 'restingIAF'));
+addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
 
 % Basic checks
 if ~exist('EEG','var')
@@ -95,10 +96,8 @@ end
 
 EEG.data = double(EEG.data);  % ensure double precision
 params.fs = EEG.srate;
-if ~iscell(params.heart_channels)
-    params.heart_channels = {params.heart_channels};
-end
 ECG = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
+EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
 
 % Filter, re-reference, remove bad channels
 if params.clean_eeg
@@ -110,7 +109,7 @@ end
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 
 if strcmp(params.analysis,'rm_heart')
-    remove_heartcomp(EEG, params);
+    EEG = remove_heartcomp(EEG, params);
 end
 
 %%%%% MODE 2 & 3: RR, SQI, and NN %%%%%

@@ -2,7 +2,7 @@
 %
 % Cedric Cannard, 2023
 
-function remove_heartcomp(EEG, params)
+function EEG = remove_heartcomp(EEG, params)
 
 if strcmp(params.heart_signal,'ecg')
     dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);

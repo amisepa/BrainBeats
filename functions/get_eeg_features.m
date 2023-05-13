@@ -16,6 +16,7 @@ nScales = 20;
 filtData = true;
 
 % Time domain
+disp('Calculating time-domain EEG features...')
 eeg_features.time.mean = mean(signals,2);
 eeg_features.time.trimmed_mean = trimmean(signals,20,2);
 eeg_features.time.median = median(signals,2);
@@ -49,31 +50,29 @@ if ~params.parpool
     progressbar('Extracting EEG features on EEG channels')
 end
 
+disp('Calculating frequency- and nonlinear domain EEG features...')
 for iChan = 1:nChan
 
-    fprintf('EEG CHANNEL %g \n', iChan)
+    fprintf('EEG channel %g \n', iChan)
 
     % Compute PSD using pwelch
-    [pwr(iChan,:), pwr_dB(iChan,:), freqs] = compute_psd(signals(iChan,:), ...
-        fs*winSize,winType,overlap,[],fs,fRange,'psd', params.gpu);
-    eeg_features.frequency.pwr(iChan,:) = pwr(iChan,:);
-    eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB(iChan,:);
-    eeg_features.frequency.freqs(iChan,:) = freqs;
+    [pwr, pwr_dB, freqs] = compute_psd(signals(iChan,:), ...
+        fs*winSize,winType,overlap,[],fs,fRange,'psd', false);
 
     % Delta
-    eeg_features.frequency.delta(iChan,:) = pwr_dB(iChan,freqs >= fRange(1) & freqs <= 3);
+    delta = pwr_dB(freqs >= fRange(1) & freqs <= 3);
 
     % Theta
-    eeg_features.frequency.theta(iChan,:) = pwr_dB(iChan,freqs >= 3 & freqs <= 7);
+    theta = pwr_dB(freqs >= 3 & freqs <= 7);
 
     % Alpha
-    eeg_features.frequency.alpha(iChan,:) = pwr_dB(iChan,freqs >= 8 & freqs <= 13);
+    alpha= pwr_dB(freqs >= 8 & freqs <= 13);
 
     % Beta
-    eeg_features.frequency.beta(iChan,:) = pwr_dB(iChan,freqs >= 13 & freqs <= 30);
+    beta = pwr_dB(freqs >= 13 & freqs <= 30);
 
     % Low gamma
-    eeg_features.frequency.gamma(iChan,:) = pwr_dB(iChan,freqs >= 31 & freqs <= fRange(2));
+    gamma = pwr_dB(freqs >= 31 & freqs <= fRange(2));
 
     % Entropy
     if size(signals,2) > 5000 % Downsample to accelerate on data with more than 5,000 samples
@@ -83,10 +82,10 @@ for iChan = 1:nChan
         % downsample if integer, otherwise decimate to round factor
         if fac ~= floor(fac)
             fac = round(fac);
-            signals_res(iChan,:) = decimate(signals(iChan,:), fac);
+            signals_res = decimate(signals(iChan,:), fac);
             fprintf('Decimating EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
         else
-            signals_res(iChan,:) = resample(signals(iChan,:), 1, fac);
+            signals_res = resample(signals(iChan,:), 1, fac);
             fprintf('Downsampling EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
         end
         % Plot to check
@@ -99,10 +98,10 @@ for iChan = 1:nChan
         % warning('Lowest frequency captured by MFE after downsampling = %g', )
 
         % Fuzzy entropy
-        eeg_features.nonlinear.FE(iChan,:) = compute_fe(signals_res(iChan,:), m, r, n, tau, params.gpu);
+        % fe = compute_fe(signals_res, m, r, n, tau, params.gpu);
 
         % Multiscale fuzzy entropy
-        [mfe, scales, scale_bounds] = compute_mfe(signals_res(iChan,:), m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
+        % [mfe, scales, scale_bounds] = compute_mfe(signals_res, m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
         % plot(scales(end:-1:1),mfe(end:-1:1));  hold on; 
         % title('downsampled'); axis tight; box on; grid on
         % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
@@ -111,24 +110,33 @@ for iChan = 1:nChan
 
         % Fuzzy entropy
         disp('Computing fuzzy entropy...')
-        eeg_features.nonlinear.FE(iChan,:) = compute_fe(signals(iChan,:), m, r, n, tau, params.gpu);
+        % fe = compute_fe(signals(iChan,:), m, r, n, tau, params.gpu);
     
         % Multiscale fuzzy entropy
         disp('Computing multiscale fuzzy entropy...')
-        [mfe, scales, scale_bounds] = compute_mfe(signals(iChan,:), m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
-        plot(scales(end:-1:1),mfe(end:-1:1)); hold on; axis tight; box on; grid on
-        xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
+        % [mfe, scales, scale_bounds] = compute_mfe(signals(iChan,:), m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
+        % plot(scales(end:-1:1),mfe(end:-1:1)); hold on; axis tight; box on; grid on
+        % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
 
     end
 
-    eeg_features.nonlinear.MFE_scales(iChan,:) = scales;
-    eeg_features.nonlinear.MFE_scale_bounds(iChan,:,:) = scale_bounds;
-    eeg_features.nonlinear.MFE(iChan,:) = mfe;
-    eeg_features.nonlinear.MFE_mean(iChan,:) = mean(mfe);
-    eeg_features.nonlinear.MFE_sd(iChan,:) = std(mfe);
-    eeg_features.nonlinear.MFE_var(iChan,:) = var(mfe);
-    eeg_features.nonlinear.MFE_area(iChan,:) = trapz(mfe);
-    [~,eeg_features.nonlinear.MFE_peak(iChan,:)] = max(mfe);
+    % Outputs
+    eeg_features.frequency.pwr(iChan,:) = pwr;
+    eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB;
+    eeg_features.frequency.freqs(iChan,:) = freqs;
+    eeg_features.frequency.delta(iChan,:) = delta;
+    eeg_features.frequency.theta(iChan,:) = theta;
+    eeg_features.frequency.alpha(iChan,:) = alpha;
+    eeg_features.frequency.beta(iChan,:) = beta;
+    eeg_features.frequency.low_gamma(iChan,:) = gamma;
+    % eeg_features.nonlinear.MFE_scales(iChan,:) = scales;
+    % eeg_features.nonlinear.MFE_scale_bounds(iChan,:) = scale_bounds;
+    % eeg_features.nonlinear.MFE(iChan,:) = mfe;
+    % eeg_features.nonlinear.MFE_mean(iChan,:) = mean(mfe);
+    % eeg_features.nonlinear.MFE_sd(iChan,:) = std(mfe);
+    % eeg_features.nonlinear.MFE_var(iChan,:) = var(mfe);
+    % eeg_features.nonlinear.MFE_area(iChan,:) = trapz(mfe);
+    % [~,eeg_features.nonlinear.MFE_peak(iChan,:)] = max(mfe);
 
 
     % Individual alpha frequency (IAF) (my code, not working)
@@ -140,32 +148,72 @@ for iChan = 1:nChan
 
 end
 
-% shut down parallel pool
-if params.parpool
-    delete(gcp('nocreate'));
-end
+% Shut down parallel pool
+% if params.parpool
+%     delete(gcp('nocreate'));
+% end
 
 % IAF (only export CoG)
+disp('Detecting individual alpha frequency (IAF) for each EEG channel...')
 [pSum, pChans, f] = restingIAF(signals, size(signals,1), 3, [1 30], fs, [7 13], 11, 5);
 eeg_features.frequency.IAF_mean = pSum.cog;
 eeg_features.frequency.IAF = [pChans.gravs];
 
 
-
-
 % Asymmetry (use log(pwr) no pwr_dB) - on all pairs
-front_left = find(strcmpi({chanlocs.labels},'F3'));
-front_right = find(strcmpi({chanlocs.labels},'F4'));
-post_left = find(strcmpi({chanlocs.labels},'P7'));
-post_right = find(strcmpi({chanlocs.labels},'P8'));
-asy_front = log(mean(eeg_features.frequency.alpha(front_right,:))) - log(mean(eeg_features.frequency.alpha(front_left,:)));
+disp('Calculating (z-normalized) EEG asymmetry for each electrode pair...')
+for iPair = 1:size(chanlocs,2)/2+1
 
+    % find pairs using X distance
+    for iChan2 = 1:size(chanlocs,2)
+        if iChan2 == iPair
+            distX(iChan2,:) = NaN;
+        else
+            distX(iChan2,:) = diff([chanlocs(iPair).X chanlocs(iChan2).X ]);
+        end
+    end
+    [~, match] = min(abs(distX));
+    pair(iPair,:) = [iPair match];
+    pairLabels(iPair,:) = { sprintf('%s %s', chanlocs(iPair).labels, chanlocs(match).labels) };
+    
+    % flip if order is not left - left
+    if rem(str2double(pairLabels{iPair}(end)),2) ~= 0 % second elec should be even number
+        pair(iPair,:) = [match iPair];
+        pairLabels(iPair,:) = { sprintf('%s %s', chanlocs(match).labels, chanlocs(iPair).labels) };
+    end
 
+    % Z-normalize by correcting for overall alpha power (see Allen et al. 2004 and Smith et al. 2017)
+    alpha_left = mean(eeg_features.frequency.alpha(pair(iPair,1),:));
+    alpha_right = mean(eeg_features.frequency.alpha(pair(iPair,2),:));
+    alpha_left = alpha_left / sum(mean(eeg_features.frequency.alpha,2));
+    alpha_right = alpha_right / sum(mean(eeg_features.frequency.alpha,2));
 
+    % Asymmetry
+    asy(iPair,:) = log(alpha_left) - log(alpha_right);
+
+end
+eeg_features.frequency.asymmetry = asy;
 
 % EEG coherence (only pairs with medium-long distance; see Nunez 2016)
-% [cohr,f] = mscohere(EEG.data(1,:),EEG.data(2,:),hamming(EEG.srate*2),EEG.srate,[],EEG.srate);
-% plot(f(f>=0 & f<30), squeeze(cohr(iWin,f>=0 & f<30))); grid on; hold on;
+for iPair = 1:size(chanlocs,2)/2+1
+
+    % find pairs using XYZ distance
+    for iChan2 = 1:size(chanlocs,2)
+        if iChan2 == iPair
+            distX(iChan2,:) = NaN;
+        else
+            distX(iChan2,:) = diff([chanlocs(iPair).X chanlocs(iChan2).X ]);
+        end
+    end
+    [~, match] = min(abs(distX));
+    pair(iPair,:) = [iPair match];
+    pairLabels(iPair,:) = { sprintf('%s %s', chanlocs(iPair).labels, chanlocs(match).labels) };
+
+    % Find neighbors
+    [neighbors, channeighbstructmat] = get_channelneighbors(chanlocs,params.vis)
+
+[cohr,f] = mscohere(EEG.data(1,:),EEG.data(2,:),hamming(EEG.srate*2),EEG.srate,[],EEG.srate);
+plot(f(f>=0 & f<30), squeeze(cohr(iWin,f>=0 & f<30))); grid on; hold on;
 
 
 

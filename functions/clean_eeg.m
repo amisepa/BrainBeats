@@ -3,10 +3,12 @@ function [EEG, params] = clean_eeg(EEG, params)
 % Remove bad channels
 if params.clean_eeg_step == 0
     
-    EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',1650);
-    EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
+    EEG = pop_eegfiltnew(EEG,'locutoff',.5,'hicutoff',45,'filtorder',1690,'minphase',false); % use minphase = true for pre-heartbeat analysis
     
-    % Reference to infinity
+    % Reference to average or infinity/REST
+    % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
+    % in the assessment of functional brain–heart interplay: From 
+    % methodology to user guidelines. Journal of Neuroscience Methods.
     if ~isfield(EEG,'ref') || isempty(EEG.ref) || strcmp(EEG.ref,'')
         if EEG.nbchan >= 30
             EEG = reref_inf(EEG); % my function
@@ -119,7 +121,11 @@ elseif params.clean_eeg_step == 1
         EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
     end
     EEG = pop_iclabel(EEG,'default');
-    EEG = pop_icflag(EEG,[NaN NaN; .95 1; .95 1; NaN NaN; NaN NaN; NaN NaN; NaN NaN]);
+    % if strcmp(params.analysis, 'hep')
+        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; NaN NaN; NaN NaN; NaN NaN]);
+    % else
+    %     EEG = pop_icflag(EEG,[NaN NaN; .95 1; .95 1; .99 1; NaN NaN; NaN NaN; NaN NaN]);
+    % end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
     
