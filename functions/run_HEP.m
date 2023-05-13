@@ -75,7 +75,7 @@ end
 
 % Save
 newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
-pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath);
+% pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
 
 %%%%%%%%%%%% FOR HEO (ERSP) Same but with wider epochs %%%%%%%%%%%%%%
 HEO = pop_epoch(EEG,{},[-.3 .7],'epochinfo','yes'); % FIXME: 500 ok for ERP, 700 better for ERSP
@@ -104,6 +104,6 @@ end
 
 % Save
 newname = sprintf('%s_HEO.set', HEO.filename(1:end-4));
-pop_saveset(HEO,'filename',newname,'filepath',HEO.filepath);
+% pop_saveset(HEO,'filename',newname,'filepath',HEO.filepath);% FIXME: add output
 
 
