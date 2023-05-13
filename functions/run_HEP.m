@@ -37,9 +37,7 @@ if length(shortTrials)/length(gaps) < .05
     gaps(shortTrials) = []; % remove them if <5% is very short to get min trial possible below
 end
 
-% Epoch (-50 to + 500 ms is minimum)
-% Warn if a third of trials are shorter than 500 ms long
-% If 10% smallest are above 700 ms, epoch at 700 for time-frequency (200 ms more than 500 ms to allow 1 cycle when 5 Hz is lowest freq)
+% Minimum inter-beat intervals = 500 ms (but more is better for HEO/ERSP)
 % if quantile(gaps,.33) < 500
 %     warning("At least 33% between heartbeats are %g% long. HEP with epochs < 500 ms are strongly discouraged.")
 %     warning("see Candia-Rivera et al. (2021) and Park and Blanke (2019) for more detail.")
@@ -60,25 +58,29 @@ if params.clean_eeg
 end
 
 if params.vis
-    if sum(strcmpi({EEG.chanlocs.labels}, 'fcz')) > 0
-        elec = find(strcmpi({EEG.chanlocs.labels}, 'fcz'));
+    if sum(strcmpi({EEG.chanlocs.labels}, 'cz')) > 0
+        elec = find(strcmpi({EEG.chanlocs.labels}, 'cz'));
     else
         elec = 1;
     end
 
-    % ERP
-    figure; pop_erpimage(HEP,1, elec,[],'HEP (Fcz)',10,1,{},[],'','yerplabel','\muV','erp','on','cbar','on','topo', { 1 EEG.chanlocs EEG.chaninfo } );
-    figure; pop_timtopo(HEP, [HEP.times(1) HEP.times(end)], [250 350 450]);
-    figure; pop_plottopo(HEP, 1:HEP.nbchan, 'HEP data', 0, 'ydir',1);
+    figure; 
+    subplot(2,1,1)
+    pop_timtopo(HEP, [HEP.times(1) HEP.times(end)], [250 350 450], 'Heartbeat-evoked potentials (HEP) - all electrodes');
+    subplot(2,1,2)
+    pop_erpimage(HEP,1, elec,[],'Heartbeat-evoked potentials (HEP) - Fcz',10,1,{},[],'','yerplabel','\muV','erp','on','cbar','on','topo', { 1 EEG.chanlocs EEG.chaninfo } );
     colormap("parula") % parula hot bone sky  summer winter
+    figure; pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0, 'ydir',1);
+    % pop_headplot(EEG, 1, 0, 'HEP', [1  1], 'setup',{fullfile(dataDir,'sample_data','sample_data2_HEP.spl'),'meshfile','mheadnew.mat','transform',[-1.136 7.7523 11.4527 -0.027117 0.015531 -1.5455 0.91234 0.93161 0.80698] });
+    % colormap("parula") 
 end
 
 % Save
-newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
+% newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
 % pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
 
-%%%%%%%%%%%% FOR HEO (ERSP) Same but with wider epochs %%%%%%%%%%%%%%
-HEO = pop_epoch(EEG,{},[-.3 .7],'epochinfo','yes'); % FIXME: 500 ok for ERP, 700 better for ERSP
+%%%%%%%%%%%% HEO (ERSP) Same but with wider epochs %%%%%%%%%%%%%%
+HEO = pop_epoch(EEG,{},[-.3 .7],'epochinfo','yes');
 warning('Removing %g trials shorter than [-300 700] ms long for heartbeat-evoked oscillations (HEO) analysis. \n', length(shortTrials));
 HEO = pop_rejepoch(HEO, shortTrials, 0);
 
@@ -103,7 +105,7 @@ if params.vis
 end
 
 % Save
-newname = sprintf('%s_HEO.set', HEO.filename(1:end-4));
+% newname = sprintf('%s_HEO.set', HEO.filename(1:end-4));
 % pop_saveset(HEO,'filename',newname,'filepath',HEO.filepath);% FIXME: add output
 
 

@@ -28,15 +28,6 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 EEG = pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
     'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'gpu',true,'vis',true); 
 
-figure; 
-subplot(3,1,1)
-pop_erpimage(EEG,1, elec,[],'HEP (Fcz)',10,1,{},[],'','yerplabel','\muV','erp','on','cbar','on','topo', { 1 EEG.chanlocs EEG.chaninfo } );
-subplot(3,1,2)
-pop_timtopo(EEG, [EEG.times(1) EEG.times(end)], [250 350 450]);
-subplot(3,1,3)
-pop_plottopo(EEG, 1:EEG.nbchan, 'HEP data', 0, 'ydir',1);
-figure; pop_headplot(EEG, 1, 0, 'HEP', [1  1], 'setup',{fullfile(dataDir,'sample_data','sample_data2_HEP.spl'),'meshfile','mheadnew.mat','transform',[-1.136 7.7523 11.4527 -0.027117 0.015531 -1.5455 0.91234 0.93161 0.80698] });
-
 %% MODE 3: Feature-based
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
@@ -60,7 +51,7 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 
 %% Save figures (edit name)
 
-exportgraphics(gcf, fullfile('figures','HRV_power_entropy.png'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','HEP_ERP2.png'),'Resolution',300)
 
 
 

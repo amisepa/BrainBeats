@@ -18,6 +18,7 @@ mainpath = fileparts(which('pop_BrainBeats.m'));
 addpath(fullfile(mainpath, 'functions'));
 addpath(fullfile(mainpath, 'functions', 'restingIAF'));
 addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
+outPath = fullfile(mainpath, 'sample_data'); %FIXME: ASK USER FOR OUTPUT DIR
 
 % Basic checks
 if ~exist('EEG','var')
@@ -267,13 +268,15 @@ if contains(params.analysis, {'features' 'hep'})
     %%%%%% PLOT EEG AND HRV FEATURES %%%%%%%
     
     % Visualize HRV outputs
-    if strcmp(params.analysis,'features') && params.vis
-        plot_features(Features,params)
+    if strcmp(params.analysis,'features') 
+        save(fullfile(outPath, 'features.mat'),'Features'); %FIXME: ASK USER FOR OUTPUT DIR
+        if params.vis
+            plot_features(Features,params)
+        end
     end
-
 end
 
-save(fullfile(outDir, 'features.mat'),'Features'); %FIXME: ASK USER FOR OUTPUT DIR
+
 
 disp('Done!'); gong
 
