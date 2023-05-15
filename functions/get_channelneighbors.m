@@ -104,13 +104,13 @@ for i = 1:nchan
 end
 
 % remove neighbouring channels that are too far away (IMPORTANT if missing sensors)
-neighbdist = mean(alldist)+3*std(alldist);
-for i=1:nchan
-    idx = neighbors(i).dist > neighbdist;
+maxdist = mean(alldist)+3*std(alldist);
+for i = 1:nchan
+    idx = neighbors(i).dist > maxdist;
     neighbors(i).dist(idx)         = [];
     neighbors(i).neighblabel(idx)  = [];
 end
-neighbors = rmfield(neighbors, 'dist');
+% neighbors = rmfield(neighbors, 'dist');
 
 % Only select channels that are in the data
 % if isfield(cfg, 'channel') && ~isempty(cfg.channel)
