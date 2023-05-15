@@ -38,11 +38,10 @@ winSize = 2;        % window size (in s). Default = 2 (at least 2 s recommended 
 winType = 'hamming';
 overlap = 50;       % 50% default (Smith et al. 2017)
 
-% Initiate progressbar (only when not in parpool)
+% progressbar (only when not in parpool)
 if ~params.parpool
     progressbar('Extracting EEG features on EEG channels')
 end
-
 disp('Calculating band-power on each EEG channel')
 for iChan = 1:nChan
 
@@ -86,10 +85,11 @@ eeg_features.frequency.IAF = [pChans.gravs];
 
 
 % Asymmetry (use log(pwr) no pwr_dB) - on all pairs
-disp('Calculating (z-normalized) EEG asymmetry for each electrode pair...')
 nPairs = size(chanlocs,2)/2+1;
 pairs = nan(nPairs,2);
 pairLabels = cell(nPairs,1);
+asy = nan(nPairs,1);
+fprintf('Extracting (z-normalized) EEG asymmetry on %g channel pairs... \n',nPairs)
 for iPair = 1:nPairs
 
     % find pairs using X distance
@@ -121,13 +121,19 @@ for iPair = 1:nPairs
     alpha_right = alpha_right / sum(mean(eeg_features.frequency.alpha,2));
 
     % compute asymmetry and export
-    % asy(iPair,:) = log(alpha_left) - log(alpha_right);
-    eeg_features.frequency.asymmetry(iPair,:) = log(alpha_left) - log(alpha_right);
-    eeg_features.frequency.asymmetry_pairs(iPair,:) = pairLabels(iPair,:);
-
+    asy(iPair,:) = log(alpha_left) - log(alpha_right);
 end
+eeg_features.frequency.asymmetry = asy(~isnan(asy));
+eeg_features.frequency.asymmetry_pairs = pairLabels(~isnan(asy));
 
-%% EEG coherence (only pairs with medium-long distance; see Nunez 2016)
+
+
+% EEG coherence (magnitude squared coherence estimate)
+% (only on pairs on electrodes that are not neighbors; see Nunez 2016)
+% FIXME: use minimum distance from Nunez 2016
+nfft = fs*2;
+noverlap = nfft/2;
+
 % elec neighbors
 vis = false;
 neighbors = get_channelneighbors(chanlocs,vis);
@@ -136,25 +142,44 @@ neighbors = get_channelneighbors(chanlocs,vis);
 pairs = nchoosek({chanlocs.labels}, 2);
 
 % remove pairs that are neighbors
-for iPair = 1:size(pairs,1)
+nPairs = size(pairs,1);
+pairname = cell(nPairs,1);
+cohr = nan(nPairs,nfft/2+1);
+progressbar('EEG coherence on each channel pair')
+fprintf('Estimating EEG coherence on all possible channel pairs... \n')
+warning('Ignoring neighboring channels that are contaminated by volume conduction effects (see Nunez et al. 2016, Figure 7)');
+for iPair = 1:nPairs
     
     chan1 = pairs{iPair,1};
     chan2 = pairs{iPair,2};
-    
-    % If chan2 is neighbor, skip to next pair, otherwise compute coherence
     chan1_neighbors = neighbors(strcmp({neighbors.label},chan1)).neighblabel;
+    pairname{iPair,:} = sprintf('%s - %s', pairs{iPair,1}, pairs{iPair,2});
+
+    % If chan2 is neighbor, skip to next pair, otherwise compute coherence
     if sum(contains(chan1_neighbors, chan2)) == 0
+        fprintf('pair: %s \n', pairname{iPair,:})
         idx1 = strcmp({chanlocs.labels},chan1);
         idx2 = strcmp({chanlocs.labels},chan2);
-        [cohr,f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(fs*2),fs,[],fs);
-        plot(f(f>=0 & f<30), squeeze(cohr(f>=0 & f<30))); grid on; hold on;
-        eeg_features.frequency.eeg_coherence(iPair,:) = cohr;
-        eeg_features.frequency.eeg_coherence(iPair,:) = cohr;
+        [cohr(iPair,:),f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(nfft),noverlap,nfft,fs);
+        % plot(f(f>=0 & f<45), squeeze(cohr(f>=0 & f<45))); 
+        % title(pairname); grid on; hold on;
     else
+        fprintf('pair: %s (neighbors -> ignored) \n', pairname{iPair,:})
         continue
     end
-
+    
+    progressbar(iPair/nPairs);
 end
+
+% Remove empty rows
+nans = isnan(cohr(:,1));
+cohr(nans,:) = [];
+pairname(nans,:) = [];
+
+% Export
+eeg_features.frequency.eeg_coherence= cohr;
+eeg_features.frequency.eeg_coherence_pair = pairname;
+eeg_features.frequency.eeg_coherence_f = f;
 
 %% Entropy
 

@@ -103,7 +103,7 @@ for i = 1:nchan
     neighbors(i).neighblabel    = label(neighbidx);
 end
 
-% remove neighbouring channels that are too far away (IMPORTANT if missing sensors)
+% Remove neighbouring channels that are too far away (IMPORTANT if missing sensors)
 maxdist = mean(alldist)+3*std(alldist);
 for i = 1:nchan
     idx = neighbors(i).dist > maxdist;
