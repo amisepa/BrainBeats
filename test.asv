@@ -51,7 +51,7 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 
 %% Save figures (edit name)
 
-exportgraphics(gcf, fullfile('figures','HEP_ERP2.png'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','features_plot1.png'),'Resolution',300)
 
 
 

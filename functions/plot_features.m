@@ -1,7 +1,7 @@
 function plot_features(Features,params)
 
 HRV = Features.HRV;
-eeg_features = Features.EEG;
+EEG = Features.EEG;
 
 
 %% PSD AND MFE PLOT
@@ -74,35 +74,91 @@ title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy'
 axis tight;
 
 % PSD - EEG
-% load('C:\Users\Tracy\Desktop\eeg_features.mat')
 subplot(2,2,2); hold on
-pwr = trimmean(eeg_features.frequency.pwr,20,1); % mean across channels
-freqs = eeg_features.frequency.freqs(1,:);
+pwr = trimmean(EEG.frequency.pwr,20,1); % 20% trimmed mean across channels
+freqs = EEG.frequency.freqs(1,:);
 area(freqs,pwr,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7);
 title('Power spectral density - EEG'); xlabel('Frequency (Hz)');
 ylabel('Power (ms^2)'); axis tight;
 
 % Multiscale fuzzy entropy (MFE) - EEG
 subplot(2,2,4); hold on
-scales = eeg_features.nonlinear.MFE_scales(1,:);
-% mfe = trimmean(eeg_features.nonlinear.MFE,20,1);
-mfe = eeg_features.nonlinear.MFE(31,:);
-% for i = 1:size(eeg_features.nonlinear.MFE,1)
-    % mfe = eeg_features.nonlinear.MFE(i,:);
-    area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-    % title(sprintf('Channel %g', i));
-    % pause(0.8)
-% end
+scales = EEG.nonlinear.MFE_scales(1,:); 
+mfe = trimmean(EEG.nonlinear.MFE,20,1); % 20% trimmed mean across channels
+% mfe = EEG.nonlinear.MFE(31,:); % elec with more variation
+area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
 title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
 axis tight;
 
 set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
-% set(gca,'FontSize',12,'layer','top','fontweight','bold');
+% set(gca,'FontSize',11,'layer','top','fontweight','bold');
+
+%% Scalp topos 2D
+
+mode = 1;
+figure('color','w')
+subplot(3,2,1)
+plot_topo(gather(mean(EEG.frequency.delta,2)),params.chanlocs,mode,'psd');
+title('Delta power'); %colorbar off; 
+subplot(3,2,2)
+plot_topo(gather(mean(EEG.frequency.theta,2)),params.chanlocs,mode,'psd');
+title('Theta power'); 
+subplot(3,2,3)
+plot_topo(gather(mean(EEG.frequency.alpha,2)),params.chanlocs,mode,'psd');
+title('Alpha power'); 
+subplot(3,2,4)
+plot_topo(gather(mean(EEG.frequency.beta,2)),params.chanlocs,mode,'psd');
+title('Beta power'); 
+subplot(3,2,5)
+plot_topo(gather(EEG.frequency.IAF),params.chanlocs,mode,'IAF');
+title('Individual alpha frequency (IAF)'); %colorbar off; 
+subplot(3,2,6)
+plot_topo(gather(EEG.nonlinear.FE),params.chanlocs,mode,'entropy');
+title('Fuzzy entropy'); %colorbar off; 
+
+set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
+
+
+%% Scalp topos 3D - PSD and MFE
+
+% mode = 2;
+% dataToPlot{1,1} = gather(EEG.frequency.pwr_dB);
+% dataToPlot{2,1} = gather(EEG.frequency.freqs);
+% dataToPlot{1,2} = gather(EEG.nonlinear.MFE);
+% dataToPlot{2,2} = gather(EEG.nonlinear.MFE_scales);
+% figure('color','w')
+% plot_topo(dataToPlot,params.chanlocs,mode,'psd');
+% title('PSD and MFE'); %colorbar off; 
+% set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
+
+%% Asymmetry and coherence
 
 
 
 
-%% CORRELATION PLOT 1 (https://www.mathworks.com/help/econ/corrplot.html)
+
+%% CORRELATION PLOT 1 (https://www.mathworks.com/matlabcentral/answers/699755-fancy-correlation-plots-in-matlab)
+
+% labels = {'ICA','Elev','Pr','Rmax','Rmin','Srad','Wspd','Tmin','Tmax','VPD','ET_o','AW'};
+% C = -1 + 2.*rand(12,12);      % produce fake data
+
+% load hospital
+% X = [hospital.Weight hospital.BloodPressure];
+% C = cov(X)
+% % R1 = corrcov(C)
+% R2 = corrcoef(X)
+
+% X(1,2) = [HRV.time.NN_mean];
+% X(2,1) = [HRV.time.NN_mean];
+
+% plot_corrmatrix(C,labels)
+
+
+
+
+
+%% CORRELATION PLOT 2 (requires econometrics toolbox)
+% (https://www.mathworks.com/help/econ/corrplot.html)
 
 % pairwise Pearson's correlations and corresponding p-values for testing 
 % the null hypothesis of no correlation against the right-tailed alternative 
@@ -111,57 +167,3 @@ set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
 % load Data_Canada
 % [R,PValue] = corrplot(DataTable,Tail="right");
 % PValue
-
-%% CORRELATION PLOT 2 (https://www.mathworks.com/matlabcentral/answers/699755-fancy-correlation-plots-in-matlab)
-
-% % Produce the input lower triangular matrix data
-% C = -1 + 2.*rand(12,12);
-% C = tril(C,-1);
-% C(logical(eye(size(C)))) = 1;
-% 
-% % Set [min,max] value of C to scale colors
-% clrLim = [-1,1];
-% 
-% % load('CorrColormap.mat') % Uncomment for custom CorrColormap
-% 
-% % Set the  [min,max] of diameter where 1 consumes entire grid square
-% diamLim = [0.1, 1];
-% myLabel = {'ICA','Elev','Pr','Rmax','Rmin','Srad','Wspd','Tmin','Tmax','VPD','ET_o','AW'};
-% 
-% % Compute center of each circle (this assumes the x and y values were not 
-% % centered in imagesc()
-% x = 1 : 1 : size(C,2); % x edges
-% y = 1 : 1 : size(C,1); % y edges
-% [xAll, yAll] = meshgrid(x,y);
-% xAll(C==0)=nan; % eliminate cordinates for zero correlations
-% % Set color of each rectangle
-% % Set color scale
-% cmap = jet(256);
-% % cmap = CorrColormap; % Uncomment for CorrColormap
-% Cscaled = (C - clrLim(1))/range(clrLim); % always [0:1]
-% colIdx = discretize(Cscaled,linspace(0,1,size(cmap,1)));
-% % Set size of each circle
-% % Scale the size between [0 1]
-% Cscaled = (abs(C) - 0)/1;
-% diamSize = Cscaled * range(diamLim) + diamLim(1);
-% % Create figure
-% fh = figure();
-% ax = axes(fh);
-% hold(ax,'on')
-% colormap(ax,'jet');
-% % colormap(CorrColormap) %Uncomment for CorrColormap
-% tickvalues = 1:length(C);
-% x = zeros(size(tickvalues));
-% text(x, tickvalues, myLabel, 'HorizontalAlignment', 'right');
-% x(:) = length(C)+1;
-% text(tickvalues, x, myLabel, 'HorizontalAlignment', 'right','Rotation',90);
-% % Create circles
-% theta = linspace(0,2*pi,50); % the smaller, the less memory req'd.
-% h = arrayfun(@(i)fill(diamSize(i)/2 * cos(theta) + xAll(i), ...
-%     diamSize(i)/2 * sin(theta) + yAll(i), cmap(colIdx(i),:),'LineStyle','none'),1:numel(xAll));
-% axis(ax,'equal')
-% axis(ax,'tight')
-% set(ax,'YDir','Reverse')
-% colorbar()
-% clim(clrLim);
-% axis off

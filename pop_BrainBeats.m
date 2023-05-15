@@ -238,7 +238,7 @@ if contains(params.analysis, {'features' 'hep'})
 
             % Final output with everything
             Features.HRV = HRV;
-            
+
         else
             error('Signal quality of the RR series is too low. HRV features should not be computed.')
         end
@@ -254,28 +254,30 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features
         if params.eeg
-            tic
-            eeg_features = get_eeg_features(EEG.data, EEG.chanlocs, params);
-            toc
+            params.chanlocs = EEG.chanlocs;
+            tstart = tic;
+            eeg_features = get_eeg_features(EEG.data, params);
+            fprintf('Time to extract EEG features: %g min \n', round(toc(tstart)/60,1))
         end
 
         % Final output with everything
         Features.EEG = eeg_features;
 
     end
-
-
-    %%%%%% PLOT EEG AND HRV FEATURES %%%%%%%
-    
-    % Visualize HRV outputs
-    if strcmp(params.analysis,'features') 
-        save(fullfile(outPath, 'features.mat'),'Features'); %FIXME: ASK USER FOR OUTPUT DIR
-        if params.vis
-            plot_features(Features,params)
-        end
-    end
 end
 
+%%%%%% PLOT FEATURES & SAVE %%%%%%%
+if strcmp(params.analysis,'features')
+    % Save features - FIXME: ASK USER FOR OUTPUT DIR (GUI & command)
+    outputPath = fullfile(outPath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
+    fprintf("Saving Features in %s ... \n", outputPath);
+    save(fullfile(outPath, sprintf('%s_features.mat', EEG.filename(1:end-4))),'Features');
+
+    % Plot features
+    if params.vis
+        plot_features(Features,params)
+    end
+end
 
 
 disp('Done!'); gong
