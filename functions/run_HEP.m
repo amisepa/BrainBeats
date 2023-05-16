@@ -12,6 +12,11 @@
 
 function EEG = run_HEP(EEG, params, Rpeaks)
 
+% Save HEP/HEO files
+if ~isfield(params,'hep_save') % not available from GUI yet
+    params.hep_save = true;
+end
+
 % Add heartbeat markers in the signals, taking into account
 % existing events
 nEv = length(EEG.event);
@@ -76,8 +81,10 @@ if params.vis
 end
 
 % Save
-% newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
-% pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
+if params.hep_save
+    newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
+    pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
+end
 
 %%%%%%%%%%%% HEO (ERSP) Same but with wider epochs %%%%%%%%%%%%%%
 HEO = pop_epoch(EEG,{},[-.3 .7],'epochinfo','yes');
@@ -105,7 +112,8 @@ if params.vis
 end
 
 % Save
-% newname = sprintf('%s_HEO.set', HEO.filename(1:end-4));
-% pop_saveset(HEO,'filename',newname,'filepath',HEO.filepath);% FIXME: add output
-
+if params.hep_save
+    newname = sprintf('%s_HEO.set', HEO.filename(1:end-4));
+    pop_saveset(HEO,'filename',newname,'filepath',HEO.filepath);% FIXME: add output
+end
 

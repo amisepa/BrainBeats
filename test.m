@@ -45,7 +45,7 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 %     'hrv_features', {'time' 'frequency' 'nonlinear'},'vis',true);
 
 
-%% Save figures (edit name)
+%% Save figures for paper (edit name)
 
 exportgraphics(gcf, fullfile('figures','features_plot1.png'),'Resolution',300)
 

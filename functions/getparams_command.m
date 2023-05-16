@@ -106,6 +106,14 @@ else
     params.vis = true;
 end
 
+% Save HEP and HEO files
+idx = find(contains(inputs,'hep_save'));
+if ~isempty(idx)
+    params.hep_save = logical(varargin{idx*2});
+else
+    params.hep_save = true; % save output by default
+end
+
 % Parallel computing (FIXME: add to GUI)
 idx = find(contains(inputs,'parpool'));
 if ~isempty(idx)

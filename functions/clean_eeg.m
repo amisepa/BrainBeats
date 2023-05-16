@@ -54,7 +54,7 @@ if params.clean_eeg_step == 0
     %     EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
     % end
     % EEG = eeg_checkset(EEG);
-
+    
     % update tracker
     params.clean_eeg_step = 1;
 
