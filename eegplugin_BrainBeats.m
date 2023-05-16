@@ -26,13 +26,19 @@ p = fileparts(which('eegplugin_BrainBeats.m'));
 addpath(p);
 addpath(fullfile(p,'functions'))
 addpath(fullfile(p,'sample_data'))
+addpath(fullfile(p,'functions','restingIAF'));
+addpath(fullfile(p,'functions','fieldtrip'));
 
-cmd = [ try_strings.check_data '[EEG,LASTCOM] = pop_BrainBeats(EEG);' ...
-        catch_strings.new_and_hist ];
+% find menu
+menu = findobj(fig, 'tag', 'tools');
 
-% create menu
-toolsmenu = findobj(fig, 'tag', 'tools');
-uimenu(toolsmenu,'label','Run BrainBeats','userdata', ...
-    'startup:off;epoch:off;study:off','callback', cmd, 'position', 15);
+% menu callbacks
+process = [try_strings.no_check '[EEG, LASTCOM] = brainbeats_process(EEG);' catch_strings.new_and_hist];
+analyze = [try_strings.no_check '[EEG, LASTCOM] = brainbeats_analyze(EEG);' catch_strings.new_and_hist];
+  
+% create menus
+submenu = uimenu(menu, 'Label', 'BrainBeats', 'separator', 'on');
+uimenu(submenu, 'Label', 'Process file (subject level)', 'CallBack', process);
+uimenu(submenu, 'Label', 'Run statistics on features (group level)', 'CallBack', analyze);
 
 end

@@ -7,18 +7,18 @@
 %
 % Cedric Cannad, 2023
 
-function [EEG, Features, com] = pop_BrainBeats(EEG, varargin)
+function [EEG, Features, com] = brainbeats_process(EEG, varargin)
 
 pop_editoptions('option_single', 0); % ensure double precision
 Features = [];
 com = '';
 
-% Add path to subfolders
-mainpath = fileparts(which('pop_BrainBeats.m'));
-addpath(fullfile(mainpath, 'functions'));
-addpath(fullfile(mainpath, 'functions', 'restingIAF'));
-addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
-outPath = fullfile(mainpath, 'sample_data'); %FIXME: ASK USER FOR OUTPUT DIR
+% % Add path to subfolders
+% mainpath = fileparts(which('pop_BrainBeats.m'));
+% addpath(fullfile(mainpath, 'functions'));
+% addpath(fullfile(mainpath, 'functions', 'restingIAF'));
+% addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
+% outPath = fullfile(mainpath, 'sample_data'); %FIXME: ASK USER FOR OUTPUT DIR
 
 % Basic checks
 if ~exist('EEG','var')
@@ -86,6 +86,11 @@ if params.vis
     if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
         error("Electrode location coordinates must be loaded for visualizing outputs.");
     end
+end
+
+% Parallel computing
+if ~isfield(params,'parpool') % not available from GUI yet
+    params.parpool = false;
 end
 
 % GPU computing

@@ -247,7 +247,6 @@ for iChan = 1:nChan
     end
     
     % Outputs
-    eeg_features.nonlinear.FE(iChan,:) = fe;
     eeg_features.nonlinear.MFE_scales(iChan,:) = scales;
     eeg_features.nonlinear.MFE_scale_bounds(iChan,:) = scale_bounds;
     eeg_features.nonlinear.MFE(iChan,:) = mfe;
