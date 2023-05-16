@@ -137,16 +137,15 @@ set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
 
 
 
-%% CORRELATION PLOT 1 (https://www.mathworks.com/matlabcentral/answers/699755-fancy-correlation-plots-in-matlab)
+%% CORRELATION PLOT 
 
 % labels = {'ICA','Elev','Pr','Rmax','Rmin','Srad','Wspd','Tmin','Tmax','VPD','ET_o','AW'};
 % C = -1 + 2.*rand(12,12);      % produce fake data
 
 % load hospital
 % X = [hospital.Weight hospital.BloodPressure];
-% C = cov(X)
-% % R1 = corrcov(C)
-% R2 = corrcoef(X)
+% R = corrcoef(X);
+
 
 % X(1,2) = [HRV.time.NN_mean];
 % X(2,1) = [HRV.time.NN_mean];

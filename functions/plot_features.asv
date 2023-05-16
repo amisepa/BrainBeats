@@ -140,81 +140,24 @@ set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
 %% CORRELATION PLOT 1 (https://www.mathworks.com/matlabcentral/answers/699755-fancy-correlation-plots-in-matlab)
 
 % labels = {'ICA','Elev','Pr','Rmax','Rmin','Srad','Wspd','Tmin','Tmax','VPD','ET_o','AW'};
-
-% Prep data
-% load hospital
-% X = [hospital.Weight hospital.BloodPressure];
-% C = cov(X)
-% % R1 = corrcov(C)
-% R2 = corrcoef(X)
-
-X()
-
 % C = -1 + 2.*rand(12,12);      % produce fake data
-C = tril(C,-1);                 % zero upper triangle
-C(logical(eye(size(C)))) = 1;   % one in diagonal
+
+load hospital
+X = [hospital.Weight hospital.BloodPressure];
+C = cov(X)
+% R1 = corrcov(C)
+R2 = corrcoef(X)  % or corrcov
+
+% X(1,2) = [HRV.time.NN_mean];
+% X(2,1) = [HRV.time.NN_mean];
+
+% plot_corrmatrix(C,labels)
 
 
-% Set the  [min,max] of diameter where 1 consumes entire grid square
-diamLim = [0.1, 1];
 
-% Compute center of each circle
-x = 1 : 1 : size(C,2); % x edges
-y = 1 : 1 : size(C,1); % y edges
-[xAll, yAll] = meshgrid(x,y);
-xAll(C==0) = nan; % eliminate cordinates for zero correlations
 
-% Colormap and color scale
-load('corr_cmap.mat');
-clrLim = [-1,1];  % scale from -1 to 1 (correlation coefficient)
-Cscaled = (C - clrLim(1))/range(clrLim); 
-colIdx = discretize(Cscaled,linspace(0,1,size(cmap,1)));
 
-% Scale the size between 0-1
-Cscaled = (abs(C) - 0)/1;
-diamSize = Cscaled * range(diamLim) + diamLim(1);
-
-% Create figure
-fh = figure();
-ax = axes(fh);
-hold(ax,'on')
-colormap(cmap) 
-tickvalues = 1:size(C,2);
-x = zeros(size(tickvalues));
-text(x, tickvalues, labels,'HorizontalAlignment','right');
-x(:) = size(C,1)+1;
-text(tickvalues, x, labels,'HorizontalAlignment','right','Rotation',45);
-
-% Create circles
-theta = linspace(0,2*pi,50); % the smaller, the less memory req'd.
-arrayfun(@(i)fill(diamSize(i)/2 * cos(theta) + xAll(i), ...
-    diamSize(i)/2 * sin(theta) + yAll(i), cmap(colIdx(i),:),'LineStyle','none'),1:numel(xAll));
-axis(ax,'equal'); axis(ax,'tight'); set(ax,'YDir','Reverse')
-cb = colorbar(); ylabel(cb, 'Correlation coefficient','fontsize',12,'fontweight','bold')
-clim(clrLim);
-axis off;
-
-set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
-
-%% CORRELATION PLOT 1 (imagesc)
-
-% Produce the input matrix data 
-C = rand(20,30);
-% Set [min,max] value of C to scale colors
-% This must span the range of your data!
-clrLim = [0,1];  % or [-1,1] as in your question
-% Set the  [min,max] of diameter where 1 consumes entire grid square
-diamLim = [0.3, 1];
-% Plot the data using imagesc() for later comparison
-figure()
-imagesc(C)
-colormap(gca,'parula');
-colorbar();
-caxis(clrLim);
-axis equal
-axis tight
-
-%% CORRELATION PLOT 3 (requires econometrics toolbox)
+%% CORRELATION PLOT 2 (requires econometrics toolbox)
 % (https://www.mathworks.com/help/econ/corrplot.html)
 
 % pairwise Pearson's correlations and corresponding p-values for testing 

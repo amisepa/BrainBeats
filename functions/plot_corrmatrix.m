@@ -1,3 +1,10 @@
+% Plots a correlation matrix
+% 
+% Cedric Cannard, 2023
+% 
+% Original code: 
+%   https://www.mathworks.com/matlabcentral/answers/699755-fancy-correlation-plots-in-matlab
+
 function plot_corrmatrix(C,labels)
 
 load('corr_cmap.mat');

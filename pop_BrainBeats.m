@@ -215,7 +215,7 @@ if contains(params.analysis, {'features' 'hep'})
     if strcmp(params.analysis,'hep')
         EEG = run_HEP(EEG, params, Rpeaks);
     end
-
+    
     %%%%% MODE 3: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
 
