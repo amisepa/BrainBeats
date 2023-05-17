@@ -285,6 +285,4 @@ if strcmp(params.analysis,'features')
 end
 
 
-disp('Done!'); gong
-
-
+disp('Done processing with BrainBeats!'); %gong
