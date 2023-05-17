@@ -22,7 +22,7 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sample_data'));
 % EEG = brainbeats_process(EEG);  % GUI mode
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
-    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'gpu',true,'vis',true); 
+    'heart_channels',{'ECG1' 'ECG2'},'clean_eeg',true,'gpu',true,'vis',true); 
 
 %% MODE 3: Feature-based
 
@@ -31,7 +31,7 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 % EEG.data(50,:) = EEG.data(50,end:-1:1).*10;
 % Features = brainbeats_process(EEG);  % GUI mode
 [EEG, Features] = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...
+    'heart_channels',{'ECG1' 'ECG2'}, 'clean_eeg',true, ...
     'eeg_features', {'frequency' 'nonlinear'}, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
     'gpu',true,'parpool',true,'vis',true);
@@ -48,59 +48,3 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 %% Save figures for paper (edit name)
 
 exportgraphics(gcf, fullfile('figures','features_plot1.png'),'Resolution',300)
-
-
-
-%% Run HEP analysis on group: Mindwandering vs Trance
-
-dataDir = 'C:\Users\Tracy\Desktop\trance_sample_data';
-
-commands = {};
-count = 0;
-for iSub = 1%1:13
-    for iCond = 1%:2
-        if iCond == 1
-            filename = sprintf('sub-%2.2d_mindwandering.set',iSub);
-        else
-            filename = sprintf('sub-%2.2d_trance.set',iSub);
-        end
-        EEG = pop_loadset('filename',filename,'filepath',dataDir);
-
-        EEG = pop_BrainBeats(EEG,'analysis','hep','heart_signal',{'ECG'}, ...
-            'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'gpu',true,'vis',true); 
-        EEG.subject = sprintf('sub-%2.2d',iSub);
-        EEG.session = 1;
-        if iCond == 1
-            EEG.condition = {'mindwandering'};
-        else
-            EEG.condition = {'trance'};
-        end
-
-        EEG.saved = 'no';
-        pop_saveset(EEG, 'filepath', EEG.filepath, 'filename', filename);
-
-        count = count+1;
-        commands = {commands{:} 'index' count 'load' fullfile(EEG.filepath, filename)};
-
-    end
-end
-
-% Create study
-[STUDY, ALLEEG] = std_editset([],[],'name','Trance','task','Trance',...
-        'filename','trance.study','resave', 'on', ...
-        'filepath', dataDir,'commands',commands);
-EEG = ALLEEG; CURRENTSET = 1:length(ALLEEG); CURRENTSTUDY = 1;
-
-% % plot results
-% STUDY = pop_specparams(STUDY, 'topofreq',[9 11] );
-% STUDY = pop_statparams(STUDY, 'condstats','on','mcorrect','fdr');
-% STUDY = std_specplot(STUDY,ALLEEG,'channels',{'Fp1','AF7','AF3','F1','F3','F5','F7','FT7','FC5','FC3','FC1','C1','C3','C5','T7','TP7','CP5','CP3','CP1','P1','P3','P5','P7','P9','PO7','PO3','O1','Iz','Oz','POz','Pz','CPz','Fpz','Fp2','AF8','AF4','Afz','Fz','F2','F4','F6','F8','FT8','FC6','FC4','FC2','FCz','Cz','C2','C4','C6','T8','TP8','CP6','CP4','CP2','P2','P4','P6','P8','P10','PO8','PO4','O2'}, 'design', 1);
-% print -djpeg channeling_10Hz.jpg
-% STUDY = pop_specparams(STUDY, 'topofreq',[4 6] );
-% STUDY = std_specplot(STUDY,ALLEEG,'channels',{'Fp1','AF7','AF3','F1','F3','F5','F7','FT7','FC5','FC3','FC1','C1','C3','C5','T7','TP7','CP5','CP3','CP1','P1','P3','P5','P7','P9','PO7','PO3','O1','Iz','Oz','POz','Pz','CPz','Fpz','Fp2','AF8','AF4','Afz','Fz','F2','F4','F6','F8','FT8','FC6','FC4','FC2','FCz','Cz','C2','C4','C6','T8','TP8','CP6','CP4','CP2','P2','P4','P6','P8','P10','PO8','PO4','O2'}, 'design', 1);
-% print -djpeg channeling_5Hz.jpg
-% STUDY = pop_specparams(STUDY, 'topofreq',[18 22] );
-% STUDY = std_specplot(STUDY,ALLEEG,'channels',{'Fp1','AF7','AF3','F1','F3','F5','F7','FT7','FC5','FC3','FC1','C1','C3','C5','T7','TP7','CP5','CP3','CP1','P1','P3','P5','P7','P9','PO7','PO3','O1','Iz','Oz','POz','Pz','CPz','Fpz','Fp2','AF8','AF4','Afz','Fz','F2','F4','F6','F8','FT8','FC6','FC4','FC2','FCz','Cz','C2','C4','C6','T8','TP8','CP6','CP4','CP2','P2','P4','P6','P8','P10','PO8','PO4','O2'}, 'design', 1);
-% print -djpeg channeling_20Hz.jpg
-% 
-% gong
