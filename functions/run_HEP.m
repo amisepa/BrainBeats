@@ -29,12 +29,10 @@ types = repmat({'R-peak'},1,length(evt));
 EEG = eeg_checkset(EEG);
 
 % Remove inter-beat-intervals (IBI) shorter than 700 ms (should be at least 
-% 500 ms post R peak but extend window for ERSP). 
-% Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
-% in the assessment of functional brain–heart interplay: From 
-% methodology to user guidelines. Journal of Neuroscience Methods.
+% 500 ms post R peak but extend window for ERSP). see Candia-Rivera, 
+% Catrambone, & Valenza (2021); and see Park and Blanke (2019),
 IBI = diff(Rpeaks)/EEG.srate *1000;
-shortTrials = find(IBI<700);
+shortTrials = find(IBI<555);
 if params.vis
     figure; histogram(IBI); 
     title('Gaps between heartbeats (minimum should be 500 ms)'); xlabel('millisecond'); ylabel('Gaps');
@@ -44,7 +42,7 @@ if length(shortTrials)/length(IBI) < .05
 end
 
 % Minimum ICI = 500 ms (but more is better for HEO/ERSP)
-% if quantile(gaps,.33) < 500
+% if quantile(IBI,.33) < 500
 %     warning("At least 33% between heartbeats are %g% long. HEP with epochs < 500 ms are strongly discouraged.")
 %     warning("see Candia-Rivera et al. (2021) and Park and Blanke (2019) for more detail.")
 %     EEG = pop_epoch(EEG,{},[-0.05 .5],'epochinfo','yes');
@@ -55,8 +53,8 @@ end
 % end
 
 % Epoch
-HEP = pop_epoch(EEG,{},[-.05 .7],'epochinfo','yes');
-warning('Removing %g trials shorter than 550 ms long, for heartbeat-evoked potential (HEP) analysis. \n', length(shortTrials));
+HEP = pop_epoch(EEG,{},[-.05 .55],'epochinfo','yes');
+warning('Removing %g trials with an interbeat interval (IBI) <550 ms long. See Candia-Rivera et al. (2021) and Park and Blanke (2019) for more detail) . \n', length(shortTrials));
 HEP = pop_rejepoch(HEP, shortTrials, 0);
 
 if params.clean_eeg

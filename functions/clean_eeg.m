@@ -131,7 +131,7 @@ elseif params.clean_eeg_step == 1
     
     % Visualize tagged components
     if params.vis
-        pop_selectcomps(EEG,1:20); 
+        pop_selectcomps(EEG,1:20); colormap("parula")
     end
     
     % Remove bad components
