@@ -67,13 +67,14 @@ elseif params.clean_eeg_step == 1
         % Remove bad trials
         disp('Looking for bad trials...')
         b = design_fir(100,[2*[0 45 50]/EEG.srate 1],[1 1 0 0]);
-        sigRMS = rms(squeeze(rms(EEG.data,2)),1);
-        badRMS = isoutlier(sigRMS,'mean');
+        sigRMS = nan(1,size(EEG.data,3));
         snr = nan(1,size(EEG.data,3));
         for iEpoch = 1:size(EEG.data,3)
+            sigRMS(:,iEpoch) = rms(rms(squeeze(EEG.data(:,:,iEpoch)),2));
             tmp = filtfilt_fast(b,1, squeeze(EEG.data(:,:,iEpoch))');
             snr(:,iEpoch) = rms(mad(squeeze(EEG.data(:,:,iEpoch)) - tmp'));
         end
+        badRMS = isoutlier(sigRMS,'mean');
         badSNR = isoutlier(snr,'grubbs');
         badTrials = unique([find(badRMS) find(badSNR)]);
         % pop_eegplot(EEG,1,1,1);
