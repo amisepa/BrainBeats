@@ -14,10 +14,10 @@ Features = [];
 com = '';
 
 % % Add path to subfolders
-% mainpath = fileparts(which('pop_BrainBeats.m'));
-% addpath(fullfile(mainpath, 'functions'));
-% addpath(fullfile(mainpath, 'functions', 'restingIAF'));
-% addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
+mainpath = fileparts(which('eegplugin_BrainBeats.m'));
+addpath(fullfile(mainpath, 'functions'));
+addpath(fullfile(mainpath, 'functions', 'restingIAF'));
+addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
 % outPath = fullfile(mainpath, 'sample_data'); %FIXME: ASK USER FOR OUTPUT DIR
 
 % Basic checks
@@ -91,6 +91,20 @@ end
 % Parallel computing
 if ~isfield(params,'parpool') % not available from GUI yet
     params.parpool = false;
+end
+if params.parpool
+    % delete(gcp('nocreate'))
+    p = gcp('nocreate');
+    if isempty(p) % if not already on, launch it
+        c = parcluster; % cluster profile
+         % N = feature('numcores');        % physical number of cores
+        N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
+        if ischar(N)
+            N = str2double(N);
+        end
+       c.NumWorkers = N;  % update cluster profile to include all workers
+        p = c.parpool(N);
+    end
 end
 
 % GPU computing

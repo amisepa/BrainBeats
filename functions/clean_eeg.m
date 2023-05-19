@@ -3,7 +3,7 @@ function [EEG, params] = clean_eeg(EEG, params)
 % Remove bad channels
 if params.clean_eeg_step == 0
     
-    EEG = pop_eegfiltnew(EEG,'locutoff',.5,'hicutoff',45,'filtorder',1690,'minphase',false); % use minphase = true for pre-heartbeat analysis
+    EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',846,'minphase',false); % use causal minimum-phase filter for pre-event analysis
     
     % Reference to average or infinity/REST
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
