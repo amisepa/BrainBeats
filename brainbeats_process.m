@@ -150,8 +150,10 @@ if contains(params.analysis, {'features' 'hep'})
         sig_filt = sig_filt(best_elec,:);
         SQIthresh2 = .2;   % 20% of file can contain SQI<.9
         if SQI > SQIthresh2 % more than 20% of RR series is bad
-            warning(['%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)! \n' ...
-                'You may inspect and remove them manually in EEGLAB > Plot > Channel data (Scroll).'], SQI)
+            warning on
+            warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",SQI);
+            error("Aborting! You can inspect the data in EEGLAB > Plot > Channel data (Scroll).");
+            return
         else
             fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", SQI )
         end
@@ -219,7 +221,7 @@ if contains(params.analysis, {'features' 'hep'})
     %%%%% MODE 2: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
         EEG = run_HEP(EEG, params, Rpeaks);
-    end
+    end 
     
     %%%%% MODE 3: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
@@ -285,4 +287,6 @@ if strcmp(params.analysis,'features')
 end
 
 
-disp('Done processing with BrainBeats!'); %gong
+disp('Done!'); %gong
+
+

@@ -53,7 +53,7 @@ end
 % end
 
 % Epoch
-HEP = pop_epoch(EEG,{},[-.05 .55],'epochinfo','yes');
+HEP = pop_epoch(EEG,{},[-.05 .55],'epochinfo','yes'); % freq resolution = 1.67 Hz for 600 ms
 warning('Removing %g trials with an interbeat interval (IBI) <550 ms long. See Candia-Rivera et al. (2021) and Park and Blanke (2019) for more detail) . \n', length(shortTrials));
 HEP = pop_rejepoch(HEP, shortTrials, 0);
 
