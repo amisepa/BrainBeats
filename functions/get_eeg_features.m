@@ -205,12 +205,12 @@ end
 for iChan = 1:nChan
     
     fprintf('Processing channel %g \n', iChan);
-    
-    % Entropy
-    if size(signals,2) > 5000 % Downsample to accelerate on data with more than 5,000 samples
+
+    % Downsample to accelerate on data with more than 5,000 samples
+    if size(signals,2) > 5000 
         new_fs = 90;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
         fac = fs / new_fs; % downsample factor
-
+        
         % downsample if integer, otherwise decimate to round factor
         if fac ~= floor(fac)
             fac = round(fac);
@@ -259,9 +259,3 @@ for iChan = 1:nChan
     eeg_features.nonlinear.MFE_area(iChan,:) = trapz(mfe);
 
 end
-
-
-% Shut down parallel pool
-% if params.parpool
-%     delete(gcp('nocreate'));
-% end

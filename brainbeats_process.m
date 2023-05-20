@@ -304,6 +304,11 @@ if strcmp(params.analysis,'features')
     end
 end
 
+% Shut down parallel pool
+% if params.parpool
+%     delete(gcp('nocreate'));
+% end
+
 
 disp('Done!'); %gong
 
