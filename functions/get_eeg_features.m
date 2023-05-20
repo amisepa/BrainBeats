@@ -138,8 +138,8 @@ nfft = fs*2;
 noverlap = nfft/2;
 
 % elec neighbors
-vis = false;
-neighbors = get_channelneighbors(chanlocs,vis);
+% vis = false;
+neighbors = get_channelneighbors(chanlocs);
 
 % all possible pairs
 pairs = nchoosek({chanlocs.labels}, 2);
@@ -203,7 +203,9 @@ if ~params.parpool
     progressbar('Extracting entropy on each EEG channel')
 end
 for iChan = 1:nChan
-
+    
+    fprintf('Processing channel %g \n', iChan);
+    
     % Entropy
     if size(signals,2) > 5000 % Downsample to accelerate on data with more than 5,000 samples
         new_fs = 90;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)

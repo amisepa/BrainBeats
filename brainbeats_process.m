@@ -17,7 +17,7 @@ com = '';
 mainpath = fileparts(which('eegplugin_BrainBeats.m'));
 addpath(fullfile(mainpath, 'functions'));
 addpath(fullfile(mainpath, 'functions', 'restingIAF'));
-addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
+% addpath(fullfile(mainpath, 'functions', 'fieldtrip'));
 % outPath = fullfile(mainpath, 'sample_data'); %FIXME: ASK USER FOR OUTPUT DIR
 
 % Basic checks
@@ -214,9 +214,13 @@ if contains(params.analysis, {'features' 'hep'})
         figure('color','w');
 
         subplot(2,1,1)
-        % scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
-        plot(sig_t, sig_filt,'color','#0072BD'); hold on;
-        plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');
+        try
+            scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
+        catch
+            warning('Scroll plot failed. Plotting the whole ECG series.')
+            plot(sig_t, sig_filt,'color','#0072BD'); hold on;
+            plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');
+        end
         % title(sprintf('Filtered ECG signal + R peaks (portion of artifacts: %1.2f%%)',SQI)); ylabel('mV'); %set(gca,'XTick',[]);
         title('Filtered ECG signal + R peaks'); ylabel('mV'); axis tight %set(gca,'XTick',[]);
 

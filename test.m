@@ -4,12 +4,6 @@ cd('C:\Users\Tracy\Documents\MATLAB\BrainBeats');
 eeglab; close;
 dataDir = fileparts(which('eegplugin_BrainBeats.m'));
 
-% Muse EEG + ECG
-% EEG = pop_loadset('filename','0b17e1cada_clean.set','filepath','G:\Shared drives\Science\IDL\5. DATA\muse\eeg\eeg_ecg_clean');
-
-% Muse EEG + PPG
-% EEG = import_edf('G:\Shared drives\Science\IDL\5. DATA\muse\eeg\edf_museS\2022-08-01T10_49_02-07_00_6002-PUYU-5DC8_eeg.edf', 1);
-
 %% MODE 1: Remove heart components from sample_data1
 
 EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(dataDir,'sample_data'));
@@ -44,6 +38,9 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 %     'eeg_features', {'frequency' 'nonlinear'}, ...
 %     'hrv_features', {'time' 'frequency' 'nonlinear'},'vis',true);
 
+%% Muse EEG + PPG
+
+% EEG = import_edf('G:\Shared drives\Science\IDL\5. DATA\muse\eeg\edf_museS\2022-08-01T10_49_02-07_00_6002-PUYU-5DC8_eeg.edf', 1);
 
 %% Save figures for paper (edit name)
 
