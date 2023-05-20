@@ -102,10 +102,29 @@ parfor iScale = 1:nScales
     lowerBound = (1/(iScale+1)).*nf - .05*((1./(iScale+1)).*nf);
     
     % scale_bounds(iScale,:) = {round(lowerBound,3) round(upperBound,3) };
-    scale_bounds(iScale,:) = {sprintf('scale %g: %g - %g hz',iScale, round(lowerBound,1), round(upperBound,1))} ;
+    scale_bounds(iScale,:) = {sprintf('scale %g: %g - %g',iScale, round(lowerBound,1), round(upperBound,1))} ;
 
     % Control for broadband spectral contributions using a bandpass filter at each scale factor (see Kosciessa et al 2020)
     if filtData
+
+        % FIXME: add padding
+        % padlength = ceil(size(data.trial{1},2)./2); % use half the length of trial 1 as padding (JQK)
+        % x_pad = cellfun(@(a) ft_preproc_padding(a, 'mean', padlength), data.trial, 'UniformOutput', false );    % add padding
+        % x_pad = cellfun(@transpose, x_pad, 'UniformOutput', false);                                                 % transpose for filtfilt: time x chan
+        % if sc == 1 % only HPF
+        %     resamp_x_pad = cellfun(@(x_pad) filtfilt(D,C,x_pad), x_pad, 'UniformOutput', false );  % high-pass filter data
+        % else
+        %     resamp_x_pad = cellfun(@(x_pad) filtfilt(B,A,x_pad), x_pad, 'UniformOutput', false );                       % low-pass filter data
+        %     resamp_x_pad = cellfun(@(resamp_x_pad) filtfilt(D,C,resamp_x_pad), resamp_x_pad, 'UniformOutput', false );  % high-pass filter data
+        % end
+        % resamp_x_pad = cellfun(@transpose, resamp_x_pad, 'UniformOutput', false);                                   % transpose back : chan x time again
+        % resamp_x = cellfun(@(resamp_x_pad) ft_preproc_padding(resamp_x_pad, 'remove', padlength), ...                % remove padding
+        %     resamp_x_pad, 'UniformOutput', false );
+        % %figure; hold on; plot(resamp_x{1}(1,:)); plot(data.trial{1}(1,:))
+        % % create data_filt structure
+        % data_filt = data;
+        % data_filt.trial = resamp_x;
+        % clear resamp_* x_pad;
 
         if iScale == 1
             [b,a] = butter(10,lowerBound/nf,'high');   % use Butterworth highpass
@@ -125,25 +144,6 @@ parfor iScale = 1:nScales
             end
         end
         
-        % FIXME: add this from filedtrip code and move filtering below this
-        % padlength = ceil(size(data.trial{1},2)./2); % use half the length of trial 1 as padding (JQK)
-        % x_pad = cellfun(@(a) ft_preproc_padding(a, 'mean', padlength), data.trial, 'UniformOutput', false );    % add padding
-        % x_pad = cellfun(@transpose, x_pad, 'UniformOutput', false);                                                 % transpose for filtfilt: time x chan
-        % if sc == 1 % only HPF
-        %     resamp_x_pad = cellfun(@(x_pad) filtfilt(D,C,x_pad), x_pad, 'UniformOutput', false );  % high-pass filter data
-        % else
-        %     resamp_x_pad = cellfun(@(x_pad) filtfilt(B,A,x_pad), x_pad, 'UniformOutput', false );                       % low-pass filter data
-        %     resamp_x_pad = cellfun(@(resamp_x_pad) filtfilt(D,C,resamp_x_pad), resamp_x_pad, 'UniformOutput', false );  % high-pass filter data
-        % end
-        % resamp_x_pad = cellfun(@transpose, resamp_x_pad, 'UniformOutput', false);                                   % transpose back : chan x time again
-        % resamp_x = cellfun(@(resamp_x_pad) ft_preproc_padding(resamp_x_pad, 'remove', padlength), ...                % remove padding
-        %     resamp_x_pad, 'UniformOutput', false );
-        % %figure; hold on; plot(resamp_x{1}(1,:)); plot(data.trial{1}(1,:))
-        % % create data_filt structure
-        % data_filt = data;
-        % data_filt.trial = resamp_x;
-        % clear resamp_* x_pad;
-
 %         % Visualize filter effect on the power spectrum
 %         [psd,f] = pwelch(sig,[],[],[],fs);
 %         plot(f,psd); hold on;
@@ -164,7 +164,6 @@ parfor iScale = 1:nScales
     mfe(:,iScale) = compute_fe(sig, m, r, n, tau, useGPU);
 
 end
-
 
 % scale factors
 scales = 1:nScales;

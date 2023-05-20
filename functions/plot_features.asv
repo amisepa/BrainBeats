@@ -19,7 +19,7 @@ idx = find(strcmp(bandNames,'ULF'));
 if isfield(HRV.frequency, 'ulf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+    area(find(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
@@ -29,7 +29,7 @@ idx = find(strcmp(bandNames,'VLF'));
 if isfield(HRV.frequency, 'vlf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+    area(find(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
@@ -39,7 +39,7 @@ idx = find(strcmp(bandNames,'LF'));
 if isfield(HRV.frequency, 'lf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+    area(find(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
@@ -49,7 +49,7 @@ idx = find(strcmp(bandNames,'HF'));
 if isfield(HRV.frequency, 'hf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+    area(find(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
@@ -83,32 +83,32 @@ freqs = EEG.frequency.freqs(1,:);
 % delta
 x = freqs >= bands(1,1) & freqs <= bands(1,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7)
+area(find(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7)
 
 % theta
 x = freqs >= bands(2,1) & freqs <= bands(2,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+area(find(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
 
 % alpha
 x = freqs >= bands(3,1) & freqs <= bands(3,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+area(find(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
 
 % beta
 x = freqs >= bands(4,1) & freqs <= bands(4,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+area(find(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
 
 % gamma
 x = freqs >= bands(5,1) & freqs <= bands(5,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+area(find(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
 
 % bandNames = {'Delta Theta Alpha Beta'};
-% xticks = freqs;
-% xticklabels(unique(reshape(bands,1,[])));
-% xtickangle(45); axis tight; box on
+xticks = freqs;
+xticklabels(unique(reshape(bands,1,[])));
+xtickangle(45); axis tight; box on
 title('Power spectral density - EEG'); 
 xlabel('Frequency (Hz)'); ylabel('Power (ms^2)'); axis tight;
 
