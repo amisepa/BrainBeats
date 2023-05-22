@@ -174,10 +174,71 @@ set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
 % title('PSD and MFE'); %colorbar off; 
 % set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
 
-%% Asymmetry and coherence
+%% Asymmetry 
 
 
 
+%% coherence
+
+
+
+% plot line between channels using normal topo and channel locations
+% topoplot(results.diff, chanlocs, 'emarker2',{[3 17],'c','r'}); 
+
+% % folder = 'C:\Users\IONSLAB\Desktop\channeling_matlab\plot_results';
+% folder = 'C:\Users\Tracy\Documents\MATLAB\channeling_matlab';
+% cd(fullfile(folder))
+% 
+% % Load head model and stat data
+% hMdlPath = fileparts(which('head_modelColin27_5003_Standard-10-5-Cap339.mat'));
+% atlas = load('-mat', fullfile(hMdlPath, 'head_modelColin27_5003_Standard-10-5-Cap339.mat'));
+% areas = readtable('area_labels.csv');
+% labels = {chanlocs.labels};
+% 
+% freqs = {'delta' 'theta' 'alpha' 'beta'};
+% 
+% % figure('color','w','position',[1353 904 1773 433])
+% figure('color','w')
+% for iFreq = 2:length(freqs)
+%     disp(['Band: ' char(freqs(iFreq))])
+% %     subplot(1,4,iFreq)
+%     subplot(1,3,iFreq-1)
+%     tmp = readtable(['pairwise_table_' freqs{iFreq} '.csv']);
+% 
+%     % Recompute pvals for theta with slightly more aggressive FDR-correction at 0.01 (cedric)
+%     if strcmpi(freqs{iFreq}, 'theta')
+%         disp([ 'Significant areas before new correction: ' num2str(sum(strcmp(tmp.Significant,'yes'))) ])
+%         disp('New FDR-correction for theta at p=0.01: ')
+%         idx = fdr_bh(tmp.pval,0.001,'pdep','yes'); 
+%         tmp.Significant(idx==1) = {'yes'};
+%         tmp.Significant(idx==0) = {'no'};
+%     end
+% 
+%     array = zeros(68,68);
+%     for iArea = 1:size(tmp,1)
+%         if strcmpi(tmp.Significant{iArea}, 'yes')
+%             array(tmp.area1(iArea), tmp.area2(iArea)) = tmp.diff(iArea);
+%         end
+%     end
+%     iCol = 3; % 2 for long name; 3 for abreviations
+% 
+%     % Ordered by lobe
+% %     plotconnectivity(array,'labels',areas(2:end,iCol)','brainimg','off', ...
+% %         'threshold',0,'axis',gca,'labelsgroup',areas(2:end,4)'); 
+% 
+%     % Custom order to better approximate brain anatomy (front/back, left/right hemisphere)
+%     plotconnectivity(array,'labels',areas(2:end,iCol)','brainimg','off', ...
+%         'threshold',0,'axis',gca,'labelsgroup',areas(2:end,4)','reorder',areas(2:end,5));
+% %     title(freqs(iFreq))
+% end
+% % legend(unique(areas(2:end,4)))
+% 
+% % print('-depsc', 'figure_connectivity.eps')
+% % print('-djpeg', 'figure.jpg')
+% % print(gcf,'figure.png');    %300 dpi
+% % exportgraphics(gcf,'figure_300dpi.png','Resolution',300)  %300 dpi
+% print(gcf,'figure.png','-dpng','-r300');                    %300 dpi
+% print('figure_300dpi.tiff','-dtiff','-r300');               %300 dpi
 
 
 %% CORRELATION PLOT 
