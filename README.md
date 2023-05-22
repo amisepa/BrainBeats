@@ -13,4 +13,8 @@ It has 3 main modes:
      - HRV frequency domain: VLF-power, ULF-power, LF-power, HF-power, LF/HF ratio, Total power. Default method is the normalized Lombscargle-periodogram, but Welch and FFT with resampling are also available. Eahc band-power can be normalized to total power.
      - HRV nonlinear domain: Poincare SD1, SD2, SD1/SD2, fuzzy entropy, multiscale fuzzy entropy, PRSA-AC, PRSA-DC. 
 
+     - EEG time domain: RMS, mode, variance, skewness, kurtosis, interquartile range
+     - EEG frequency domain: band power (delta, theta, alpha, gamma), individual alpha frequency (IAF, using center of gravity), alpha asymmetry (all possible pairs, normalized), EEG coherence (all pairs except between enighbors; see Nunez et al. 2001). 
+     - EEG nonlinear domain: fuzzy entropy, multiscale fuzzy entropy on all channels
+
 For 2) and 3), the toolbox implements automated cleaning of EEG signals (although pre-processed data is recommended for fine-tuning of parameters), bandpass filter of ECG signal, detection of R peaks, a signal quality index of the RR series (SQI, developed by Vest et al. 2017), and removal/interpolation of RR artifacts to obtain NN intervals (several interpolation methods are available). 
