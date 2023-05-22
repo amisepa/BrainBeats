@@ -58,18 +58,23 @@ for iChan = 1:nChan
 
     % Delta
     eeg_features.frequency.delta(iChan,:) = pwr_dB(freqs >= fRange(1) & freqs <= 3);
+    eeg_features.frequency.delta_norm(iChan,:) = eeg_features.frequency.delta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Theta
     eeg_features.frequency.theta(iChan,:) = pwr_dB(freqs >= 3 & freqs <= 7);
+    eeg_features.frequency.theta_norm(iChan,:) = eeg_features.frequency.theta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Alpha
     eeg_features.frequency.alpha(iChan,:) = pwr_dB(freqs >= 7.5 & freqs <= 13);
+    eeg_features.frequency.alpha_norm(iChan,:) = eeg_features.frequency.alpha(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Beta
     eeg_features.frequency.beta(iChan,:) = pwr_dB(freqs >= 13.5 & freqs <= 30);
+    eeg_features.frequency.beta_norm(iChan,:) = eeg_features.frequency.beta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Low gamma
     eeg_features.frequency.low_gamma(iChan,:) = pwr_dB(freqs >= 31 & freqs <= fRange(2));
+    eeg_features.frequency.low_gamma_norm(iChan,:) = eeg_features.frequency.low_gamma(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Individual alpha frequency (IAF) (my code, not working)
     % iaf = detect_iaf(pwr(iChan,:), freqs, winSize, params)

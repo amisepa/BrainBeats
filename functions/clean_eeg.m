@@ -122,17 +122,14 @@ elseif params.clean_eeg_step == 1
         EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
     end
     EEG = pop_iclabel(EEG,'default');
-    % if strcmp(params.analysis, 'hep')
-        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; NaN NaN; NaN NaN; NaN NaN]);
-    % else
-    %     EEG = pop_icflag(EEG,[NaN NaN; .95 1; .95 1; .99 1; NaN NaN; NaN NaN; NaN NaN]);
-    % end
+    EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; NaN NaN; NaN NaN; NaN NaN]);
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
     
     % Visualize tagged components
     if params.vis
-        pop_selectcomps(EEG,1:20); colormap("parula")
+        pop_selectcomps(EEG,1:20);         
+        colormap("parula")
     end
     
     % Remove bad components
@@ -145,9 +142,9 @@ elseif params.clean_eeg_step == 1
     if params.vis
         if strcmp(params.analysis, 'hep')
             pop_eegplot(EEG,1,1,1);
-        elseif strcmp(params.analysis, 'features')
-            eegplot(EEG.data,'winlength',15,'srate',EEG.srate, ...
-                'events',EEG.event,'spacing',50);
+        % elseif strcmp(params.analysis, 'features')
+        %     eegplot(EEG.data,'winlength',15,'srate',EEG.srate,'events', ...
+        %         EEG.event,'spacing',50);
         end
     end
 

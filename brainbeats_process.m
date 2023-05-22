@@ -129,6 +129,14 @@ end
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 
 if strcmp(params.analysis,'rm_heart')
+    % Add ECG channels back
+    EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
+    EEG.nbchan = EEG.nbchan + ECG.nbchan;
+    for iChan = 1:ECG.nbchan
+        EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+    end
+    EEG = eeg_checkset(EEG);
+
     EEG = remove_heartcomp(EEG, params);
 end
 

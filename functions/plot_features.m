@@ -19,7 +19,7 @@ idx = find(strcmp(bandNames,'ULF'));
 if isfield(HRV.frequency, 'ulf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+    area(freqs(x),y,'FaceColor',"#A2142F",'FaceAlpha',.7);
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
@@ -29,7 +29,7 @@ idx = find(strcmp(bandNames,'VLF'));
 if isfield(HRV.frequency, 'vlf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+    area(freqs(x),y,'FaceColor',"#D95319",'FaceAlpha',.7)
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
@@ -39,7 +39,7 @@ idx = find(strcmp(bandNames,'LF'));
 if isfield(HRV.frequency, 'lf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+    area(freqs(x),y,'FaceColor',"#EDB120",'FaceAlpha',.7)
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
@@ -49,14 +49,14 @@ idx = find(strcmp(bandNames,'HF'));
 if isfield(HRV.frequency, 'hf')
     x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
     y = pwr(x);
-    area(freqs(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+    area(freqs(x),y,'FaceColor',"#0072BD",'FaceAlpha',.7)
 else
     bandNames(idx) = [];
     bands(idx,:) = [];
 end
 legend(bandNames)
-xticklabels(unique(reshape(bands,1,[])));
-xtickangle(45); axis tight; box on
+% xticklabels(unique(reshape(bands,1,[]))); xtickangle(45); 
+axis tight; box on
 xlabel('Frequency (Hz)');
 if params.hrv_norm
     ylabel('Power (ms^2 normalized)');
@@ -69,8 +69,8 @@ title(sprintf('Power spectral density - HRV'))
 subplot(2,2,3); hold on
 mfe = HRV.nonlinear.MFE;
 scales = HRV.nonlinear.MFE_scales;
-area(scales,mfe,'FaceColor',"#77AC30",'FaceAlpha',.7);
-title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
+area(scales,mfe,'FaceColor',"#A2142F",'FaceAlpha',.7);
+title('Multiscale fuzzy entropy - HRV'); xlabel('Scale factors'); ylabel('Entropy')
 axis tight; box on; grid on
 
 % PSD - EEG
@@ -83,33 +83,33 @@ freqs = EEG.frequency.freqs(1,:);
 % delta
 x = freqs >= bands(1,1) & freqs <= bands(1,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7)
+area(freqs(x),y,'FaceColor',"#A2142F",'FaceAlpha',.7)
 
 % theta
 x = freqs >= bands(2,1) & freqs <= bands(2,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0.8500 0.3250 0.0980],'FaceAlpha',.7)
+area(freqs(x),y,'FaceColor',"#D95319",'FaceAlpha',.7)
 
 % alpha
 x = freqs >= bands(3,1) & freqs <= bands(3,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0.9290 0.6940 0.1250],'FaceAlpha',.7)
+area(freqs(x),y,'FaceColor',"#EDB120",'FaceAlpha',.7)
 
 % beta
 x = freqs >= bands(4,1) & freqs <= bands(4,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+area(freqs(x),y,'FaceColor',"#0072BD",'FaceAlpha',.7)
 
 % gamma
 x = freqs >= bands(5,1) & freqs <= bands(5,2);
 y = pwr(x);
-area(freqs(x),y,'FaceColor',[0 0.4470 0.7410],'FaceAlpha',.7)
+area(freqs(x),y,'FaceColor',"#4DBEEE",'FaceAlpha',.7)
 
 % bandNames = {'Delta Theta Alpha Beta'};
 % xticks = freqs;
 % xticklabels(unique(reshape(bands,1,[])));
 % xtickangle(45); axis tight; box on
-title('Power spectral density - EEG'); 
+title('Power spectral density - EEG'); legend({'delta' 'theta' 'alpha' 'beta' 'gamma'})
 xlabel('Frequency (Hz)'); ylabel('Power (ms^2)'); axis tight;
 
 % Multiscale fuzzy entropy (MFE) - EEG
@@ -119,7 +119,7 @@ scaleBounds = EEG.nonlinear.MFE_scale_bounds(1,:);
 % mfe = mean(EEG.nonlinear.MFE,1); % mean across channels
 mfe = trimmean(EEG.nonlinear.MFE,20,1); % 20% trimmed mean across channels
 % mfe = EEG.nonlinear.MFE(31,:); % Pz
-area(scales,mfe(end:-1:1),'FaceColor',"#77AC30",'FaceAlpha',.7);
+area(scales,mfe(end:-1:1),'FaceColor',"#A2142F",'FaceAlpha',.7);
 axis tight; box on; grid on
 if ~isempty(scaleBounds)
     xticks(scales); 
