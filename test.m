@@ -44,6 +44,6 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(dataDir,'sam
 
 %% Save figures for paper (edit name)
 
-exportgraphics(gcf, fullfile('figures','features_plot1.png'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','HRV-EEG_PSD-MFE.png'),'Resolution',300)
 % print(gcf,'figure.png','-dpng','-r300');                    %300 dpi
 % print('figure_300dpi.tiff','-dtiff','-r300');               %300 dpi

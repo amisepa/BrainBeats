@@ -69,9 +69,9 @@ title(sprintf('Power spectral density - HRV'))
 subplot(2,2,3); hold on
 mfe = HRV.nonlinear.MFE;
 scales = HRV.nonlinear.MFE_scales;
-area(scales,mfe,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
+area(scales,mfe,'FaceColor',"#77AC30",'FaceAlpha',.7);
 title('Multiscale fuzzy entropy - HRV'); xlabel('Time scales'); ylabel('Entropy')
-axis tight;
+axis tight; box on; grid on
 
 % PSD - EEG
 subplot(2,2,2); hold on
@@ -119,17 +119,17 @@ scaleBounds = EEG.nonlinear.MFE_scale_bounds(1,:);
 % mfe = mean(EEG.nonlinear.MFE,1); % mean across channels
 mfe = trimmean(EEG.nonlinear.MFE,20,1); % 20% trimmed mean across channels
 % mfe = EEG.nonlinear.MFE(31,:); % Pz
-area(scales,mfe(end:-1:1),'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
-if max(mfe) < 1
-    ylim([0 1])
-end
-axis tight;
+area(scales,mfe(end:-1:1),'FaceColor',"#77AC30",'FaceAlpha',.7);
+axis tight; box on; grid on
 if ~isempty(scaleBounds)
     xticks(scales); 
     xticklabels(scaleBounds(end:-1:1)); 
     xtickangle(45) %xticklabels({f}); %
 else
     xlabel('Scale factors')
+end
+if max(mfe) < 1
+    ylim([0 1])
 end
 title('Multiscale fuzzy entropy - EEG'); ylabel('Entropy')
 
