@@ -36,8 +36,8 @@ eeg_features.time.iqr = iqr(signals,2);
 %% Frequency domain
 
 nChan = size(signals,1);
-fRange = [1 45];    % FIXME: lowpass/highpass should be in params to make sure these are within filtered signal
-winSize = 2;        % window size (in s). Default = 2 (at least 2 s recommended by Smith et al, 2017 for asymmetry)
+fRange = [1 40];    % FIXME: lowpass/highpass should be in params to make sure these are within filtered signal
+winSize = 4;        % window size (in s). Default = 2 (at least 2 s recommended by Smith et al, 2017 for asymmetry)
 winType = 'hamming';
 overlap = 50;       % 50% default (Smith et al. 2017)
 
@@ -51,29 +51,33 @@ for iChan = 1:nChan
     fprintf('EEG channel %g \n', iChan)
 
     % Compute PSD using pwelch
-    [pwr, pwr_dB, freqs] = compute_psd(signals(iChan,:),fs*winSize,winType,overlap,[],fs,fRange,'psd', false);
+    [pwr, pwr_dB, f] = compute_psd(signals(iChan,:),fs*winSize,winType,overlap,[],fs,fRange,'psd', false);
     eeg_features.frequency.pwr(iChan,:) = pwr;
     eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB;
-    eeg_features.frequency.freqs(iChan,:) = freqs;
+    eeg_features.frequency.freqs(iChan,:) = f;
+    
+    % Get individualized frequency bounds
+    % [pSpec.sums, pSpec.chans, f]= restingIAF(EEG.data, EEG.nbchan, 3, [1 40], EEG.srate, [13 30], 11, 5);
+    [bounds(iChan,:), peak(iChan,:)] = get_freqBounds(pwr, f, fs, [13 30], winSize, false);
 
     % Delta
-    eeg_features.frequency.delta(iChan,:) = pwr_dB(freqs >= fRange(1) & freqs <= 3);
+    eeg_features.frequency.delta(iChan,:) = pwr_dB(f >= fRange(1) & f <= 3);
     eeg_features.frequency.delta_norm(iChan,:) = eeg_features.frequency.delta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Theta
-    eeg_features.frequency.theta(iChan,:) = pwr_dB(freqs >= 3 & freqs <= 7);
+    eeg_features.frequency.theta(iChan,:) = pwr_dB(f >= 3 & f <= 7);
     eeg_features.frequency.theta_norm(iChan,:) = eeg_features.frequency.theta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Alpha
-    eeg_features.frequency.alpha(iChan,:) = pwr_dB(freqs >= 7.5 & freqs <= 13);
+    eeg_features.frequency.alpha(iChan,:) = pwr_dB(f >= 7.5 & f <= 13);
     eeg_features.frequency.alpha_norm(iChan,:) = eeg_features.frequency.alpha(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Beta
-    eeg_features.frequency.beta(iChan,:) = pwr_dB(freqs >= 13.5 & freqs <= 30);
+    eeg_features.frequency.beta(iChan,:) = pwr_dB(f >= 13.5 & f <= 30);
     eeg_features.frequency.beta_norm(iChan,:) = eeg_features.frequency.beta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Low gamma
-    eeg_features.frequency.low_gamma(iChan,:) = pwr_dB(freqs >= 31 & freqs <= fRange(2));
+    eeg_features.frequency.low_gamma(iChan,:) = pwr_dB(f >= 31 & f <= fRange(2));
     eeg_features.frequency.low_gamma_norm(iChan,:) = eeg_features.frequency.low_gamma(iChan,:) ./ pwr_dB; % normalized by total power of same channel
 
     % Individual alpha frequency (IAF) (my code, not working)

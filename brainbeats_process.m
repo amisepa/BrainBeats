@@ -129,6 +129,7 @@ end
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 
 if strcmp(params.analysis,'rm_heart')
+
     % Add ECG channels back
     EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
     EEG.nbchan = EEG.nbchan + ECG.nbchan;
@@ -136,7 +137,8 @@ if strcmp(params.analysis,'rm_heart')
         EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
     end
     EEG = eeg_checkset(EEG);
-
+    
+    % Run
     EEG = remove_heartcomp(EEG, params);
 end
 
@@ -224,10 +226,12 @@ if contains(params.analysis, {'features' 'hep'})
         subplot(2,1,1)
         try
             scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
+            scroll = true;
         catch
             warning('Scroll plot failed. Plotting the whole ECG series.')
             plot(sig_t, sig_filt,'color','#0072BD'); hold on;
             plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');
+            scroll = false;
         end
         % title(sprintf('Filtered ECG signal + R peaks (portion of artifacts: %1.2f%%)',SQI)); ylabel('mV'); %set(gca,'XTick',[]);
         title('Filtered ECG signal + R peaks'); ylabel('mV'); axis tight %set(gca,'XTick',[]);
@@ -241,7 +245,9 @@ if contains(params.analysis, {'features' 'hep'})
             legend('RR artifacts','NN intervals')
         end
         title('RR intervals'); ylabel('RR intervals (s)'); xlabel('Time (s)'); axis tight
-        set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold'); box on
+        if ~scroll
+            set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold'); box on
+        end
     end
 
     %%%%% MODE 2: Heartbeat-evoked potentials (HEP) %%%%%
