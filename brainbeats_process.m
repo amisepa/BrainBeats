@@ -92,20 +92,6 @@ end
 if ~isfield(params,'parpool') % not available from GUI yet
     params.parpool = false;
 end
-if params.parpool
-    % delete(gcp('nocreate'))
-    p = gcp('nocreate');
-    if isempty(p) % if not already on, launch it
-        c = parcluster; % cluster profile
-         % N = feature('numcores');        % physical number of cores
-        N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
-        if ischar(N)
-            N = str2double(N);
-        end
-       c.NumWorkers = N;  % update cluster profile to include all workers
-        p = c.parpool(N);
-    end
-end
 
 % GPU computing
 if ~isfield(params,'gpu') % not available from GUI yet
@@ -177,7 +163,6 @@ if contains(params.analysis, {'features' 'hep'})
             warning on
             warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",SQI);
             error("Aborting! You can inspect the data in EEGLAB > Plot > Channel data (Scroll).");
-            return
         else
             fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", SQI )
         end
@@ -247,6 +232,23 @@ if contains(params.analysis, {'features' 'hep'})
         title('RR intervals'); ylabel('RR intervals (s)'); xlabel('Time (s)'); axis tight
         if ~scroll
             set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold'); box on
+        end
+    end
+
+    if params.parpool
+        disp('Initiating parrallel computing (all available processors)...')
+
+        % delete(gcp('nocreate'))
+        p = gcp('nocreate');
+        if isempty(p) % if not already on, launch it
+            c = parcluster; % cluster profile
+            % N = feature('numcores');        % physical number of cores
+            N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
+            if ischar(N)
+                N = str2double(N);
+            end
+            c.NumWorkers = N;  % update cluster profile to include all workers
+            p = c.parpool(N);
         end
     end
 

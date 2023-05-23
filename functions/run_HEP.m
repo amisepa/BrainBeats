@@ -29,34 +29,38 @@ types = repmat({'R-peak'},1,length(evt));
 EEG = eeg_checkset(EEG);
 
 % Remove inter-beat-intervals (IBI) shorter than 700 ms (should be at least 
-% 500 ms post R peak but extend window for ERSP). see Candia-Rivera, 
-% Catrambone, & Valenza (2021); and see Park and Blanke (2019),
+% 500 ms post R peak but extend window for ERSP). 
+% see Candia-Rivera et al. (2021) and Park & Blanke (2019)
 IBI = diff(Rpeaks)/EEG.srate *1000;
-shortTrials = find(IBI<555);
 if params.vis
     figure; histogram(IBI); 
     title('Gaps between heartbeats (minimum should be 500 ms)'); xlabel('millisecond'); ylabel('Gaps');
 end
-if length(shortTrials)/length(IBI) < .05
-    IBI(shortTrials) = []; % remove them if <5% is very short to get min trial possible below
-end
 
-% Minimum ICI = 500 ms (but more is better for HEO/ERSP)
+% Remove short IBIs (Candia-Rivera et al. (2021) and Park & Blanke (2019))
+shortTrials = find(IBI<500);
+if length(shortTrials)/length(IBI) > .05
+    warning('%g%% of interbeat intervals are below 500 ms and are being removed automatically!', length(shortTrials)/length(IBI)*100)
+end
+IBI(shortTrials) = []; %FIXME: remove epochs instead
+
+% Minimum IBI = 500 ms (but more is better for HEO/ERSP)
 % if quantile(IBI,.33) < 500
 %     warning("At least 33% between heartbeats are %g% long. HEP with epochs < 500 ms are strongly discouraged.")
 %     warning("see Candia-Rivera et al. (2021) and Park and Blanke (2019) for more detail.")
 %     EEG = pop_epoch(EEG,{},[-0.05 .5],'epochinfo','yes');
-% elseif quantile(gaps,.1) >= 700 && quantile(gaps,.1) < 800
+% elseif quantile(IBI,.1) >= 700 && quantile(gaps,.1) < 800
 %     EEG = pop_epoch(EEG,{},[-.05 quantile(gaps,.1)/1000],'epochinfo','yes');
 % else
 %     EEG = pop_epoch(EEG,{},[-.05 min(gaps)/1000],'epochinfo','yes');
 % end
 
 % Epoch
-HEP = pop_epoch(EEG,{},[-.05 .55],'epochinfo','yes'); % freq resolution = 1.67 Hz for 600 ms
+HEP = pop_epoch(EEG,{},[-.2 quantile(IBI,1)],'epochinfo','yes'); 
 warning('Removing %g trials with an interbeat interval (IBI) <550 ms long. See Candia-Rivera et al. (2021) and Park and Blanke (2019) for more detail) . \n', length(shortTrials));
 HEP = pop_rejepoch(HEP, shortTrials, 0);
 
+% Remove bad trials and eye/muscle components (ICLabel)
 if params.clean_eeg
     [HEP, params] = clean_eeg(HEP,params);
 end

@@ -58,27 +58,36 @@ for iChan = 1:nChan
     
     % Get individualized frequency bounds
     % [pSpec.sums, pSpec.chans, f]= restingIAF(EEG.data, EEG.nbchan, 3, [1 40], EEG.srate, [13 30], 11, 5);
-    [bounds(iChan,:), peak(iChan,:)] = get_freqBounds(pwr, f, fs, [13 30], winSize, false);
-
+    
     % Delta
-    eeg_features.frequency.delta(iChan,:) = pwr_dB(f >= fRange(1) & f <= 3);
-    eeg_features.frequency.delta_norm(iChan,:) = eeg_features.frequency.delta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
-
+    eeg_features.frequency.delta(iChan,:) = mean( pwr_dB(f >= f(1) & f <= 3) );
+    eeg_features.frequency.delta_norm(iChan,:) = eeg_features.frequency.delta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
+    % bounds = get_freqBounds(pwr, f, fs, [f(1) 3], winSize)  % individualized lower/upper bounds
+    % eeg_features.frequency.delta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
+    
     % Theta
-    eeg_features.frequency.theta(iChan,:) = pwr_dB(f >= 3 & f <= 7);
-    eeg_features.frequency.theta_norm(iChan,:) = eeg_features.frequency.theta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
+    eeg_features.frequency.theta(iChan,:) = mean( pwr_dB(f >= 3 & f <= 7) );
+    eeg_features.frequency.theta_norm(iChan,:) = eeg_features.frequency.theta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
+    bounds = get_freqBounds(pwr, f, fs, [2 8], winSize);  % individualized lower/upper bounds
+    eeg_features.frequency.theta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
 
     % Alpha
-    eeg_features.frequency.alpha(iChan,:) = pwr_dB(f >= 7.5 & f <= 13);
-    eeg_features.frequency.alpha_norm(iChan,:) = eeg_features.frequency.alpha(iChan,:) ./ pwr_dB; % normalized by total power of same channel
+    eeg_features.frequency.alpha(iChan,:) = mean( pwr_dB(f >= 7.5 & f <= 13) );
+    eeg_features.frequency.alpha_norm(iChan,:) = eeg_features.frequency.alpha(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
+    bounds = get_freqBounds(pwr, f, fs, [7 14], winSize);  % individualized lower/upper bounds
+    eeg_features.frequency.alpha_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
 
     % Beta
-    eeg_features.frequency.beta(iChan,:) = pwr_dB(f >= 13.5 & f <= 30);
-    eeg_features.frequency.beta_norm(iChan,:) = eeg_features.frequency.beta(iChan,:) ./ pwr_dB; % normalized by total power of same channel
+    eeg_features.frequency.beta(iChan,:) = mean( pwr_dB(f >= 13.5 & f <= 30) );
+    eeg_features.frequency.beta_norm(iChan,:) = eeg_features.frequency.beta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
+    bounds = get_freqBounds(pwr, f, fs, [13 30], winSize);  % individualized lower/upper bounds
+    eeg_features.frequency.beta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
 
     % Low gamma
-    eeg_features.frequency.low_gamma(iChan,:) = pwr_dB(f >= 31 & f <= fRange(2));
-    eeg_features.frequency.low_gamma_norm(iChan,:) = eeg_features.frequency.low_gamma(iChan,:) ./ pwr_dB; % normalized by total power of same channel
+    eeg_features.frequency.low_gamma(iChan,:) = mean( pwr_dB(f >= 31 & f <= fRange(2)) );
+    eeg_features.frequency.low_gamma_norm(iChan,:) = eeg_features.frequency.low_gamma(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
+    % bounds = get_freqBounds(pwr, f, fs, [30 45], winSize);  % individualized lower/upper bounds
+    % eeg_features.frequency.low_gamma_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
 
     % Individual alpha frequency (IAF) (my code, not working)
     % iaf = detect_iaf(pwr(iChan,:), freqs, winSize, params)
@@ -89,7 +98,7 @@ for iChan = 1:nChan
 
 end
 
-% IAF (only export CoG)
+% Individual alpha frequency (IAF; only export CoG since it's the best)
 disp('Detecting individual alpha frequency (IAF) for each EEG channel...')
 [pSum, pChans, f] = restingIAF(signals, size(signals,1), 3, [1 30], fs, [7 13], 11, 5);
 eeg_features.frequency.IAF_mean = pSum.cog;

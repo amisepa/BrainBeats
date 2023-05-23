@@ -8,7 +8,9 @@ eeglab; close;
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sample_data'));
 % EEG = brainbeats_process(EEG);  % GUI mode
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'gpu',true,'vis',true); 
+    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'hep_save',false, ...
+    'gpu',true,'vis',true); 
+pop_eegplot(EEG,1,1,1)
 
 %% METHOD 2: Extract EEG and HRV features
 
