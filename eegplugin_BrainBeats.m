@@ -1,4 +1,4 @@
-% eegplugin_BrainBeats()
+% eegplugin_BrainBeats() - EEGLAB plugin to run BrainBeats
 %
 % Copyright (C) - Cedric Cannard, 2023
 %
@@ -27,7 +27,6 @@ addpath(p);
 addpath(fullfile(p,'functions'))
 addpath(fullfile(p,'sample_data'))
 addpath(fullfile(p,'functions','restingIAF'));
-addpath(fullfile(p,'functions','fieldtrip'));
 
 % find menu
 menu = findobj(fig, 'tag', 'tools');
@@ -40,5 +39,3 @@ analyze = [try_strings.no_check '[EEG, LASTCOM] = brainbeats_analyze(EEG);' catc
 submenu = uimenu(menu, 'Label', 'BrainBeats', 'separator', 'on');
 uimenu(submenu, 'Label', 'Process file (subject level)', 'CallBack', process);
 uimenu(submenu, 'Label', 'Run statistics on features (group level)', 'CallBack', analyze);
-
-end

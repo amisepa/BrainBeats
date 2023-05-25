@@ -54,6 +54,11 @@ if strcmp(params.analysis,'features')
     if ~isempty(idx)
         params.eeg = true;
         eeg_features = varargin{idx*2};
+        if sum(contains(eeg_features,{'time'})) > 0
+            params.eeg_time = true;
+        else
+            params.eeg_time = false;
+        end
         if sum(contains(eeg_features,{'frequency'})) > 0
             params.eeg_frequency = true;
         else
@@ -106,14 +111,6 @@ else
     params.vis = true;
 end
 
-% Save HEP and HEO files
-idx = find(contains(inputs,'hep_save'));
-if ~isempty(idx)
-    params.hep_save = logical(varargin{idx*2});
-else
-    params.hep_save = true; % save output by default
-end
-
 % Parallel computing (FIXME: add to GUI)
 idx = find(contains(inputs,'parpool'));
 if ~isempty(idx)
@@ -128,4 +125,12 @@ if ~isempty(idx)
     params.gpu = logical(varargin{idx*2});
 else
     params.gpu = false;
+end
+
+% Save outputs
+idx = find(contains(inputs,'save'));
+if ~isempty(idx)
+    params.save = logical(varargin{idx*2});
+else
+    params.save = true; % save output by default
 end

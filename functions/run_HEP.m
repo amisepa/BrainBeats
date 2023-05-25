@@ -12,11 +12,6 @@
 
 function EEG = run_HEP(EEG, params, Rpeaks)
 
-% Save HEP/HEO files
-if ~isfield(params,'hep_save') % not available from GUI yet
-    params.hep_save = true;
-end
-
 % Add heartbeat markers in the signals, taking into account
 % existing events
 nEv = length(EEG.event);
@@ -72,7 +67,7 @@ if params.vis
 end
 
 % Save
-if params.hep_save
+if params.save
     newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
     pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
 end

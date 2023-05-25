@@ -19,7 +19,7 @@ if params.clean_eeg_step == 0
     
     % Remove bad channels
     oriEEG = EEG;
-    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.9, ...
+    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
         'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
         'WindowCriterion','off','BurstRejection','off','Distance','off');    
     % disp('Detecting flat line...')
@@ -60,6 +60,10 @@ if params.clean_eeg_step == 0
 
 % Remove bad trials for HEP, aritfacts for Features
 elseif params.clean_eeg_step == 1
+    
+    disp('----------------------------------------------')
+    fprintf('              Cleaning EEG data \n')
+    disp('----------------------------------------------')
 
     % HEP
     if strcmp(params.analysis, 'hep')

@@ -1,11 +1,14 @@
-%% Main script
+%% Brainbeats_process
+% Process single EEGLAB files containg EEG and cardiovascular (ECG or PPG)
+% signals. 
+% 
+% Mode 1: Hearbteat evoked potentials (HEP) and oscillations (HEO).
+% Mode 2: Extract EEG and HRV features.
+% Mode 3: Remove heart components from EEG signals.
+% 
+% Potential tooblox names: BrainBeats, CardioNeuroSync (CNS), NeuroPulse, CardioCortex
 %
-% Potential names: BrainBeats, CardioNeuroSync (CNS), NeuroPulse, CardioCortex
-%
-% INPUTS:
-%   'rr_correct' - method to interpolate RR artifacts (e.g. 'linear','cubic')
-%
-% Cedric Cannad, 2023
+% Copyright (C) Cedric Cannard, 2023
 
 function [EEG, Features, com] = brainbeats_process(EEG, varargin)
 
@@ -98,6 +101,11 @@ if ~isfield(params,'gpu') % not available from GUI yet
     params.gpu = false;
 end
 
+% Save outputs?
+if ~isfield(params,'save') % not available from GUI yet
+    params.save = true;
+end
+
 %%%%%%%%%%%%% PREPROCESS EEG DATA %%%%%%%%%%%%%
 
 EEG.data = double(EEG.data);  % ensure double precision
@@ -106,7 +114,7 @@ ECG = pop_select(EEG,'channel',params.heart_channels); % export ECG data in sepa
 EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
 
 % Filter, re-reference, remove bad channels
-if params.clean_eeg
+if params.clean_eeg    
     params.clean_eeg_step = 0;
     [EEG, params] = clean_eeg(EEG, params);
 end
@@ -182,8 +190,9 @@ if contains(params.analysis, {'features' 'hep'})
     end
 
     % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
+    % FIXME: does not take SQI into account
     vis = false;    % to visualize artifacts that are inteprolated
-    [NN, NN_times,flagged] = clean_rr(RR_t, RR, sqi, params, vis);
+    [NN, NN_times, flagged] = clean_rr(RR_t, RR, sqi, params, vis);
     if sum(flagged) > 0
         if contains(params.rr_correct,'remove')
             fprintf('%g heart beats were flagged as artifacts and removed. \n', sum(flagged));
@@ -216,10 +225,10 @@ if contains(params.analysis, {'features' 'hep'})
             warning('Scroll plot failed. Plotting the whole ECG series.')
             plot(sig_t, sig_filt,'color','#0072BD'); hold on;
             plot(RR_t, sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319');
-            scroll = false;
+            scroll = false; axis tight
         end
         % title(sprintf('Filtered ECG signal + R peaks (portion of artifacts: %1.2f%%)',SQI)); ylabel('mV'); %set(gca,'XTick',[]);
-        title('Filtered ECG signal + R peaks'); ylabel('mV'); axis tight %set(gca,'XTick',[]);
+        title('Filtered ECG signal + R peaks'); ylabel('mV'); 
 
         subplot(2,1,2)
         if sum(flagged) == 0
@@ -237,8 +246,7 @@ if contains(params.analysis, {'features' 'hep'})
 
     if params.parpool
         disp('Initiating parrallel computing (all available processors)...')
-
-        % delete(gcp('nocreate'))
+        % delete(gcp('nocreate')) %shut down opened parpool
         p = gcp('nocreate');
         if isempty(p) % if not already on, launch it
             c = parcluster; % cluster profile
@@ -247,8 +255,8 @@ if contains(params.analysis, {'features' 'hep'})
             if ischar(N)
                 N = str2double(N);
             end
-            c.NumWorkers = N;  % update cluster profile to include all workers
-            p = c.parpool(N);
+            c.NumWorkers = N-1;  % update cluster profile to include all workers
+            c.parpool();
         end
     end
 
@@ -296,9 +304,7 @@ if contains(params.analysis, {'features' 'hep'})
         % Extract EEG features
         if params.eeg
             params.chanlocs = EEG.chanlocs;
-            tstart = tic;
             eeg_features = get_eeg_features(EEG.data, params);
-            fprintf('Time to extract EEG features: %g min \n', round(toc(tstart)/60,1))
         end
 
         % Final output with everything
@@ -307,13 +313,15 @@ if contains(params.analysis, {'features' 'hep'})
     end
 end
 
-%%%%%% PLOT FEATURES & SAVE %%%%%%%
+%%%%%% PLOT & SAVE FEATURES %%%%%%%
 if strcmp(params.analysis,'features')
 
     % Save in same repo as loaded file (FIXME: ASK USER FOR OUTPUT DIR)
-    outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
-    fprintf("Saving Features in %s \n", outputPath);
-    save(outputPath,'Features');
+    if params.save
+        outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
+        fprintf("Saving Features in %s \n", outputPath);
+        save(outputPath,'Features');
+    end
 
     % Plot features
     if params.vis
@@ -325,7 +333,6 @@ end
 % if params.parpool
 %     delete(gcp('nocreate'));
 % end
-
 
 disp('Done!'); %gong
 

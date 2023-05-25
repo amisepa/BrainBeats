@@ -139,21 +139,21 @@ if params.hrv_frequency
                 
                 % Freq index
                 freq_idx = bands(iBand,1) <= freqs & freqs <= bands(iBand,2);
-                freq_res = freqs(2)-freqs(1); % resolution
+                % freq_res = freqs(2)-freqs(1); % resolution
 
                 % Power for each band in ms^2
                 if iBand == 1
-                    % HRV.frequency.ulf_idx = freq_idx;
-                    HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % ULF
+                    % HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % ULF
+                    HRV.frequency.ulf(iWin,:) = mean(pwr(freq_idx));      % ULF
                 elseif iBand == 2
-                    % HRV.frequency.vlf_idx = freq_idx;
-                    HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % VLF
+                    % HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % VLF
+                    HRV.frequency.vlf(iWin,:) = mean(pwr(freq_idx));      % VLF
                 elseif iBand == 3
-                    % HRV.frequency.lf_idx = freq_idx;
-                    HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % LF
+                    % HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % LF
+                    HRV.frequency.lf(iWin,:) = mean(pwr(freq_idx));      % LF
                 elseif iBand == 4
-                    % HRV.frequency.hf_idx = freq_idx;
-                    HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;    % HF
+                    % HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % HF
+                    HRV.frequency.hf(iWin,:) = mean(pwr(freq_idx));      % HF
                 end
                 
                 % Overal power spectra
