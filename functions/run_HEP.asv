@@ -42,11 +42,7 @@ else
     fprintf('All trial have an interbeat interval (IBI) above 550 ms (minimum recommended). \n')
 end
 IBI(shortTrials) = []; %FIXME: remove epochs instead
-outliers = IBI(isoutlier(IBI,'grubbs'));
-
-for iEv = 2:length(EEG.event)
-    EEG.event(iEv).duration = ( [EEG.event(iEv).latency] - [EEG.event(iEv-1).latency] )/EEG.srate *1000;
-end
+outliers = find(isoutlier(IBI,'grubbs'));
 
 % Epoch
 HEP = pop_epoch(EEG,{},[-.2 prctile(IBI,5)/1000],'epochinfo','yes'); 

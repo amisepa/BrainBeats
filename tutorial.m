@@ -1,23 +1,24 @@
 clear; close all; clc
-% mainDir = fileparts(which('eegplugin_BrainBeats.m'));
-mainDir = 'C:\Users\Tracy\Documents\MATLAB\BrainBeats';
+mainDir = fileparts(which('eegplugin_BrainBeats.m'));
 cd(mainDir);
 eeglab; close;
-
+ 
 %% METHOD 1: Process file for HEP analysis
 
-EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sample_data'));
+EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sample_data'));
+% chans = contains({EEG.chanlocs.labels}, {'PO4'});
+% EEG.data(chans,:) = EEG.data(chans,:).*5;
+% EEG.event = []; EEG.urevent = []; EEG = eeg_checkset(EEG);
+
 % EEG = brainbeats_process(EEG);  % GUI mode
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'EXG5' 'EXG6'},'clean_eeg',true,'save',false, ...
-    'gpu',true,'vis',true); 
+    'heart_channels',{'ECG1' 'ECG2'},'clean_eeg',true, ...
+    'save',false,'gpu',false,'vis',true); 
 % pop_eegplot(EEG,1,1,1)
 
 %% METHOD 2: Extract EEG and HRV features
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sample_data'));
-chans = contains({EEG.chanlocs.labels}, {'CP2' 'P2'});
-EEG.data(chans,:) = EEG.data(chans,:).*5;
 % Features = brainbeats_process(EEG);  % GUI mode
 % Features = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 %     'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...

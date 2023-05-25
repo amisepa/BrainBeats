@@ -219,8 +219,8 @@ if contains(params.analysis, {'features' 'hep'})
 
         subplot(2,1,1)
         try
-            winSize = 30/EEG.xmax;
-            scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},winSize);
+            per = 
+            scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
             scroll = true;
         catch
             warning('Scroll plot failed. Plotting the whole ECG series.')

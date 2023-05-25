@@ -36,8 +36,8 @@ idx = find(contains(inputs,'rr_correct'));
 if ~isempty(idx)
     params.rr_correct = varargin{idx*2};
 elseif isempty(idx) && contains(params.analysis, {'features' 'hep'})
-    fprintf('RR artifact correction method not defined. Selecting Linear interpolation by default. \n')
-    params.rr_correct = 'linear';
+    fprintf("RR artifact correction method not defined. Selecting default: Shape-preserving piecewise cubic interpolation ('pchip'). \n")
+    params.rr_correct = 'pchip';  % pchip or spline should be default
 end
 
 % Clean EEG

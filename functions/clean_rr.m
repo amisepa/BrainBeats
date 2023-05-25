@@ -34,10 +34,8 @@
 function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, sqi, params, vis)
 
 fs = params.fs; 
-clean_method = params.rr_correct;
 % sqi_t = sqi(1,:);
 % sqi = sqi(2,:);
-
 
 Rpeaks = repmat('N', [length(rr) 1]);
 
@@ -110,13 +108,13 @@ idx_outliers = find(outliers == 1);
 numOutliers = length(idx_outliers);
 rr_original = rr;
 rr(idx_outliers) = NaN;
-if strcmp(clean_method, 'remove')
+if strcmp(params.rr_correct, 'remove')
     NN_Outliers = rr;
     NN_Outliers(idx_outliers) = [];
     t_Outliers = t_rr;
     t_Outliers(idx_outliers) = [];
 else
-    NN_Outliers = interp1(t_rr,rr,t_rr,clean_method);
+    NN_Outliers = interp1(t_rr,rr,t_rr,params.rr_correct);
     t_Outliers = t_rr;
 end
 
@@ -129,12 +127,12 @@ idx_toolow = find(toolow == 1);
 NN_NonPhysBeats = NN_Outliers;
 NN_NonPhysBeats(idx_toolow) = NaN;
 numOutliers = numOutliers + length(idx_toolow);
-if strcmp(clean_method, 'remove')
+if strcmp(params.rr_correct, 'remove')
     NN_NonPhysBeats(idx_toolow) = [];
     t_NonPhysBeats = t_Outliers;
     t_NonPhysBeats(idx_toolow) = [];
 else
-    NN_NonPhysBeats = interp1(t_Outliers,NN_NonPhysBeats,t_Outliers,clean_method);
+    NN_NonPhysBeats = interp1(t_Outliers,NN_NonPhysBeats,t_Outliers,params.rr_correct);
     t_NonPhysBeats = t_Outliers;
     flagged_beats = logical(outliers(:) + toohigh(:) + toolow(:));
 end
@@ -145,7 +143,7 @@ idx_outliers_2ndPass = find(logical(toohigh(:)) ~= 0);
 NN_TooFastBeats = NN_NonPhysBeats;
 NN_TooFastBeats(idx_outliers_2ndPass) = NaN;
 numOutliers = numOutliers + length(idx_outliers_2ndPass);
-if strcmp(clean_method, 'remove')
+if strcmp(params.rr_correct, 'remove')
     flagged_beats = numOutliers;
     NN_TooFastBeats(idx_outliers_2ndPass) = [];
     t_TooFasyBeats = t_NonPhysBeats;
