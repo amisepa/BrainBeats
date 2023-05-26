@@ -40,15 +40,15 @@ if isempty(EEG.ref)
     warning('EEG data not referenced! Referencing is highly recommended');
 end
 
-%%%%%%%%%%%%%%%%%%%% Parameters %%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%% Main parameters %%%%%%%%%%%%%%%%%%%%%
 if nargin == 1
     params = getparams_gui(EEG);                % GUI
 elseif nargin > 1
     params = getparams_command(varargin{:});    % Command line
 end
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% if GUI was aborted
+% if GUI was aborted (FIXME: should not send this error)
 if ~isfield(params, 'heart_channels')
     disp('Aborted'); return
 end
@@ -239,28 +239,11 @@ if contains(params.analysis, {'features' 'hep'})
             hold on; plot(NN_times, NN,'-','color',"#0072BD", 'LineWidth', 1);
             legend('RR artifacts','NN intervals')
         end
-        title('RR intervals'); ylabel('RR intervals (s)'); xlabel('Time (s)'); axis tight
-        if ~scroll
-            set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold'); box on
-        end
+        title('RR intervals'); ylabel('RR intervals (s)'); xlabel('Time (s)'); 
+        axis tight; box on
+        set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold'); 
     end
-
-    if params.parpool
-        disp('Initiating parrallel computing (all available processors)...')
-        % delete(gcp('nocreate')) %shut down opened parpool
-        p = gcp('nocreate');
-        if isempty(p) % if not already on, launch it
-            c = parcluster; % cluster profile
-            % N = feature('numcores');        % physical number of cores
-            N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
-            if ischar(N)
-                N = str2double(N);
-            end
-            c.NumWorkers = N-1;  % update cluster profile to include all workers
-            c.parpool();
-        end
-    end
-
+    
     %%%%% MODE 2: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
         EEG = run_HEP(EEG, params, Rpeaks);
@@ -271,8 +254,24 @@ if contains(params.analysis, {'features' 'hep'})
 
         if SQI <= .2 % <20% of RR interval is artifacts
 
+            if params.parpool
+                disp('Initiating parrallel computing (all available processors)...')
+                % delete(gcp('nocreate')) %shut down opened parpool
+                p = gcp('nocreate');
+                if isempty(p) % if not already on, launch it
+                    c = parcluster; % cluster profile
+                    % N = feature('numcores');        % physical number of cores
+                    N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
+                    if ischar(N)
+                        N = str2double(N);
+                    end
+                    c.NumWorkers = N-1;  % update cluster profile to include all workers
+                    c.parpool();
+                end
+            end
+
             % defaults
-            params.hrv_norm = true;  % default
+            % params.hrv_norm = true;  % default
             params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
             params.hrv_overlap =  0.25; % 25%
 

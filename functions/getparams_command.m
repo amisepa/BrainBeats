@@ -102,16 +102,15 @@ else
     params.hrv = false;
 end
 
-% Data visualization
-idx = find(contains(inputs,'vis'));
+% Normalize frequency features
+idx = find(contains(inputs,'norm'));
 if ~isempty(idx)
-    params.vis = logical(varargin{idx*2});
+    params.norm = logical(varargin{idx*2});
 else
-    disp('Visualization not defined. Visualization is turned ON by default')
-    params.vis = true;
+    params.norm = false;
 end
 
-% Parallel computing (FIXME: add to GUI)
+% Parallel computing
 idx = find(contains(inputs,'parpool'));
 if ~isempty(idx)
     params.parpool = logical(varargin{idx*2});
@@ -119,12 +118,21 @@ else
     params.parpool = false;
 end
 
-% GPU computing (FIXEM: add to GUI)
+% GPU computing 
 idx = find(contains(inputs,'gpu'));
 if ~isempty(idx)
     params.gpu = logical(varargin{idx*2});
 else
     params.gpu = false;
+end
+
+% Plot outputs
+idx = find(contains(inputs,'vis'));
+if ~isempty(idx)
+    params.vis = logical(varargin{idx*2});
+else
+    disp('Visualization not defined. Visualization is turned ON by default')
+    params.vis = true;
 end
 
 % Save outputs

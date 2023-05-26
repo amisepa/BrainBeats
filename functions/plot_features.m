@@ -59,7 +59,7 @@ if params.hrv_frequency
     % xticklabels(unique(reshape(bands,1,[]))); xtickangle(45);
     axis tight; box on
     xlabel('Frequency (Hz)');
-    if params.hrv_norm
+    if params.norm
         ylabel('Power (ms^2 normalized)');
     else
         ylabel('Power (ms^2)');

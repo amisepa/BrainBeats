@@ -107,7 +107,7 @@ if params.hrv_frequency
                                 
                 % Lomb-Scargle Periodogram (no resampling required; best method)
                 if strcmp(params.hrv_spec, 'Lomb-Scargle periodogram')
-                    if params.hrv_norm
+                    if params.norm
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized'); 
                         fprintf('Computing normalized Lomb-Scargle periodogram on the NN series. \n')
                     else

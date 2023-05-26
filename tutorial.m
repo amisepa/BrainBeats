@@ -1,7 +1,6 @@
 clear; close all; clc
 mainDir = fileparts(which('eegplugin_BrainBeats.m'));
-cd(mainDir);
-eeglab; close;
+cd(mainDir); eeglab; close;
  
 %% METHOD 1: Process file for HEP analysis
 
@@ -12,22 +11,16 @@ EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sam
 
 % EEG = brainbeats_process(EEG);  % GUI mode
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG1' 'ECG2'},'clean_eeg',true, ...
-    'save',true,'gpu',false,'vis',true); 
+    'heart_channels',{'ECG1' 'ECG2'},'clean_rr','pchip','clean_eeg',true, ...
+    'parpool',false,'gpu',false,'vis',true,'save',true); 
 % pop_eegplot(EEG,1,1,1)
 
 %% METHOD 2: Extract EEG and HRV features
 
 EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sample_data'));
-% Features = brainbeats_process(EEG);  % GUI mode
-% Features = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-%     'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...
-%     'eeg_features', {'frequency' 'nonlinear'}, ...
-%     'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
-%     'gpu',false,'parpool',true,'vis',true);
-
+% [~, Features] = brainbeats_process(EEG);  % GUI mode
 [~, Features] = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'ECG1' 'ECG2'}, 'clean_eeg',true, ...
+    'heart_channels',{'ECG1' 'ECG2'}, 'clean_rr','pchip','clean_eeg',true,'norm',true,...
     'eeg_features', {'time' 'frequency' 'nonlinear'}, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
     'gpu',false,'parpool',true,'save',true,'vis',true);
@@ -50,8 +43,8 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
 
 %% Save figures for paper (edit name)
 
-exportgraphics(gcf, fullfile('figures','method1_ecg-rr.png'),'Resolution',300)
-exportgraphics(gcf, fullfile('figures','method3_ecg-rr.eps'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','method2_gui.png'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','method2_gui.eps'),'Resolution',300)
 % print(gcf,fullfile('figures','hep_bad-channels.png'),'-dpng','-r300');     %300 dpi .png
 % print(gcf,fullfile('figures','hep_bad-channels.pdf'),'-dpdf','-r300');     %300 dpi .pdf
 % print(gcf,fullfile('figures','hep_bad-channels.epsc'),'-depsc','-r300');   %300 dpi .epsc

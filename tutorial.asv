@@ -50,8 +50,8 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
 
 %% Save figures for paper (edit name)
 
-exportgraphics(gcf, fullfile('figures','method1_ecg-rr.png'),'Resolution',300)
-exportgraphics(gcf, fullfile('figures','method3_ecg-rr.eps'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','method1_hep-clean.png'),'Resolution',300)
+exportgraphics(gcf, fullfile('figures','method1_hep-clean.eps'),'Resolution',300)
 % print(gcf,fullfile('figures','hep_bad-channels.png'),'-dpng','-r300');     %300 dpi .png
 % print(gcf,fullfile('figures','hep_bad-channels.pdf'),'-dpdf','-r300');     %300 dpi .pdf
 % print(gcf,fullfile('figures','hep_bad-channels.epsc'),'-depsc','-r300');   %300 dpi .epsc
