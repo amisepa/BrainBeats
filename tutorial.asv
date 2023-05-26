@@ -8,15 +8,17 @@ eeglab; close;
 EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sample_data'));
 % chans = contains({EEG.chanlocs.labels}, {'PO4'});
 % EEG.data(chans,:) = EEG.data(chans,:).*5;
+% EEG.event = []; EEG.urevent = []; EEG = eeg_checkset(EEG);
+
 % EEG = brainbeats_process(EEG);  % GUI mode
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
     'heart_channels',{'ECG1' 'ECG2'},'clean_eeg',true, ...
-    'save',false,'gpu',false,'vis',true); 
+    'save',true,'gpu',false,'vis',true); 
 % pop_eegplot(EEG,1,1,1)
 
 %% METHOD 2: Extract EEG and HRV features
 
-EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sample_data'));
+EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sample_data'));
 % Features = brainbeats_process(EEG);  % GUI mode
 % Features = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 %     'heart_channels',{'EXG5' 'EXG6'}, 'clean_eeg',true, ...
@@ -26,8 +28,9 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sam
 
 [~, Features] = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG1' 'ECG2'}, 'clean_eeg',true, ...
-    'eeg_features', {'time'},'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
-    'gpu',false,'parpool',true,'vis',true);
+    'eeg_features', {'time' 'frequency' 'nonlinear'}, ...
+    'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
+    'gpu',false,'parpool',true,'save',true,'vis',true);
 
 %% METHOD 2: GROUP STATS
 

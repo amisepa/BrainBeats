@@ -78,11 +78,19 @@ elseif params.clean_eeg_step == 1
             tmp = filtfilt_fast(b,1, squeeze(EEG.data(:,:,iEpoch))');
             snr(:,iEpoch) = rms(mad(squeeze(EEG.data(:,:,iEpoch)) - tmp'));
         end
-        badRMS = isoutlier(sigRMS,'mean');
+        badRMS = isoutlier(sigRMS,'grubbs');
         badSNR = isoutlier(snr,'grubbs');
         badTrials = unique([find(badRMS) find(badSNR)]);
         % pop_eegplot(EEG,1,1,1);
         EEG = pop_rejepoch(EEG, badTrials, 0);
+
+        % run RMS a 2nd time less aggressive in case some were missed
+        sigRMS = nan(1,size(EEG.data,3));
+        for iEpoch = 1:size(EEG.data,3)
+            sigRMS(:,iEpoch) = rms(rms(squeeze(EEG.data(:,:,iEpoch)),2));
+        end
+        badRMS = isoutlier(sigRMS,'mean');
+        EEG = pop_rejepoch(EEG, find(badRMS), 0);
 
     % Features
     elseif strcmp(params.analysis, 'features')
