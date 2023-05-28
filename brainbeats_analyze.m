@@ -14,7 +14,7 @@ function brainbeats_analyze()
 for iFile = 1:length(files)
     
     load(fullfile(path,files{iFile}),'Features');
-    
+    [hrv, eeg] = extract_features(Features);
         
         
 

@@ -45,5 +45,7 @@ else
 end
 
 % Save
-newname = sprintf('%s_HEP.set', EEG.filename(1:end-4));
-pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);
+if params.save
+    newname = sprintf('%s_heart-clean.set', EEG.filename(1:end-4));
+    pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);
+end

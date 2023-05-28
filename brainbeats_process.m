@@ -82,6 +82,11 @@ end
 % Check if heart channels are in file (for command line mode)
 if contains({EEG.chanlocs.labels}, params.heart_channels) == 0
     error('The heart channel names you inputted cannot be found in the current dataset.')
+else
+    % Check it is cell if only one ECG channel (FIXME: move this to getparams_gui)
+    if ~iscell(params.heart_channels)
+        params.heart_channels = {params.heart_channels};
+    end
 end
 
 % Check for channel locations for visualization

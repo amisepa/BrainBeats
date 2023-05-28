@@ -28,10 +28,7 @@ end
 
 if params.eeg_time
     disp('Calculating time-domain EEG features...')
-    eeg_features.time.mean = mean(signals,2);
-    % eeg_features.time.trimmed_mean = trimmean(signals,20,2);
-    % eeg_features.time.median = median(signals,2);
-    eeg_features.time.mode = rms(signals,2);
+    eeg_features.time.rms = rms(signals,2);
     eeg_features.time.mode = mode(signals,2);
     eeg_features.time.var = var(signals,0,2);
     eeg_features.time.skewness = skewness(signals,0,2);

@@ -3,54 +3,54 @@
 % 
 % Cedric Cannard, 2023
 
-function features_hrv = extract_features(Features)
+function [hrv, eeg] = extract_features(Features)
 
 
 %% HRV
 
 if isfield(Features,'HRV')
     
-    features_hrv = table.empty;
+    hrv = table.empty;
 
     % Time
     if isfield(Features.HRV, 'time')
-        features_hrv = struct2table(Features.HRV.time);
+        hrv = struct2table(Features.HRV.time);
     end
     
     % Frequency (average across windows)
     if isfield(Features.HRV, 'frequency')
     
         % list of fields
-        featfields = fieldnames(Features.HRV.frequency);
+        features = fieldnames(Features.HRV.frequency);
     
         % ULF
-        if sum(contains(featfields,'ulf')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(mean(Features.HRV.frequency.ulf));
-            features_hrv.Properties.VariableNames(end) = {'ULF-HRV'};
+        if sum(contains(features,'ulf')) > 0
+            hrv(:,size(hrv,2)+1) = table(mean(Features.HRV.frequency.ulf));
+            hrv.Properties.VariableNames(end) = {'ULF-HRV'};
         end
     
         % VLF
-        if sum(contains(featfields,'vlf')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(mean(Features.HRV.frequency.vlf));
-            features_hrv.Properties.VariableNames(end) = {'VLF-HRV'};
+        if sum(contains(features,'vlf')) > 0
+            hrv(:,size(hrv,2)+1) = table(mean(Features.HRV.frequency.vlf));
+            hrv.Properties.VariableNames(end) = {'VLF-HRV'};
         end
     
         % LF
-        if sum(contains(featfields,'lf')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(mean(Features.HRV.frequency.lf));
-            features_hrv.Properties.VariableNames(end) = {'LF-HRV'};
+        if sum(contains(features,'lf')) > 0
+            hrv(:,size(hrv,2)+1) = table(mean(Features.HRV.frequency.lf));
+            hrv.Properties.VariableNames(end) = {'LF-HRV'};
         end
     
         % HF
-        if sum(contains(featfields,'hf')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(mean(Features.HRV.frequency.hf));
-            features_hrv.Properties.VariableNames(end) = {'HF-HRV'};
+        if sum(contains(features,'hf')) > 0
+            hrv(:,size(hrv,2)+1) = table(mean(Features.HRV.frequency.hf));
+            hrv.Properties.VariableNames(end) = {'HF-HRV'};
         end
     
         % LF/HF
-        if sum(contains(featfields,'lfhf')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(mean(Features.HRV.frequency.lfhf));
-            features_hrv.Properties.VariableNames(end) = {'LF/HF'};
+        if sum(contains(features,'lfhf')) > 0
+            hrv(:,size(hrv,2)+1) = table(mean(Features.HRV.frequency.lfhf));
+            hrv.Properties.VariableNames(end) = {'LF/HF'};
         end
     end
     
@@ -58,45 +58,45 @@ if isfield(Features,'HRV')
     if isfield(Features.HRV, 'nonlinear')
     
         % list of fields
-        features_hrv = fieldnames(Features.HRV.nonlinear);
+        features = fieldnames(Features.HRV.nonlinear);
     
         % Poincare
-        if sum(contains(featfields,'Poincare')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(Features.HRV.nonlinear.Poincare.SD1);
-            features_hrv.Properties.VariableNames(end) = {'Poincaré: SD1'};
+        if sum(contains(features,'Poincare')) > 0
+            hrv(:,size(hrv,2)+1) = table(Features.HRV.nonlinear.Poincare.SD1);
+            hrv.Properties.VariableNames(end) = {'Poincaré: SD1'};
     
-            features_hrv(:,size(features_hrv,2)+1) = table(Features.HRV.nonlinear.Poincare.SD2);
-            features_hrv.Properties.VariableNames(end) = {'Poincaré: SD2'};
+            hrv(:,size(hrv,2)+1) = table(Features.HRV.nonlinear.Poincare.SD2);
+            hrv.Properties.VariableNames(end) = {'Poincaré: SD2'};
     
-            features_hrv(:,size(features_hrv,2)+1) = table(Features.HRV.nonlinear.Poincare.SD1SD2);
-            features_hrv.Properties.VariableNames(end) = {'SD1/SD2'};
+            hrv(:,size(hrv,2)+1) = table(Features.HRV.nonlinear.Poincare.SD1SD2);
+            hrv.Properties.VariableNames(end) = {'SD1/SD2'};
         end
     
         % PRSA
-        if sum(contains(featfields,'PRSA')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(Features.HRV.nonlinear.PRSA_AC);
-            features_hrv.Properties.VariableNames(end) = {'PRSA_AC'};
+        if sum(contains(features,'PRSA')) > 0
+            hrv(:,size(hrv,2)+1) = table(Features.HRV.nonlinear.PRSA_AC);
+            hrv.Properties.VariableNames(end) = {'PRSA_AC'};
     
-            features_hrv(:,size(features_hrv,2)+1) = table(Features.HRV.nonlinear.PRSA_DC);
-            features_hrv.Properties.VariableNames(end) = {'PRSA_DC'};
+            hrv(:,size(hrv,2)+1) = table(Features.HRV.nonlinear.PRSA_DC);
+            hrv.Properties.VariableNames(end) = {'PRSA_DC'};
         end
     
         % Fuzzy entropy
-        if sum(contains(featfields,'FE')) > 0
-            features_hrv(:,size(features_hrv,2)+1) = table(Features.HRV.nonlinear.FE);
-            features_hrv.Properties.VariableNames(end) = {'HRV-FE'};
+        if sum(contains(features,'FE')) > 0
+            hrv(:,size(hrv,2)+1) = table(Features.HRV.nonlinear.FE);
+            hrv.Properties.VariableNames(end) = {'HRV-FE'};
         end
     
         % Multiscale fuzzy entropy
-        if sum(contains(featfields,'MFE')) > 0
+        if sum(contains(features,'MFE')) > 0
             % Peak scale number
             [~, peakScale] = max(Features.HRV.nonlinear.MFE);
-            features_hrv(:,size(features_hrv,2)+1) = table(peakScale);
-            features_hrv.Properties.VariableNames(end) = {'HRV-MFE_peak'};
+            hrv(:,size(hrv,2)+1) = table(peakScale);
+            hrv.Properties.VariableNames(end) = {'HRV-MFE_peak'};
             
             % Area under the curve (using trapezoidal numerical integration)
-            features_hrv(:,size(features_hrv,2)+1) = table(trapz(Features.HRV.nonlinear.MFE));
-            features_hrv.Properties.VariableNames(end) = {'HRV-MFE_auc'};
+            hrv(:,size(hrv,2)+1) = table(trapz(Features.HRV.nonlinear.MFE));
+            hrv.Properties.VariableNames(end) = {'HRV-MFE_auc'};
         end
     
     end
@@ -107,20 +107,28 @@ end
 
 if isfield(Features,'EEG')
     
-    features_eeg = table.empty;
+    eeg = table.empty;
 
     % Time
     if isfield(Features.EEG, 'time')
-        
-        % list of fields
-        featfields = fieldnames(Features.EEG.time);
-    
-        % features_eeg(:,:) = struct2table(Features.EEG.time);
-        if sum(contains(featfields, 'mean')) > 0
-            features_eeg(:,size(features_eeg,2)+1) = table(mean(Features.EEG.time.mean));
-            features_eeg.Properties.VariableNames(end) = {'EEG-mean'};
+        features = fieldnames(Features.EEG.time);
+        for iFeat = 1:length(features)
+            fieldname = features{iFeat};
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.time.(fieldname)));
+            eeg.Properties.VariableNames(end) = {sprintf('EEG-%s', fieldname)};
+        end        
+    end
+
+    % Frequency
+    if isfield(Features.EEG, 'frequency')
+        features = fieldnames(Features.EEG.frequency);
+
+        % ULF
+        if sum(contains(features,'ulf')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.HRV.frequency.ulf));
+            hrv.Properties.VariableNames(end) = {'ULF-HRV'};
         end
-        
+
     end
 end
 
