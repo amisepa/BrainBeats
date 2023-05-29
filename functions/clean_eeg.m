@@ -19,7 +19,7 @@ if params.clean_eeg_step == 0
     
     % Remove bad channels
     oriEEG = EEG;
-    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
+    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.8, ...
         'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
         'WindowCriterion','off','BurstRejection','off','Distance','off');    
     % disp('Detecting flat line...')
@@ -97,7 +97,7 @@ elseif params.clean_eeg_step == 1
 
         % Identify artifacts using ASR
         oriEEG = EEG;
-        cutoff = 30;
+        cutoff = 40;
         useriemannian = false;
         m = memory;
         maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)

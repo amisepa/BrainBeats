@@ -163,7 +163,8 @@ if contains(params.analysis, {'features' 'hep'})
             SQI(iElec,:) = sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:));  % minimum SQI recommended by Vest et al. (2019)
         end
 
-        % Keep only ECG data of electrode with the best SQI
+        % Keep only ECG data of electrode with the best SQI (FIXME: Use flagged
+        % hearbetas from clean_RR instead?)
         [~, best_elec] = min(SQI);
         % sqi = sqi(best_elec,:);
         sqi = [sqi_times(best_elec,:); sqi(best_elec,:)];
@@ -191,7 +192,7 @@ if contains(params.analysis, {'features' 'hep'})
         % [rr,t_rr,sqi] = Analyze_ABP_PPG_Waveforms(InputSig,{'PPG'},HRVparams,[],subID);
 
     else
-        error("Unknown heart signal. Should be 'ecg' or 'ppg' ");
+        error("Unknown heart signal. Should be 'ecg' or 'ppg'.");
     end
 
     % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series

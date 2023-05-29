@@ -7,35 +7,231 @@
 
 function brainbeats_analyze()
 
+eeglab; close;
+mainDir = fileparts(which('eegplugin_BrainBeats.m')); cd(mainDir);
+
+
 % Select files
 [files,path] = uigetfile('*.mat','Select features files','MultiSelect','on');
 
-
+HRV = table.empty;
+EEG = table.empty;
 for iFile = 1:length(files)
-    
+
     load(fullfile(path,files{iFile}),'Features');
-    [hrv, eeg] = extract_features(Features);
-        
-        
+    
+    % Extract relevant features in Table format
+    [hrv, eeg] = extract_features(Features);   
 
-
-
-
-
+    % Merge into Master tables
+    try
+        HRV(iFile,:) = hrv;
+        EEG(iFile,:) = eeg;
+    catch
+        error('Failed to import HRV/EEG features for file %s into Master table. \nThis can occur if you computed different features for this files', files{iFile})
+    end
 end
+
+%% Feature selection with random forest: train bagged ensemble of 200 
+% regression trees
+
+features_front = readtable(fullfile(featureDir, "features_front.csv"));
+labels = categorical(features_front.Label);
+summary(labels)
+
+% use interaction-curvature test to select split predictors ('allsplits',
+%       'curvature', 'interaction-curvature')
+% use surrogate splits to increase accuracy (when dataset includes missing values)
+t = templateTree('NumVariablesToSample','all','PredictorSelection','interaction-curvature','Surrogate','on');
+Mdl = fitrensemble(features_front(:,2:end),features_front(:,1),'Method','Bag','NumLearningCycles',200,'Learners',t);
+yHat = oobPredict(Mdl);
+R2 = corr(Mdl.Y,yHat)^2;  %Mdl explains 82.7% of the variability around the mean
+fprintf('Model R2 = %g \n', round(R2,2))
+
+% Estimate predictor importance values by permuting out-of-bag observations among the trees.
+impOOB = oobPermutedPredictorImportance(Mdl);
+figure('color','w'); 
+subplot(2,1,1)
+bar(impOOB)
+% title('Unbiased Predictor Importance Estimates'); 
+xlabel('Predictor variable'); ylabel('Importance'); 
+h = gca; h.XTickLabel = Mdl.PredictorNames; h.XTickLabelRotation = 45;
+h.TickLabelInterpreter = 'none';
+
+% Compare predictor importance estimates by permuting out-of-bag observations 
+% and those estimates obtained by summing gains in the mean squared error
+% (MSE) due to splits on each predictor. Also, obtain predictor association 
+% measures estimated by surrogate splits. 
+[impGain,predAssociation] = predictorImportance(Mdl);
+hold on; 
+plot(1:numel(Mdl.PredictorNames),impOOB,'linewidth',3)
+plot(1:numel(Mdl.PredictorNames),impGain,'linewidth',3)
+title('Predictor Importance Estimation Comparison')
+legend('', 'OOB permuted','MSE improvement')
+grid on
+
+% Assess predictive measure association to indicate similarity between
+% decision rules that split observations. The best surrogate decision split 
+% yields the maximum predictive measure of association. You can infer the 
+% strength of the relationship between pairs of predictors using the elements 
+% of predAssociation. Larger values indicate more highly correlated pairs of 
+% predictors.
+subplot(2,1,2)
+imagesc(predAssociation); title('Predictor Association Estimates')
+colorbar; h = gca; h.XTickLabel = Mdl.PredictorNames;
+h.XTickLabelRotation = 45; h.TickLabelInterpreter = 'none';
+h.YTickLabel = Mdl.PredictorNames;
+
+% Input the strongest association here (yellow or green), if < .7 association
+% is not high enough to indicate stron relationship between the 2
+% predictors
+% predAssociation(1,2)  % row,column
+% predAssociation(1,7)  % row,column
+% predAssociation(1,8)  % row,column
+
+% Run Random Forest again using selected predictors and caompare R2
+t = templateTree('PredictorSelection','interaction-curvature','Surrogate','off'); % For reproducibility of random predictor selections
+MdlReduced  = fitrensemble(features_front(:,{ 'RMS' 'LF_power' 'SNR'}), ...
+    features_front(:,1),'Method','Bag','NumLearningCycles',200,'Learners',t);
+yHatReduced = oobPredict(MdlReduced);
+r2Reduced = corr(Mdl.Y,yHatReduced)^2;
+fprintf('Model R2 = %g \n', round(R2,2))
+fprintf('Reduced Model R2 = %g \n', round(r2Reduced,2))
+
+% Keep only best predictors and train classifiers models
+features_front = features_front(:,MdlReduced.PredictorNames); 
+saveas(gcf,fullfile(featureDir,'predictors-importance_front.png')); close(gcf);
+
+
+
+
+%% PCA-dimension reduction 
+
+X = table2array(HRV);
+% X = zscore(X); % normalize
+
+% Before thinking about dimension reduction, the first step is to redefine 
+% a coordinate system (x',y'), such that x' is along the first principal 
+% component, and y' along the second component (and so on, if there are more 
+% variables). The new variables are "Score" variable
+% As in the original data, each row is an observation, and each column is a dimension.
+% These data are just like your original data, except it is as if you 
+% measured them in a different coordinate system -- the principal axes.
+
+[coeff,score,latent,~,explained] = pca(X); % uses Singular Value Decomposition (default)
+
+% % Calculate eigenvalues and eigenvectors of the covariance matrix
+% covarianceMatrix = cov(X);
+% [V,D] = eig(covarianceMatrix);
+% coeff
+% V
+
+% score % projections of the original data on the principal component vector space.
+%  (same as doing X*coeff)
+
+% The columns of score are orthogonal to each other.
+% corrcoef(score)
+
+% The variances of these vectors are the eigenvalues of the covariance matrix,
+% and are also the output "latent".
+% var(score)'
+% latent
+
+% Now you can think about dimension reduction. Take a look at the variable 
+% 'explained'. It tells you how much of the variation is captured by each column 
+% of 'score'. Here is where you have to make a judgement call. How much 
+% of the total variation are you willing to ignore? 
+% One guideline is that if you plot explained, there will often be an "elbow" 
+% in the plot, where each additional variable explains very little additional 
+% variation. Keep only the components that add a lot more explanatory power, 
+% and ignore the rest.
+% If first 3 components together explain 87% of the variation; suppose 
+% that's good enough. Then, you would only keep those 3 dimensions (the first 3 
+% columns of score). You will have 7 observations in 3 dimensions (variables) instead of 5.
+
+% explained' % variation catpured by each column in 'score'
+
+figure('color','w'); 
+plot(explained,'.-','linewidth',2); title('Explained variance by each component')
+% bar(sqrt(sum(score.^2, 1)))
+sum(explained(1:2))
+
+% make a biplot (PC1 on x-axis and PC2 on y-axis)
+xPC = 1;
+yPC = 2;
+figure; hold on
+for nc = 1:N
+    plot([0 coeff(nc,xPC)],[0 coeff(nc,yPC)],'b'); 
+end
+
+
+% the eigenvectors (coeff) gives the weight of the original predictors for 
+% each PC. 
+% coeff(i,j).^2 % gives the % weighting of the i'th original predictor to the j'th PC.
+
+% You want to explain 95% of the variance: find where cumsum(explained) >= 95. 
+% Let's suppose this requires 4 of the PCs. you study the relationship of 
+% those 4 PCs to the original variables, by inspecting the first 4 columns
+% of coeff. If just a few of your original variables contribute to the first
+% 4 PCs, this is great news! You drop all the other variables -- losing a 
+% little bit of the explained variance -- and you are all set.
+% But suppose your first column of coeff looks like this:
+% coeff = [0.37; 0.42; 0.62; 0.41; ...];
+% where the first PC has significant contribution from every variable? 
+% In that case, you cannot isolate a small number of the original predictors,
+% and you cannot do what you want. Then it is sad trombone for you.
+
+
+% Scatter plot of the first two components (normalize variables original data by dividng by SD)
+% figure; hold on
+% h = plot(score(:,1),score(:,2),'ro');
+% set(h,'MarkerSize',16)
+% set(gca,'XLim',[-1 1],'YLim',[-1 1],'Box','on')
+% axis square
+% xlabel('Component 1')
+% ylabel('Component 2')
+% % Add a circle
+% p = nsidedpoly(1000, 'Center', [0 0], 'Radius', 0.8);
+% plot(p, 'FaceColor', 'w', 'EdgeColor', 'r')
+
+% Recover the original data from the PC
+% score * coeff'
+
+% "In general, every variable contributes to every principal component." 
+% In my example with 5 variables, if they had all been very highly 
+% correlated with each other, that all 5 of them contributed significantly 
+% to the first principal component. You could not eliminate any of the 
+% original variables without significant loss of information.
+% you can't eliminate either the x-axis variable or the y-axis variable. 
+% Instead, you choose a linear combination of them that captures the maximal 
+% variation. there are techniques like varimax, applied after PCA, that
+% allow you to remove some of the original variables.
+
+% Default (normalized varimax) rotation: first 3 principal components.
+% [1] Harman, H. H. Modern Factor Analysis. 3rd ed. Chicago: University of Chicago Press, 1976.
+% [2] Lawley, D. N., and A. E. Maxwell. Factor Analysis as a Statistical Method. 2nd ed. New York: American Elsevier Publishing, 1971. 
+% LPC = pca(X);
+[L1,T] = rotatefactors(coeff(:,1:2));
+inv(T'*T) % Correlation matrix of the rotated factors
+
 
 %% CORRELATION PLOT
 
 labels = {'ICA','Elev','Pr','Rmax','Rmin','Srad','Wspd','Tmin','Tmax','VPD','ET_o','AW'};
 C = -1 + 2.*rand(12,12);      % produce fake data
 plot_corrmatrix(C,labels)
-% load hospital
-% X = [hospital.Weight hospital.BloodPressure];
-% figure('color','w'); 
-% subplot(2,1,1); plotmatrix(X); title('Scatter plot'); 
-% R = corrcoef(X);
-% subplot(2,1,2); imagesc(R); title('Correlation coefficient (R)'); colorbar
 
-% X(1,2) = [HRV.time.NN_mean];
-% X(2,1) = [HRV.time.NN_mean];
+
+R = corrcoef(table2array(HRV))
+
+plot_corrmatrix(HRV,labels)
+
+
+load hospital
+X = [hospital.Weight hospital.BloodPressure];
+figure('color','w'); 
+subplot(2,1,1); plotmatrix(X); title('Scatter plot'); 
+R = corrcoef(X);
+subplot(2,1,2); imagesc(R); title('Correlation coefficient (R)'); colorbar
+
 

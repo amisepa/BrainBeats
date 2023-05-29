@@ -123,11 +123,98 @@ if isfield(Features,'EEG')
     if isfield(Features.EEG, 'frequency')
         features = fieldnames(Features.EEG.frequency);
 
-        % ULF
-        if sum(contains(features,'ulf')) > 0
-            eeg(:,size(eeg,2)+1) = table(mean(Features.HRV.frequency.ulf));
-            hrv.Properties.VariableNames(end) = {'ULF-HRV'};
+        % Main bands
+        if sum(contains(features,'delta')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.delta));
+            eeg.Properties.VariableNames(end) = {'EEG-delta'};
         end
+        if sum(contains(features,'theta')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.theta));
+            eeg.Properties.VariableNames(end) = {'EEG-theta'};
+        end
+        if sum(contains(features,'alpha')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.alpha));
+            eeg.Properties.VariableNames(end) = {'EEG-alpha'};
+        end
+        if sum(contains(features,'beta')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.beta));
+            eeg.Properties.VariableNames(end) = {'EEG-beta'};
+        end
+        if sum(contains(features,'low_gamma')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.low_gamma));
+            eeg.Properties.VariableNames(end) = {'EEG-low_gamma'};
+        end
+    
+        % Main bands (normalized)
+        if sum(contains(features,'delta_norm')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.delta_norm));
+            eeg.Properties.VariableNames(end) = {'EEG-delta_norm'};
+        end
+        if sum(contains(features,'theta_norm')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.theta_norm));
+            eeg.Properties.VariableNames(end) = {'EEG-theta_norm'};
+        end
+        if sum(contains(features,'alpha_norm')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.alpha_norm));
+            eeg.Properties.VariableNames(end) = {'EEG-alpha_norm'};
+        end
+        if sum(contains(features,'beta_norm')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.beta_norm));
+            eeg.Properties.VariableNames(end) = {'EEG-beta_norm'};
+        end
+        if sum(contains(features,'low_gamma_norm')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.low_gamma_norm));
+            eeg.Properties.VariableNames(end) = {'EEG-low_gamma_norm'};
+        end
+
+        % Main bands (individualized)
+        % if sum(contains(features,'delta_indiv')) > 0
+        %     eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.delta_indiv,'omitnan'));
+        %     eeg.Properties.VariableNames(end) = {'EEG-delta_indiv'};
+        % end
+        % if sum(contains(features,'theta_indiv')) > 0
+        %     eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.theta_indiv,'omitnan'));
+        %     eeg.Properties.VariableNames(end) = {'EEG-theta_indiv'};
+        % end
+        % if sum(contains(features,'alpha_indiv')) > 0
+        %     eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.alpha_indiv,'omitnan'));
+        %     eeg.Properties.VariableNames(end) = {'EEG-alpha_indiv'};
+        % end
+        % if sum(contains(features,'beta_indiv')) > 0
+        %     eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.beta_indiv,'omitnan'));
+        %     eeg.Properties.VariableNames(end) = {'EEG-beta_indiv'};
+        % end
+        % if sum(contains(features,'low_gamma_indiv')) > 0
+        %     eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.low_gamma_indiv,'omitnan'));
+        %     eeg.Properties.VariableNames(end) = {'EEG-low_gamma_indiv'};
+        % end
+
+
+        % IAF
+        if sum(contains(features,'IAF')) > 0
+            eeg(:,size(eeg,2)+1) = table(mean(Features.EEG.frequency.IAF,'omitnan'));
+            eeg.Properties.VariableNames(end) = {'EEG-IAF'};
+        end
+
+        % Alpha asymmetry
+        if sum(contains(features,'asymmetry')) > 0
+            asy = Features.EEG.frequency.asymmetry;
+            pairs = Features.EEG.frequency.asymmetry_pairs;
+            for iPair = 1:length(asy)
+                eeg(:,size(eeg,2)+1) = table(asy(iPair));
+                eeg.Properties.VariableNames(end) = { sprintf('Asy (%s)',pairs{iPair}) };
+            end
+        end
+
+        % EEG coherence
+        % if sum(contains(features,'coherence')) > 0
+        %     asy = Features.EEG.frequency.asymmetry;
+        %     pairs = Features.EEG.frequency.asymmetry_pairs;
+        %     for iPair = 1:length(asy)
+        %         eeg(:,size(eeg,2)+1) = table(asy(iPair));
+        %         eeg.Properties.VariableNames(end) = { sprintf('Asy (%s)',pairs{iPair}) };
+        %     end
+        % end
 
     end
 end

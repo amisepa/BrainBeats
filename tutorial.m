@@ -1,6 +1,6 @@
 clear; close all; clc
-eeglab; close; mainDir = fileparts(which('eegplugin_BrainBeats.m'));
-cd(mainDir);
+eeglab; close; 
+mainDir = fileparts(which('eegplugin_BrainBeats.m')); cd(mainDir);
  
 %% METHOD 1: Process file for HEP analysis
 
@@ -17,7 +17,7 @@ EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
 
 %% METHOD 2: Extract EEG and HRV features
 
-EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sample_data'));
+EEG = pop_loadset('filename','sample_data3.set','filepath',fullfile(mainDir,'sample_data'));
 % [~, Features] = brainbeats_process(EEG);  % GUI mode
 [~, Features] = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG1' 'ECG2'}, 'clean_rr','pchip','clean_eeg',true,'norm',true,...

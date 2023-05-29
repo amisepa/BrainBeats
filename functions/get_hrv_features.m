@@ -38,7 +38,8 @@
 
 function HRV = get_hrv_features(NN, NN_times, params)
 
-% FIXME: add sliding windows for users wanting to look at how it changes over time.
+% FIXME: add sliding windows for for all features to look at how they 
+% change over time.
 
 %% Time domain
 if params.hrv_time
@@ -117,10 +118,10 @@ if params.hrv_frequency
                 
                 % pwelch or FFT (require resampling)
                 else
-                    resamp_freq = 7;
 
                     % Resample
-                    NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR
+                    resamp_freq = 7;
+                    NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR with 
             
                     % Pwelch
                     if strcmp(params.hrv_spec, 'pwelch')
@@ -143,17 +144,17 @@ if params.hrv_frequency
 
                 % Power for each band in ms^2
                 if iBand == 1
-                    % HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % ULF
-                    HRV.frequency.ulf(iWin,:) = mean(pwr(freq_idx));      % ULF
+                    HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % ULF
+                    % HRV.frequency.ulf(iWin,:) = mean(pwr(freq_idx));      % ULF
                 elseif iBand == 2
-                    % HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % VLF
-                    HRV.frequency.vlf(iWin,:) = mean(pwr(freq_idx));      % VLF
+                    HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % VLF
+                    % HRV.frequency.vlf(iWin,:) = mean(pwr(freq_idx));      % VLF
                 elseif iBand == 3
-                    % HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % LF
-                    HRV.frequency.lf(iWin,:) = mean(pwr(freq_idx));      % LF
+                    HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % LF
+                    % HRV.frequency.lf(iWin,:) = mean(pwr(freq_idx));      % LF
                 elseif iBand == 4
-                    % HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % HF
-                    HRV.frequency.hf(iWin,:) = mean(pwr(freq_idx));      % HF
+                    HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % HF
+                    % HRV.frequency.hf(iWin,:) = mean(pwr(freq_idx));      % HF
                 end
                 
                 % Overal power spectra
@@ -266,7 +267,7 @@ end
 %       win_idx         - start and end time of the NN interval
 %       NN              - vector of NN intervals to be resampled
 %       sf              - 7
-%       interp_method   - 'cub' 
+%       interp_method   - 'cub' or 'spline' recommended
 % 
 %   OUTPUT
 %       NN_resamp      - resampled NN intervals
