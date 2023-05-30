@@ -1,7 +1,11 @@
 function plot_features(Features,params)
 
-HRV = Features.HRV;
-EEG = Features.EEG;
+if params.hrv
+    HRV = Features.HRV;
+end
+if params.eeg
+    EEG = Features.EEG;
+end
 
 %% PSD AND MFE PLOT
 

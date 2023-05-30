@@ -1,7 +1,7 @@
 clear; close all; clc
 eeglab; close; 
 mainDir = fileparts(which('eegplugin_BrainBeats.m')); cd(mainDir);
- 
+
 %% METHOD 1: Process file for HEP analysis
 
 EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sample_data'));
@@ -17,7 +17,7 @@ EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
 
 %% METHOD 2: Extract EEG and HRV features
 
-EEG = pop_loadset('filename','sample_data3.set','filepath',fullfile(mainDir,'sample_data'));
+EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sample_data'));
 % [~, Features] = brainbeats_process(EEG);  % GUI mode
 [~, Features] = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG1' 'ECG2'}, 'clean_rr','pchip','clean_eeg',true,'norm',true,...
@@ -25,17 +25,30 @@ EEG = pop_loadset('filename','sample_data3.set','filepath',fullfile(mainDir,'sam
     'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
     'gpu',false,'parpool',true,'save',true,'vis',true);
 
-%% METHOD 2: GROUP STATS
-
-
-
-
 %% METHOD 3: Remove heart components from EEG signals
 
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sample_data'));
 EEG = brainbeats_process(EEG);  % GUI mode
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,'save',true,'vis',true);
+
+%% METHOD 2: GROUP STATS
+
+% Download .zip dataset from: https://nemar.org/dataexplorer/detail?dataset_id=ds003690
+
+% Prep data
+clear; close all; clc
+eeglab; close; 
+dataDir = 'C:\Users\Tracy\Downloads\ds003690';
+tmp = readtable(fullfile(dataDir, "participants.tsv"),"FileType","text",'Delimiter', '\t');
+ids = tmp.participant_id;
+age = tmp.age;
+sex = tmp.sex;
+grp = tmp.group;
+edu = tmp.education_years;
+clear tmp
+
+
 
 %% Muse EEG + PPG
 

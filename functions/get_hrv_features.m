@@ -140,7 +140,7 @@ if params.hrv_frequency
                 
                 % Freq index
                 freq_idx = bands(iBand,1) <= freqs & freqs <= bands(iBand,2);
-                % freq_res = freqs(2)-freqs(1); % resolution
+                freq_res = freqs(2)-freqs(1); % resolution
 
                 % Power for each band in ms^2
                 if iBand == 1

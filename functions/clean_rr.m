@@ -1,41 +1,39 @@
-%% Preprocesses RR interval data for running HRV analyses. 
-% Noise and non-normal beats are either removed from the RR interval data 
+%% Preprocesses RR interval data for running HRV analyses.
+% Noise and non-normal beats are either removed from the RR interval data
 % or interpolated using a interpolation method of choice.
-% The default extrapolation behavior is 'extrap' for 'spline', 'pchip' and 'makima', 
+% The default extrapolation behavior is 'extrap' for 'spline', 'pchip' and 'makima',
 % and EXTRAPVAL = NaN (NaN+NaN*1i for complex values) for the other methods.
 
-% INPUTS:      
-%   t_rr - time of the rr interval data 
+% INPUTS:
+%   t_rr - time of the rr interval data
 %   rr - a single row of rr interval data (in s)
 %   vis - plot (1) or not (0)
-% 
-% OUTPUTS:     
+%
+% OUTPUTS:
 %   nn - normal normal interval data
 %   t_nn - time of NN interval
 %   fs - sample rate (Hz)
 %   flagged_beats - percent of original data removed
-% 
-% PLEASE CITE: 
-%   Clifford, G. (2002). "Characterizing Artefact in the Normal 
-%   Human 24-Hour RR Time Series to Aid Identification and Artificial 
+%
+% PLEASE CITE:
+%   Clifford, G. (2002). "Characterizing Artefact in the Normal
+%   Human 24-Hour RR Time Series to Aid Identification and Artificial
 %   Replication of Circadian Variations in Human Beat to Beat Heart
 %   Rate using a Simple Threshold."
-% 
-%   Vest et al. (2018) "An Open Source Benchmarked HRV Toolbox for Cardiovascular 
-%   Waveform and Interval Analysis" Physiological Measurement. 
-% 
-%   ORIGINAL SOURCE AND AUTHORS:     
+%
+%   Vest et al. (2018) "An Open Source Benchmarked HRV Toolbox for Cardiovascular
+%   Waveform and Interval Analysis" Physiological Measurement.
+%
+%   ORIGINAL SOURCE AND AUTHORS:
 %       Adriana N. Vest and various authors (Physionet Cardiovasculat
-%       Signal toolbox). 
-% 
+%       Signal toolbox).
+%
 % Cedric Cannard, 2022
 
 
-function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, sqi, params, vis)
+function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params, vis)
 
-fs = params.fs; 
-% sqi_t = sqi(1,:);
-% sqi = sqi(2,:);
+fs = params.fs;
 
 Rpeaks = repmat('N', [length(rr) 1]);
 
@@ -53,7 +51,7 @@ Rpeaks(idx_remove) = [];
 t_rr(idx_remove) = [];
 
 % find artifacts
-idx_remove2 = strcmp('~', Rpeaks); 
+idx_remove2 = strcmp('~', Rpeaks);
 rr(idx_remove2) = [];
 Rpeaks(idx_remove2) = [];
 t_rr(idx_remove2) = [];
@@ -70,9 +68,9 @@ clear idx_remove;
 % Find non-Rpeaks
 % [~,~,outliers] = AnnotationConversion(Rpeaks);
 goodbeats = strcmp(cellstr(Rpeaks),'N');
-badbeats = ~goodbeats;                 
-outliers = false(length(badbeats),1); 
-% removing beats after non-N beats 
+badbeats = ~goodbeats;
+outliers = false(length(badbeats),1);
+% removing beats after non-N beats
 for i = 1:length(badbeats)
     if badbeats(i)
         outliers(i) = 1;
@@ -80,7 +78,7 @@ for i = 1:length(badbeats)
     end
 end
 % remove extra points that may have been introduced at the end of the file
-if (length(outliers) > length(badbeats)) 
+if (length(outliers) > length(badbeats))
     z = length(outliers);
     outliers(z) = [];
 end
@@ -122,7 +120,7 @@ end
 lowerphysiolim = .375;      % equivalent to RR = .375
 upperphysiolim = 2;         % equivalent to RR = 2
 toohigh = NN_Outliers > upperphysiolim;
-toolow = NN_Outliers < lowerphysiolim;     
+toolow = NN_Outliers < lowerphysiolim;
 idx_toolow = find(toolow == 1);
 NN_NonPhysBeats = NN_Outliers;
 NN_NonPhysBeats(idx_toolow) = NaN;
@@ -138,7 +136,7 @@ else
 end
 
 % Interpolate beats that are too Fast
-toohigh = NN_NonPhysBeats > upperphysiolim;    
+toohigh = NN_NonPhysBeats > upperphysiolim;
 idx_outliers_2ndPass = find(logical(toohigh(:)) ~= 0);
 NN_TooFastBeats = NN_NonPhysBeats;
 NN_TooFastBeats(idx_outliers_2ndPass) = NaN;
@@ -154,7 +152,7 @@ else
 end
 
 if vis
-    figure('color','w'); 
+    figure('color','w');
     plot(t_rr,rr_original,t_Outliers,NN_Outliers);
     legend('raw','interp1(after outliers removed)')
     hold on
@@ -167,7 +165,7 @@ if vis
         'interp2(after too low)','toolow','interp3 (after too fast removed)')
 end
 
-% Remove erroneous data at the end of a record (i.e. a un-physiologic point 
+% Remove erroneous data at the end of a record (i.e. a un-physiologic point
 % caused by removing data at the end of a record)
 while NN_TooFastBeats(end) > upperphysiolim
     NN_TooFastBeats(end) = [];  t_TooFasyBeats(end) = [];
@@ -178,10 +176,10 @@ t_NN = t_TooFasyBeats;
 
 end
 
-%% clean RR intervals that change more than a given threshold 
-% (eg., th = 0.2 = 20%) with respect to the median value of the previous 5 
+%% clean RR intervals that change more than a given threshold
+% (eg., th = 0.2 = 20%) with respect to the median value of the previous 5
 % and next 5 RR intervals (using a forward-backward approach).
-% 
+%
 % INPUTS:
 %       RR : a single row of rr interval data in seconds
 %       th : threshold percent limit of change from one interval to the next
@@ -195,20 +193,20 @@ if size(RR,1)>size(RR,2)
     RR = RR';
 end
 
-% Forward search 
+% Forward search
 FiveRR_MedianVal = medfilt1(RR,5); % compute as median RR(-i-2: i+2)
 
-% shift of three position to align with to corresponding RR 
+% shift of three position to align with to corresponding RR
 FiveRR_MedianVal = [RR(1:5) FiveRR_MedianVal(3:end-3)];
 rr_above_th = (abs(RR-FiveRR_MedianVal)./FiveRR_MedianVal)>=th;
 
 RR_forward = RR;
 RR_forward(rr_above_th) = NaN;
 
-% Backward search 
+% Backward search
 RRfilpped = fliplr(RR);
 FiveRR_MedianVal = medfilt1(RRfilpped,5); % compute as median RR(-i-2: i+2)
-% shift of three position to aligne with to corresponding RR 
+% shift of three position to aligne with to corresponding RR
 FiveRR_MedianVal = [RRfilpped(1:5) FiveRR_MedianVal(3:end-3)];
 rr_above_th = find(abs(RRfilpped-FiveRR_MedianVal)./FiveRR_MedianVal>=th);
 rr_above_th = sort(length(RR)-rr_above_th+1);
@@ -216,7 +214,7 @@ rr_above_th = sort(length(RR)-rr_above_th+1);
 RR_backward = RRfilpped;
 RR_backward(rr_above_th) = NaN;
 
-% Combine 
+% Combine
 idxRRtoBeRemoved = (isnan(RR_forward) & isnan(RR_backward));
 
 end
