@@ -111,7 +111,7 @@ if params.eeg_frequency
 
 
     % Asymmetry (use log(pwr) no pwr_dB) - on all pairs
-    nPairs = size(chanlocs,2)/2+1;
+    nPairs = floor(size(chanlocs,2)/2+1); % floor for montages with odd # of electrodes
     pairs = nan(nPairs,2);
     pairLabels = cell(nPairs,1);
     asy = nan(nPairs,1);
@@ -153,62 +153,94 @@ if params.eeg_frequency
     eeg_features.frequency.asymmetry_pairs = pairLabels(~isnan(asy));
 
 
-
     % EEG coherence (magnitude squared coherence estimate)
     % (only on pairs on electrodes that are not neighbors; see Nunez 2016:
     % https://escholarship.org/content/qt5fb0q5wx/qt5fb0q5wx.pdf
-    nfft = fs*2;
-    noverlap = nfft/2;
+    % nfft = fs*2;
+    % noverlap = nfft/2;
+    % 
+    % % neighbor electrodes
+    % neighbors = get_channelneighbors(chanlocs);
+    % 
+    % % all possible pairs
+    % pairs = nchoosek({chanlocs.labels}, 2);
+    % 
+    % % remove pairs that are neighbors
+    % nPairs = size(pairs,1);
+    % pairname = cell(nPairs,1);
+    % cohr = nan(nPairs,nfft/2+1);
+    % progressbar('Estimating EEG coherence on each (non-neighbor) channel pair')
+    % fprintf('Estimating EEG coherence on all possible channel pairs... \n')
+    % warning('Ignoring neighboring channels that are contaminated by volume conduction effects (see Nunez et al. 2016, Figure 7)');
+    % for iPair = 1:nPairs
+    % 
+    %     chan1 = pairs{iPair,1};
+    %     chan2 = pairs{iPair,2};
+    %     chan1_neighbors = neighbors(strcmp({neighbors.label},chan1)).neighblabel;
+    %     pairname{iPair,:} = sprintf('%s - %s', pairs{iPair,1}, pairs{iPair,2});
+    % 
+    %     % If chan2 is neighbor, skip to next pair, otherwise compute coherence
+    %     if sum(contains(chan1_neighbors, chan2)) == 0
+    %         fprintf('pair: %s \n', pairname{iPair,:})
+    %         idx1 = strcmp({chanlocs.labels},chan1);
+    %         idx2 = strcmp({chanlocs.labels},chan2);
+    %         [cohr(iPair,:),f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(nfft),noverlap,nfft,fs);
+    %         % plot(f(f>=0 & f<45), squeeze(cohr(f>=0 & f<45)));
+    %         % title(pairname); grid on; hold on;
+    %     else
+    %         fprintf('pair: %s (neighbors -> ignored) \n', pairname{iPair,:})
+    %         continue
+    %     end
+    % 
+    %     progressbar(iPair/nPairs);
+    % end
+    % 
+    % % Remove empty rows
+    % nans = isnan(cohr(:,1));
+    % cohr(nans,:) = [];
+    % pairname(nans,:) = [];
+    % 
+    % % Export
+    % eeg_features.frequency.eeg_coherence= cohr;
+    % eeg_features.frequency.eeg_coherence_pair = pairname;
+    % eeg_features.frequency.eeg_coherence_f = f;
 
-    % elec neighbors
-    % vis = false;
-    neighbors = get_channelneighbors(chanlocs);
+    % fprintf('Coherence estimated on %g pairs after excluding neighbors. \n', length(pairname));
+    
+    % plot coherence in alpha band
+    % if params.vis
+        % topoplot(, chanlocs, 'emarker2',{[3 17],'c','r'});
+    % end
 
-    % all possible pairs
-    pairs = nchoosek({chanlocs.labels}, 2);
 
-    % remove pairs that are neighbors
-    nPairs = size(pairs,1);
-    pairname = cell(nPairs,1);
-    cohr = nan(nPairs,nfft/2+1);
-    progressbar('Estimating EEG coherence on each (non-neighbor) channel pair')
-    fprintf('Estimating EEG coherence on all possible channel pairs... \n')
-    warning('Ignoring neighboring channels that are contaminated by volume conduction effects (see Nunez et al. 2016, Figure 7)');
-    for iPair = 1:nPairs
+    % MVAR coefficients
+    % L. Faes and G. Nollo (2011). Multivariate Frequency Domain Analysis 
+    % of Causal Interactions in Physiological Time Series.
+    % nfft = fs*2;  % 2-s windows
+    % Su = eye(nChan,nChan);
+    % [dc,dtf,pdc,gpdc,coh,pcoh,pcoh2,h,s,pp,f] = fdMVAR_5order(signals,Su,nfft,fs);
 
-        chan1 = pairs{iPair,1};
-        chan2 = pairs{iPair,2};
-        chan1_neighbors = neighbors(strcmp({neighbors.label},chan1)).neighblabel;
-        pairname{iPair,:} = sprintf('%s - %s', pairs{iPair,1}, pairs{iPair,2});
+    % Plot coherence for each band
+    % figure('color','w');    
+    % subplot(2,2,1)  % delta
+    % coh_delta = mean(coh(:,:,1:3),3);              
+    % plotconnectivity(coh_delta,'labels',{chanlocs.labels},'brainimg','off'); 
+    % title('Delta'); 
+            
+    % subplot(2,2,2)  % theta
+    % coh_theta = mean(coh(:,:,3:7),3);   
+    % plotconnectivity(coh_theta,'labels',{chanlocs.labels},'brainimg','off'); 
+    % title('Theta')
 
-        % If chan2 is neighbor, skip to next pair, otherwise compute coherence
-        if sum(contains(chan1_neighbors, chan2)) == 0
-            fprintf('pair: %s \n', pairname{iPair,:})
-            idx1 = strcmp({chanlocs.labels},chan1);
-            idx2 = strcmp({chanlocs.labels},chan2);
-            [cohr(iPair,:),f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(nfft),noverlap,nfft,fs);
-            % plot(f(f>=0 & f<45), squeeze(cohr(f>=0 & f<45)));
-            % title(pairname); grid on; hold on;
-        else
-            fprintf('pair: %s (neighbors -> ignored) \n', pairname{iPair,:})
-            continue
-        end
+    % subplot(2,2,3)  % alpha
+    % coh_alpha = mean(coh(:,:,8:13),3);   
+    % plotconnectivity(coh_alpha,'labels',{chanlocs.labels},'brainimg','off'); 
+    % title('Alpha')
 
-        progressbar(iPair/nPairs);
-    end
-
-    % Remove empty rows
-    nans = isnan(cohr(:,1));
-    cohr(nans,:) = [];
-    pairname(nans,:) = [];
-
-    % Export
-    eeg_features.frequency.eeg_coherence= cohr;
-    eeg_features.frequency.eeg_coherence_pair = pairname;
-    eeg_features.frequency.eeg_coherence_f = f;
-
-    fprintf('Coherence estimated on %g pairs after excluding neighbors. \n', length(pairname));
-
+    % subplot(2,2,4)  % beta
+    % coh_beta = mean(coh(:,:,14:30),3);   
+    % plotconnectivity(coh_beta,'labels',{chanlocs.labels},'brainimg','off'); 
+    % title('Beta')
 end
 
 %% Entropy

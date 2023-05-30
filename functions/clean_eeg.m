@@ -3,13 +3,14 @@ function [EEG, params] = clean_eeg(EEG, params)
 % Remove bad channels
 if params.clean_eeg_step == 0
     
-    EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',45,'filtorder',846,'minphase',false); % use causal minimum-phase filter for pre-event analysis
+    EEG = pop_eegfiltnew(EEG,'locutoff',1,'minphase',false);    % use causal minimum-phase filter for pre-event analysis
+    EEG = pop_eegfiltnew(EEG,'hicutoff',45,'filtorder',846,'minphase',false); % use causal minimum-phase filter for pre-event analysis
     
     % Reference to average or infinity/REST
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
     % in the assessment of functional brain–heart interplay: From 
     % methodology to user guidelines. Journal of Neuroscience Methods.
-    if ~isfield(EEG,'ref') || isempty(EEG.ref) || strcmp(EEG.ref,'')
+    if isempty(EEG.ref) || strcmp(EEG.ref,'') || strcmp(EEG.ref,'unknown')
         if EEG.nbchan >= 30
             EEG = reref_inf(EEG); % my function
         else

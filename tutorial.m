@@ -36,9 +36,11 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
 
 % Download .zip dataset from: https://nemar.org/dataexplorer/detail?dataset_id=ds003690
 
-% Prep data
 clear; close all; clc
 eeglab; close; 
+chanlocpath = fileparts(which('dipfitdefs.m'));
+
+% Import participants data
 dataDir = 'C:\Users\Tracy\Downloads\ds003690';
 tmp = readtable(fullfile(dataDir, "participants.tsv"),"FileType","text",'Delimiter', '\t');
 ids = tmp.participant_id;
@@ -48,7 +50,25 @@ grp = tmp.group;
 edu = tmp.education_years;
 clear tmp
 
-
+% Process "passive" data and extract features
+for iFile = 1:length(ids)
+    filepath = fullfile(dataDir,ids{iFile}, 'eeg');
+    filename = sprintf('%s_task-passive_run-1_eeg.set',ids{iFile});
+    EEG = pop_loadset('filename', filename,'filepath',filepath);    
+    % EEG = pop_select(EEG,'chantype', {'ECG','EEG'});
+    EEG = pop_select(EEG,'nochannel', {'CB1' 'CB2' 'VEO' 'HEO' 'R-Dia-X-(mm)' 'R-Dia-Y-(mm)'});
+    figure; topoplot([],EEG.chanlocs, 'style', 'blank',  'electrodes', 'labelpoint', 'chaninfo', EEG.chaninfo);
+    EEG = pop_chanedit(EEG,'rplurchanloc',1,'lookup',fullfile(chanlocpath,'standard_BEM','elec','standard_1005.elc'));
+    % pop_eegplot(EEG,1,1,1);
+    EEG.ref = 'unknown'; EEG = eeg_checkset(EEG); % force reference to unknown to re-reference to Infinity
+    EEG = pop_resample(EEG,256); % downsample to 256 HZ to increase speed
+    [~, Features] = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
+    'heart_channels',{'EKG'},'clean_eeg',true,'norm',true,...
+    'eeg_features', {'time' 'frequency'}, ...
+    'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
+    'gpu',false,'parpool',true,'save',true,'vis',false);
+end
+disp('Done! Now, use brainbeats_analyze for group analysis'); gong
 
 %% Muse EEG + PPG
 

@@ -115,14 +115,16 @@ end
 
 EEG.data = double(EEG.data);  % ensure double precision
 params.fs = EEG.srate;
-% EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
-% 
-% % Filter, re-reference, remove bad channels
+
+% keep only EEG and ECG channels (require "type" fields in EEG.chanlocs)
+EEG = pop_select(EEG, 'chantype',{'ECG','EEG'}); 
+% EEG = pop_select(EEG,'nochannel',params.heart_channels); 
+
+% % Filter, re-reference, remove bad channels (this was moved to after HRV)
 % if params.clean_eeg    
 %     params.clean_eeg_step = 0;
 %     [EEG, params] = clean_eeg(EEG, params);
 % end
-
 
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 if strcmp(params.analysis,'rm_heart')    
