@@ -152,6 +152,9 @@ if params.eeg_frequency
     eeg_features.frequency.asymmetry = asy(~isnan(asy));
     eeg_features.frequency.asymmetry_pairs = pairLabels(~isnan(asy));
 
+    if params.vis
+        % topoplot(asy, chanlocs, 'emarker2',{[3 17],'b','r'}); 
+    end
 
     % EEG coherence (magnitude squared coherence estimate)
     % (only on pairs on electrodes that are not neighbors; see Nunez 2016:
