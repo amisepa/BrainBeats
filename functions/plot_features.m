@@ -6,13 +6,17 @@ end
 if params.eeg
     EEG = Features.EEG;
 end
+if ~params.hrv && ~params.eeg
+    fprintf('No features to plot. \n');
+    return
+end
 
 %% PSD AND MFE PLOT
 
 figure('color','w');
 
 % PSD - HRV
-if params.hrv_frequency
+if params.hrv && params.hrv_frequency
 
     subplot(2,2,1); hold on
     pwr = HRV.frequency.pwr; % power already averaged across windows
@@ -73,7 +77,7 @@ if params.hrv_frequency
 end
 
 % Multiscale fuzzy entropy (MFE) - HRV
-if params.hrv_nonlinear
+if params.hrv && params.hrv_nonlinear
 
     subplot(2,2,3); hold on
     mfe = HRV.nonlinear.MFE;
@@ -84,7 +88,7 @@ if params.hrv_nonlinear
 end
 
 % PSD - EEG
-if params.eeg_frequency
+if params.eeg && params.eeg_frequency
 
     subplot(2,2,2); hold on
     bands = [0 3; 3 7; 7 13; 13 30; 30 max(freqs)];
@@ -126,7 +130,7 @@ if params.eeg_frequency
 end
 
 % Multiscale fuzzy entropy (MFE) - EEG
-if params.eeg_nonlinear
+if params.eeg && params.eeg_nonlinear
 
     subplot(2,2,4); %hold on
     scales = EEG.nonlinear.MFE_scales(1,:);
@@ -154,7 +158,7 @@ end
 
 %% Scalp topos 2D
 
-if params.eeg_frequency
+if params.eeg && params.eeg_frequency
     mode = 1;
     figure('color','w')
     subplot(3,2,1)
@@ -179,90 +183,10 @@ if params.eeg_frequency
     set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
 end
 
-%% Scalp topos 3D - PSD and MFE
-
-% mode = 2;
-% dataToPlot{1,1} = gather(EEG.frequency.pwr_dB);
-% dataToPlot{2,1} = gather(EEG.frequency.freqs);
-% dataToPlot{1,2} = gather(EEG.nonlinear.MFE);
-% dataToPlot{2,2} = gather(EEG.nonlinear.MFE_scales);
-% figure('color','w')
-% plot_topo(dataToPlot,params.chanlocs,mode,'psd');
-% title('PSD and MFE'); %colorbar off;
-% set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
-
 %% Asymmetry
 
 
 
-%% coherence
-
-% plot line between channels using normal topo and channel locations
-% topoplot(results.diff, chanlocs, 'emarker2',{[3 17],'c','r'});
-
-% % folder = 'C:\Users\IONSLAB\Desktop\channeling_matlab\plot_results';
-% folder = 'C:\Users\Tracy\Documents\MATLAB\channeling_matlab';
-% cd(fullfile(folder))
-%
-% % Load head model and stat data
-% hMdlPath = fileparts(which('head_modelColin27_5003_Standard-10-5-Cap339.mat'));
-% atlas = load('-mat', fullfile(hMdlPath, 'head_modelColin27_5003_Standard-10-5-Cap339.mat'));
-% areas = readtable('area_labels.csv');
-% labels = {chanlocs.labels};
-%
-% freqs = {'delta' 'theta' 'alpha' 'beta'};
-%
-% % figure('color','w','position',[1353 904 1773 433])
-% figure('color','w')
-% for iFreq = 2:length(freqs)
-%     disp(['Band: ' char(freqs(iFreq))])
-% %     subplot(1,4,iFreq)
-%     subplot(1,3,iFreq-1)
-%     tmp = readtable(['pairwise_table_' freqs{iFreq} '.csv']);
-%
-%     % Recompute pvals for theta with slightly more aggressive FDR-correction at 0.01 (cedric)
-%     if strcmpi(freqs{iFreq}, 'theta')
-%         disp([ 'Significant areas before new correction: ' num2str(sum(strcmp(tmp.Significant,'yes'))) ])
-%         disp('New FDR-correction for theta at p=0.01: ')
-%         idx = fdr_bh(tmp.pval,0.001,'pdep','yes');
-%         tmp.Significant(idx==1) = {'yes'};
-%         tmp.Significant(idx==0) = {'no'};
-%     end
-%
-%     array = zeros(68,68);
-%     for iArea = 1:size(tmp,1)
-%         if strcmpi(tmp.Significant{iArea}, 'yes')
-%             array(tmp.area1(iArea), tmp.area2(iArea)) = tmp.diff(iArea);
-%         end
-%     end
-%     iCol = 3; % 2 for long name; 3 for abreviations
-%
-%     % Ordered by lobe
-% %     plotconnectivity(array,'labels',areas(2:end,iCol)','brainimg','off', ...
-% %         'threshold',0,'axis',gca,'labelsgroup',areas(2:end,4)');
-%
-%     % Custom order to better approximate brain anatomy (front/back, left/right hemisphere)
-%     plotconnectivity(array,'labels',areas(2:end,iCol)','brainimg','off', ...
-%         'threshold',0,'axis',gca,'labelsgroup',areas(2:end,4)','reorder',areas(2:end,5));
-% %     title(freqs(iFreq))
-% end
-% % legend(unique(areas(2:end,4)))
-%
-% % print('-depsc', 'figure_connectivity.eps')
-% % print('-djpeg', 'figure.jpg')
-% % print(gcf,'figure.png');    %300 dpi
-% % exportgraphics(gcf,'figure_300dpi.png','Resolution',300)  %300 dpi
-% print(gcf,'figure.png','-dpng','-r300');                    %300 dpi
-% print('figure_300dpi.tiff','-dtiff','-r300');               %300 dpi
+%% Coherence
 
 
-%% CORRELATION PLOT 2 (requires econometrics toolbox)
-% (https://www.mathworks.com/help/econ/corrplot.html)
-
-% pairwise Pearson's correlations and corresponding p-values for testing
-% the null hypothesis of no correlation against the right-tailed alternative
-% that the correlations are greater than zero.
-
-% load Data_Canada
-% [R,PValue] = corrplot(DataTable,Tail="right");
-% PValue

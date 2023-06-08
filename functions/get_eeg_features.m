@@ -333,10 +333,10 @@ if params.eeg_nonlinear
             if fac ~= floor(fac)
                 fac = round(fac);
                 signals_res = decimate(signals(iChan,:), fac);
-                fprintf('Decimating EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
+                fprintf('Decimating EEG data to %g Hz sample rate to compute entropy on these large datasets... \n',new_fs)
             else
                 signals_res = resample(signals(iChan,:), 1, fac);
-                fprintf('Downsampling EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
+                fprintf('Downsampling EEG data to %g Hz sample rate to compute entropy on these large datasets... \n',new_fs)
             end
             % Plot to check
             % times_res = (0:1/new_fs:(length(signals_res(iChan,:))-1)/new_fs)*1000;
@@ -344,10 +344,13 @@ if params.eeg_nonlinear
             % hold on; plot(times_res(1:new_fs*5), signals_res(iChan,1:new_fs*5));
 
             % Fuzzy entropy
+            fprintf('Computing fuzzy entropy...')
             fe = compute_fe(signals_res, m, r, n, tau, params.gpu);
 
             % Multiscale fuzzy entropy
-            [mfe, scales, scale_bounds] = compute_mfe(signals_res, m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
+            fprintf('Computing multiscale fuzzy entropy...')
+            % [mfe, scales, scale_bounds] = compute_mfe(signals_res, m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
+            [rcmfe, scales] = compute_rcmfe(signals_res, m, r, tau, coarseType, nScales, new_fs, n, params.gpu);
             % plot(scales(end:-1:1),mfe(end:-1:1));  hold on;
             % title('downsampled'); axis tight; box on; grid on
             % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)

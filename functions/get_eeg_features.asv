@@ -238,61 +238,68 @@ if params.eeg_frequency
 
     % Use this method instead? 
     % MVAR coefficients
-    % L. Faes and G. Nollo (2011). Multivariate Frequency Domain Analysis 
-    % of Causal Interactions in Physiological Time Series.
+    % Faes and Nollo (2011). Multivariate Frequency Domain Analysis of 
+    % Causal Interactions in Physiological Time Series. https://www.intechopen.com/chapters/12918
     % nfft = fs*2;  % 2-s windows
+    fprintf('Computing multivariate frequency domain analysis of causal interactions between all EEG channels...')
     Su = eye(nChan,nChan);
     [DC,DTF,PDC,GPDC,IPDC,COH,PCOH,PCOH2,H,S,P,f] = fdMVAR_5order(signals,Su,nfft,fs);
+    eeg_features.frequency.eeg_coh = COH;
+    eeg_features.frequency.eeg_coh_f = f;
+    eeg_features.frequency.eeg_pcoh = PCOH;
+    eeg_features.frequency.eeg_dc = DC;
+    eeg_features.frequency.eeg_pdc = PDC;
+    eeg_features.frequency.eeg_dtf = DTF;
 
     % Plot each band
-    if params.vis
-
-        % Coherence (measures coupling, symmetric)
-        figure('color','w');    
-        subplot(2,2,1) 
-        title('Coherence - Delta'); 
-        coh = mean(COH(:,:,f>0 & f<=3),3);              
-        % plotconnectivity(coh_delta,'labels',{chanlocs.labels},'brainimg','off'); 
-        my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-
-        subplot(2,2,2)
-        title('Coherence - Theta')
-        coh = mean(COH(:,:,f>=3 & f<=7),3);   
-        my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    
-        subplot(2,2,3) 
-        title('Coherence - Alpha')
-        coh = mean(COH(:,:,f>=8 & f<=13),3);   
-        my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    
-        subplot(2,2,4)
-        title('Coherence - Beta')
-        coh = mean(COH(:,:,f>=14 & f<=30),3);   
-        my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-        
-        % Directed Coherence (DC; measures causality, directionality)
-        figure('color','w');    
-        subplot(2,2,1) 
-        title('Directed coherence - Delta'); 
-        dc = mean(DC(:,:,f>0 & f<=3),3);              
-        my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-        
-        subplot(2,2,2)
-        title('Directed coherence - Theta')
-        dc = mean(DC(:,:,f>=3 & f<=7),3);   
-        my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    
-        subplot(2,2,3)  % alpha
-        title('Directed coherence - Alpha')
-        dc = mean(DC(:,:,f>=8 & f<=13),3);   
-        my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    
-        subplot(2,2,4)  % beta
-        title('Directed coherence - Beta')
-        dc = mean(DC(:,:,f>=14 & f<=30),3);   
-        my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-
-    end
+    % if params.vis
+    % 
+    %     % Coherence (measures coupling, symmetric)
+    %     figure('color','w');    
+    %     subplot(2,2,1) 
+    %     title('Coherence - Delta'); 
+    %     coh = mean(COH(:,:,f>0 & f<=3),3);              
+    %     % plotconnectivity(coh_delta,'labels',{chanlocs.labels},'brainimg','off'); 
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,2)
+    %     title('Coherence - Theta')
+    %     coh = mean(COH(:,:,f>=3 & f<=7),3);   
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,3) 
+    %     title('Coherence - Alpha')
+    %     coh = mean(COH(:,:,f>=8 & f<=13),3);   
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,4)
+    %     title('Coherence - Beta')
+    %     coh = mean(COH(:,:,f>=14 & f<=30),3);   
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     % Directed Coherence (DC; measures causality, directionality)
+    %     figure('color','w');    
+    %     subplot(2,2,1) 
+    %     title('Directed coherence - Delta'); 
+    %     dc = mean(DC(:,:,f>0 & f<=3),3);              
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,2)
+    %     title('Directed coherence - Theta')
+    %     dc = mean(DC(:,:,f>=3 & f<=7),3);   
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,3)  % alpha
+    %     title('Directed coherence - Alpha')
+    %     dc = mean(DC(:,:,f>=8 & f<=13),3);   
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,4)  % beta
+    %     title('Directed coherence - Beta')
+    %     dc = mean(DC(:,:,f>=14 & f<=30),3);   
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    % end
 end
 
 %% Entropy
@@ -305,7 +312,7 @@ if params.eeg_nonlinear
     n = 2;
     tau = 1;
     coarseType = 'Standard deviation';
-    nScales = 20;
+    nScales = 40;
     filtData = true;
 
     % Initiate progressbar (only when not in parpool)
@@ -319,17 +326,17 @@ if params.eeg_nonlinear
 
         % Downsample to accelerate on data >5 min with sample rate of 256 hz
         if size(signals,2) > 76800 
-            new_fs = 90;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
+            new_fs = 180;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
             fac = fs / new_fs; % downsample factor
 
             % downsample if integer, otherwise decimate to round factor
             if fac ~= floor(fac)
                 fac = round(fac);
                 signals_res = decimate(signals(iChan,:), fac);
-                fprintf('Decimating EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
+                fprintf('Decimating EEG data to %g Hz sample rate to compute entropy on these large datasets... \n',new_fs)
             else
                 signals_res = resample(signals(iChan,:), 1, fac);
-                fprintf('Downsampling EEG data to %g Hz sample rate to compute entropy on these large datasets. \n',new_fs)
+                fprintf('Downsampling EEG data to %g Hz sample rate to compute entropy on these large datasets... \n',new_fs)
             end
             % Plot to check
             % times_res = (0:1/new_fs:(length(signals_res(iChan,:))-1)/new_fs)*1000;
@@ -337,9 +344,11 @@ if params.eeg_nonlinear
             % hold on; plot(times_res(1:new_fs*5), signals_res(iChan,1:new_fs*5));
 
             % Fuzzy entropy
+            fprintf('Computing fuzzy entropy...')
             fe = compute_fe(signals_res, m, r, n, tau, params.gpu);
 
             % Multiscale fuzzy entropy
+            fprintf('Computing multiscale fuzzy e')
             [mfe, scales, scale_bounds] = compute_mfe(signals_res, m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
             % plot(scales(end:-1:1),mfe(end:-1:1));  hold on;
             % title('downsampled'); axis tight; box on; grid on
