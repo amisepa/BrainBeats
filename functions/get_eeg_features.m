@@ -10,9 +10,28 @@ tstart = tic;
 
 fs = params.fs;
 chanlocs = params.chanlocs;
-ps = parallel.Settings; ps.Pool.AutoCreate = params.parpool; % use parallel computing
 
-% Use Multiple GPUs in Parallel Pool
+% Parallel computing
+if params.parpool
+    % ps = parallel.Settings; 
+    % ps.Pool.AutoCreate = params.parpool; 
+
+    % delete(gcp('nocreate')) %shut down opened parpool
+    p = gcp('nocreate');
+    if isempty(p) % if not already on, launch it
+        disp('Initiating parrallel computing (all available processors)...')
+        c = parcluster; % cluster profile
+        % N = feature('numcores');        % physical number of cores
+        N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
+        if ischar(N)
+            N = str2double(N);
+        end
+        c.NumWorkers = N-1;  % update cluster profile to include all workers
+        c.parpool();
+    end
+end
+
+% Use parallel GPUs computing (if multiple GPUS are available)
 if params.parpool && params.gpu
     availableGPUs = gpuDeviceCount("available");
     if availableGPUs > 1
@@ -158,92 +177,129 @@ if params.eeg_frequency
 
     % EEG coherence (magnitude squared coherence estimate)
     % (only on pairs on electrodes that are not neighbors; see Nunez 2016:
-    % https://escholarship.org/content/qt5fb0q5wx/qt5fb0q5wx.pdf
-    % nfft = fs*2;
-    % noverlap = nfft/2;
-    % 
-    % % neighbor electrodes
-    % neighbors = get_channelneighbors(chanlocs);
-    % 
-    % % all possible pairs
-    % pairs = nchoosek({chanlocs.labels}, 2);
-    % 
-    % % remove pairs that are neighbors
-    % nPairs = size(pairs,1);
-    % pairname = cell(nPairs,1);
-    % cohr = nan(nPairs,nfft/2+1);
-    % progressbar('Estimating EEG coherence on each (non-neighbor) channel pair')
-    % fprintf('Estimating EEG coherence on all possible channel pairs... \n')
-    % warning('Ignoring neighboring channels that are contaminated by volume conduction effects (see Nunez et al. 2016, Figure 7)');
-    % for iPair = 1:nPairs
-    % 
-    %     chan1 = pairs{iPair,1};
-    %     chan2 = pairs{iPair,2};
-    %     chan1_neighbors = neighbors(strcmp({neighbors.label},chan1)).neighblabel;
-    %     pairname{iPair,:} = sprintf('%s - %s', pairs{iPair,1}, pairs{iPair,2});
-    % 
-    %     % If chan2 is neighbor, skip to next pair, otherwise compute coherence
-    %     if sum(contains(chan1_neighbors, chan2)) == 0
-    %         fprintf('pair: %s \n', pairname{iPair,:})
-    %         idx1 = strcmp({chanlocs.labels},chan1);
-    %         idx2 = strcmp({chanlocs.labels},chan2);
-    %         [cohr(iPair,:),f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(nfft),noverlap,nfft,fs);
-    %         % plot(f(f>=0 & f<45), squeeze(cohr(f>=0 & f<45)));
-    %         % title(pairname); grid on; hold on;
-    %     else
-    %         fprintf('pair: %s (neighbors -> ignored) \n', pairname{iPair,:})
-    %         continue
-    %     end
-    % 
-    %     progressbar(iPair/nPairs);
-    % end
-    % 
-    % % Remove empty rows
-    % nans = isnan(cohr(:,1));
-    % cohr(nans,:) = [];
-    % pairname(nans,:) = [];
-    % 
-    % % Export
-    % eeg_features.frequency.eeg_coherence= cohr;
-    % eeg_features.frequency.eeg_coherence_pair = pairname;
-    % eeg_features.frequency.eeg_coherence_f = f;
+    % https://escholarship.org/content/qt5fb0q5wx/qt5fb0q5wx.pdf)
+    % FIXME: neighbors are incorrect with low-density montages, should use
+    % distance in cm instead. 
+    nfft = fs*2;
+    noverlap = nfft/2;
 
-    % fprintf('Coherence estimated on %g pairs after excluding neighbors. \n', length(pairname));
+    % neighbor electrodes
+    neighbors = get_channelneighbors(chanlocs);
+
+    % all possible pairs
+    pairs = nchoosek({chanlocs.labels}, 2);
+
+    % remove pairs that are neighbors
+    nPairs = size(pairs,1);
+    pairname = cell(nPairs,1);
+    cohr = nan(nPairs,nfft/2+1);
+    progressbar('Estimating EEG coherence on each (non-neighbor) channel pair')
+    fprintf('Estimating EEG coherence on all possible channel pairs... \n')
+    warning('Ignoring neighboring channels that are contaminated by volume conduction effects (see Nunez et al. 2016, Figure 7)');
+    for iPair = 1:nPairs
+
+        chan1 = pairs{iPair,1};
+        chan2 = pairs{iPair,2};
+        chan1_neighbors = neighbors(strcmp({neighbors.label},chan1)).neighblabel;
+        pairname{iPair,:} = sprintf('%s - %s', pairs{iPair,1}, pairs{iPair,2});
+
+        % If chan2 is neighbor, skip to next pair, otherwise compute coherence
+        if sum(contains(chan1_neighbors, chan2)) == 0
+            fprintf('pair: %s \n', pairname{iPair,:})
+            idx1 = strcmp({chanlocs.labels},chan1);
+            idx2 = strcmp({chanlocs.labels},chan2);
+            [cohr(iPair,:),f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(nfft),noverlap,nfft,fs);
+            % plot(f(f>=0 & f<45), squeeze(cohr(f>=0 & f<45)));
+            % title(pairname); grid on; hold on;
+        else
+            fprintf('pair: %s (neighbors -> ignored) \n', pairname{iPair,:})
+            continue
+        end
+
+        progressbar(iPair/nPairs);
+    end
+
+    % Remove empty rows
+    nans = isnan(cohr(:,1));
+    cohr(nans,:) = [];
+    pairname(nans,:) = [];
+
+    % Export
+    eeg_features.frequency.eeg_coherence = cohr;
+    eeg_features.frequency.eeg_coherence_pair = pairname;
+    eeg_features.frequency.eeg_coherence_f = f;
+
+    fprintf('Coherence estimated on %g pairs after excluding neighbors. \n', length(pairname));
     
-    % plot coherence in alpha band
+    % Plot coherence in alpha band
     % if params.vis
-        % topoplot(, chanlocs, 'emarker2',{[3 17],'c','r'});
+    %     topoplot(cohr, chanlocs, 'emarker2',{[3 17],'c','r'});
     % end
 
-
+    % Use this method instead? 
     % MVAR coefficients
-    % L. Faes and G. Nollo (2011). Multivariate Frequency Domain Analysis 
-    % of Causal Interactions in Physiological Time Series.
+    % Faes and Nollo (2011). Multivariate Frequency Domain Analysis of 
+    % Causal Interactions in Physiological Time Series. https://www.intechopen.com/chapters/12918
     % nfft = fs*2;  % 2-s windows
-    % Su = eye(nChan,nChan);
-    % [dc,dtf,pdc,gpdc,coh,pcoh,pcoh2,h,s,pp,f] = fdMVAR_5order(signals,Su,nfft,fs);
+    fprintf('Computing multivariate frequency domain analysis of causal interactions between all EEG channels...')
+    Su = eye(nChan,nChan);
+    [DC,DTF,PDC,GPDC,IPDC,COH,PCOH,PCOH2,H,S,P,f] = fdMVAR_5order(signals,Su,nfft,fs);
+    eeg_features.frequency.eeg_coh = COH;
+    eeg_features.frequency.eeg_coh_f = f;
+    eeg_features.frequency.eeg_pcoh = PCOH;
+    eeg_features.frequency.eeg_dc = DC;
+    eeg_features.frequency.eeg_pdc = PDC;
+    eeg_features.frequency.eeg_dtf = DTF;
 
-    % Plot coherence for each band
-    % figure('color','w');    
-    % subplot(2,2,1)  % delta
-    % coh_delta = mean(coh(:,:,1:3),3);              
-    % plotconnectivity(coh_delta,'labels',{chanlocs.labels},'brainimg','off'); 
-    % title('Delta'); 
-            
-    % subplot(2,2,2)  % theta
-    % coh_theta = mean(coh(:,:,3:7),3);   
-    % plotconnectivity(coh_theta,'labels',{chanlocs.labels},'brainimg','off'); 
-    % title('Theta')
-
-    % subplot(2,2,3)  % alpha
-    % coh_alpha = mean(coh(:,:,8:13),3);   
-    % plotconnectivity(coh_alpha,'labels',{chanlocs.labels},'brainimg','off'); 
-    % title('Alpha')
-
-    % subplot(2,2,4)  % beta
-    % coh_beta = mean(coh(:,:,14:30),3);   
-    % plotconnectivity(coh_beta,'labels',{chanlocs.labels},'brainimg','off'); 
-    % title('Beta')
+    % Plot each band
+    % if params.vis
+    % 
+    %     % Coherence (measures coupling, symmetric)
+    %     figure('color','w');    
+    %     subplot(2,2,1) 
+    %     title('Coherence - Delta'); 
+    %     coh = mean(COH(:,:,f>0 & f<=3),3);              
+    %     % plotconnectivity(coh_delta,'labels',{chanlocs.labels},'brainimg','off'); 
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,2)
+    %     title('Coherence - Theta')
+    %     coh = mean(COH(:,:,f>=3 & f<=7),3);   
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,3) 
+    %     title('Coherence - Alpha')
+    %     coh = mean(COH(:,:,f>=8 & f<=13),3);   
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,4)
+    %     title('Coherence - Beta')
+    %     coh = mean(COH(:,:,f>=14 & f<=30),3);   
+    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     % Directed Coherence (DC; measures causality, directionality)
+    %     figure('color','w');    
+    %     subplot(2,2,1) 
+    %     title('Directed coherence - Delta'); 
+    %     dc = mean(DC(:,:,f>0 & f<=3),3);              
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,2)
+    %     title('Directed coherence - Theta')
+    %     dc = mean(DC(:,:,f>=3 & f<=7),3);   
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,3)  % alpha
+    %     title('Directed coherence - Alpha')
+    %     dc = mean(DC(:,:,f>=8 & f<=13),3);   
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    %     subplot(2,2,4)  % beta
+    %     title('Directed coherence - Beta')
+    %     dc = mean(DC(:,:,f>=14 & f<=30),3);   
+    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
+    % 
+    % end
 end
 
 %% Entropy
@@ -256,7 +312,7 @@ if params.eeg_nonlinear
     n = 2;
     tau = 1;
     coarseType = 'Standard deviation';
-    nScales = 20;
+    nScales = 40;
     filtData = true;
 
     % Initiate progressbar (only when not in parpool)
@@ -268,9 +324,9 @@ if params.eeg_nonlinear
 
         fprintf('Processing channel %g \n', iChan);
 
-        % Downsample to accelerate on data with more than 5,000 samples
-        if size(signals,2) > 5000
-            new_fs = 90;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
+        % Downsample to accelerate on data >5 min with sample rate of 256 hz
+        if size(signals,2) > 76800 
+            new_fs = 180;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
             fac = fs / new_fs; % downsample factor
 
             % downsample if integer, otherwise decimate to round factor

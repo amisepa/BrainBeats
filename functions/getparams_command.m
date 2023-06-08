@@ -10,11 +10,11 @@ inputs = varargin(1:2:end);
 idx = find(contains(inputs,'heart_signal'));
 if ~isempty(idx)
     params.heart_signal = lower(varargin{idx*2});
-    if ~contains(params.heart_signal, {'ecg' 'ppg'})
-        error("Heart signal not recognized. Should be 'ECG' or 'PPG'.")
+    if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
+        error("Heart signal not recognized. Should be 'ecg' or 'ppg' or 'off'.")
     end
 else
-    error("Heart signal type not defined. Please define 'heart_signal' as 'ECG' or 'PPG'. See help for an example")
+    error("Heart signal type not defined. Please define 'heart_signal' as 'ecg' or 'ppg'. See help for an example")
 end
 
 % Detect if there are 1 or multiple heart channel(s)

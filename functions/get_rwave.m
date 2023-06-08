@@ -28,12 +28,14 @@
 %
 % REFS:
 %
-%   [1] Behar Joachim, Jonhson Alistair, Clifford Gari D., Oster Julien A
-%   Comparison of Single Channel Foetal ECG Extraction Methods.
-%   Annals of Biomedical Engineering. 42(6), 1340-53. 2014
+%   [1] Behar et al. (2014). A comparison of single channel foetal ECG 
+%   extraction Methods. Annals of Biomedical Engineering.
 %
-%   [2] Johnson Alistair E W, Behar Joachim, Oster Julien and Clifford Gari
-%   D. R-Peak Estimation using Multimodal Lead Switching.
+%   [2] Johnson et al. (2014). R-Peak estimation using multimodal lead 
+%   switching. Computing in Cardiology.
+% 
+%   [3] Vest et al. (2018). An open source benchmarked toolbox for 
+%   cardiovascular waveform and interval analysis. Physiological measurement.
 % 
 % Inputs
 %   signal     - ecg signal

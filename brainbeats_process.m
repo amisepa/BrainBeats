@@ -40,6 +40,12 @@ if isempty(EEG.ref)
     warning('EEG data not referenced! Referencing is highly recommended');
 end
 
+% Install plugins (FIXME: test this)
+if ~exist('picard','file')
+    plugin_askinstall('picard', 'picard', 1);
+end
+
+
 %%%%%%%%%%%%%%%%%%%% Main parameters %%%%%%%%%%%%%%%%%%%%%
 if nargin == 1
     params = getparams_gui(EEG);                % GUI
@@ -261,21 +267,6 @@ if contains(params.analysis, {'features' 'hep'})
     if strcmp(params.analysis,'features') && params.hrv
 
         % if SQI <= .2 % tolerate up to 20% of RR artifacts
-            if params.parpool
-                % delete(gcp('nocreate')) %shut down opened parpool
-                p = gcp('nocreate');
-                if isempty(p) % if not already on, launch it
-                    disp('Initiating parrallel computing (all available processors)...')
-                    c = parcluster; % cluster profile
-                    % N = feature('numcores');        % physical number of cores
-                    N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
-                    if ischar(N)
-                        N = str2double(N);
-                    end
-                    c.NumWorkers = N-1;  % update cluster profile to include all workers
-                    c.parpool();
-                end
-            end
 
             % defaults
             % params.hrv_norm = true;  % default
@@ -344,3 +335,18 @@ end
 disp('Done!'); %gong
 
 
+% References
+if params.hrv
+    fprintf("For cardivosacular signal processing and HRV metrics, please cite: \n ");
+    fprintf("   - Vest et al. (2018). An open source benchmarked toolbox for cardiovascular waveform and interval analysis. Physiol Meas. \n");
+    fprintf("   - Shaffer & Ginsberg (2017). An overview of heart rate variability metrics and norms. Frontiers in public health. \n");
+end
+if params.eeg_frequency
+    fprintf("For the IAF feature, please cite: \n %s \n", "  - Corcoran et al. (2018). Toward a reliable, automated method of individual alpha frequency (IAF) quantification. Psychophysiology. ")
+end
+if params.hrv_nonlinear || params.eeg_nonlinear
+    fprintf("For the entropy measures, please cite: \n");
+    fprintf("   - Azami & Escudero (2016). Refined Multiscale Fuzzy Entropy based on standard deviation for biomedical signal analysis. Medical & Biological Engineering & Computing. \n");
+    fprintf("   - Costa, Goldberger, Peng (2002). Multiscale entropy analysis of complex physiologic time series. Phys Rev Lett. \n ")
+    fprintf("   - Kosciessa et al. (2020). Standard multiscale entropy reflects neural dynamics at mismatched temporal scales: What's signal irregularity got to do with it? Plos Comput Biol. \n ")
+end
