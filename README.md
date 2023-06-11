@@ -18,3 +18,5 @@ It has 3 main modes:
      - EEG nonlinear domain: fuzzy entropy, multiscale fuzzy entropy on all channels
 
 For 2) and 3), the toolbox implements automated cleaning of EEG signals (although pre-processed data is recommended for fine-tuning of parameters), bandpass filter of ECG signal, detection of R peaks, a signal quality index of the RR series (SQI, developed by Vest et al. 2017), and removal/interpolation of RR artifacts to obtain NN intervals (several interpolation methods are available). 
+
+For a step-by-step tutorial using the sample data, please see our preprint: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v1.full.pdf
