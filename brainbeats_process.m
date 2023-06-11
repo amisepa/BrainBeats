@@ -309,7 +309,7 @@ end
 %     delete(gcp('nocreate'));
 % end
 
-% For eegh
+%%%%%%%%%%%%%%%%%%%%%%%% eegh %%%%%%%%%%%%%%%%%%%%%%%%
 if contains(params.analysis,{'hep' 'rm_heart'})
     com = sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',{'%s'},'rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis',%g,'save',%g);",...
     params.analysis,params.heart_signal,params.heart_channels{:},params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save);
@@ -318,7 +318,8 @@ else
     params.analysis,params.heart_signal,params.heart_channels{:},params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save);
 end
 
-% References
+
+%%%%%%%%%%%%%%%%%%%%%%%% References %%%%%%%%%%%%%%%%%%%%%%%%
 if params.hrv
     fprintf("For cardivosacular signal processing and HRV metrics, please cite: \n ");
     fprintf("   - Vest et al. (2018). An open source benchmarked toolbox for cardiovascular waveform and interval analysis. Physiol Meas. \n");
@@ -328,6 +329,9 @@ if strcmp(params.analysis,'features')
     if params.eeg_frequency
         fprintf("For the IAF feature, please cite: \n %s \n", "  - Corcoran et al. (2018). Toward a reliable, automated method of individual alpha frequency (IAF) quantification. Psychophysiology. ")
         fprintf("For the alpha asymmetry feature, please cite: \n %s \n", "  - Smith et al. (2017). Assessing and conceptualizing frontal EEG asymmetry: An updated primer on recording, processing, analyzing, and interpreting frontal alpha asymmetry. International Journal of Psychophysiology.")
+        fprintf("For the EEG coherence measures, please cite: \n");
+        fprintf("   - Cao et al. (2016). Resting-state EEG power and coherence vary between migraine phases. The journal of headache and pain. \n");
+        fprintf("   - Pascual-Marqui et al. (2014). Assessing direct paths of intracortical causal information flow of oscillatory activity with the isolated effective coherence (iCoh). Frontiers in human neuroscience. \n");
     end
     if params.hrv_nonlinear || params.eeg_nonlinear
         fprintf("For the entropy measures, please cite: \n");
@@ -336,6 +340,14 @@ if strcmp(params.analysis,'features')
         fprintf("   - Kosciessa et al. (2020). Standard multiscale entropy reflects neural dynamics at mismatched temporal scales: What's signal irregularity got to do with it? Plos Comput Biol. \n ")
     end
 end
-fprintf("Thank you for using the BrainBeats toolbox. Please cite: \n %s \n", "  - Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06. ")
+if strcmp(params.analysis,'hep')
+    fprintf("For HEP methods, please cite: \n");
+    fprintf("   - Candia-Rivera et al. (2021). The role of electroencephalography electrical reference in the assessment of functional brain–heart interplay: From methodology to user guidelines. Neuroscience Methods. \n");
+    fprintf("   - Park & Blanke (2019). Heartbeat-evoked cortical responses: Underlying mechanisms, functional roles, and methodological considerations. NeuroImage. \n");
+end
+
+
+fprintf("Thank you for using the BrainBeats toolbox! Please cite: \n %s \n", "  - Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06. ")
+
 
 disp('Done!'); gong
