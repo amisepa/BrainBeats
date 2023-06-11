@@ -1,4 +1,6 @@
 %% Extract EEG features in time, fequency, and nonlinear domains.
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 function eeg_features = get_eeg_features(signals,params)
 
@@ -245,7 +247,6 @@ if params.eeg_frequency
     eeg_features.frequency.eeg_pdc = PDC;
     eeg_features.frequency.eeg_dtf = DTF;
 
-    % Plot each band
 end
 
 %% Entropy
@@ -257,9 +258,9 @@ if params.eeg_nonlinear
     r = .15;
     n = 2;
     tau = 1;
-    coarseType = 'Standard deviation';
-    nScales = 40;
-    filtData = true;
+    coarseType = 'Standard deviation';	% coarse graining method
+    nScales = 30;						% number of scale factors to compute
+    filtData = true;  					% bandpass filter each scale factor (see Kosciessa et al. 2020)
 
     % Initiate progressbar (only when not in parpool)
     disp('Calculating nonlinear-domain EEG features...')
@@ -302,6 +303,10 @@ if params.eeg_nonlinear
 
             % Refined composite multiscale fuzzy entropy (without filtering)
             % [rcmfe, scales] = compute_rcmfe(signals_res, m, r, tau, coarseType, nScales, new_fs, n, params.gpu);
+			
+			if ~params.parpool
+				progressbar(iChan / nChan);
+			end
 
         else
 
@@ -320,6 +325,10 @@ if params.eeg_nonlinear
             % [rcmfe, scales] = compute_rcmfe(signals(iChan,:), m, r, tau, coarseType, nScales, fs, n, params.gpu);
             % plot(scales(end:-1:1),rcmfe(end:-1:1)); hold on; axis tight; box on; grid on
             % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
+			
+			if ~params.parpool
+				progressbar(iChan / nChan);
+			end
         end
 
         % Outputs
