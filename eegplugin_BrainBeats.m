@@ -19,7 +19,7 @@
 function vers = eegplugin_BrainBeats(fig,try_strings,catch_strings)
 
 % Plugin version
-vers = '1.0';
+vers = '1.1';
 
 % Add paths to subfolders
 p = fileparts(which('eegplugin_BrainBeats.m'));

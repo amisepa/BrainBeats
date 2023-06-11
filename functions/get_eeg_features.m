@@ -300,7 +300,7 @@ if params.eeg_nonlinear
             % title('downsampled'); axis tight; box on; grid on
             % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
 
-            % Refined composite multiscale fuzzy entropy
+            % Refined composite multiscale fuzzy entropy (without filtering)
             % [rcmfe, scales] = compute_rcmfe(signals_res, m, r, tau, coarseType, nScales, new_fs, n, params.gpu);
 
         else
@@ -315,7 +315,7 @@ if params.eeg_nonlinear
             plot(scales(end:-1:1),mfe(end:-1:1)); hold on; axis tight; box on; grid on
             xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
 
-            % Refined composite multiscale fuzzy entropy
+            % Refined composite multiscale fuzzy entropy (without filtering)
             % disp('Computing refined composite multiscale fuzzy entropy...')
             % [rcmfe, scales] = compute_rcmfe(signals(iChan,:), m, r, tau, coarseType, nScales, fs, n, params.gpu);
             % plot(scales(end:-1:1),rcmfe(end:-1:1)); hold on; axis tight; box on; grid on
