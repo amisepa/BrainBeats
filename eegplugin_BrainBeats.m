@@ -32,8 +32,8 @@ addpath(fullfile(p,'functions','restingIAF'));
 menu = findobj(fig, 'tag', 'tools');
 
 % menu callbacks
-process = [try_strings.no_check '[EEG, LASTCOM] = brainbeats_process(EEG);' catch_strings.new_and_hist];
-analyze = [try_strings.no_check '[EEG, LASTCOM] = brainbeats_analyze(EEG);' catch_strings.new_and_hist];
+process = [try_strings.no_check '[EEG, FEATURES, LASTCOM] = brainbeats_process(EEG);' catch_strings.new_and_hist];
+analyze = [try_strings.no_check '[] = brainbeats_analyze();' catch_strings.new_and_hist];
   
 % create menus
 submenu = uimenu(menu, 'Label', 'BrainBeats', 'separator', 'on');

@@ -190,52 +190,46 @@ if params.eeg_frequency
     pairs = nchoosek({chanlocs.labels}, 2);
 
     % remove pairs that are neighbors
-    nPairs = size(pairs,1);
-    pairname = cell(nPairs,1);
-    cohr = nan(nPairs,nfft/2+1);
-    progressbar('Estimating EEG coherence on each (non-neighbor) channel pair')
-    fprintf('Estimating EEG coherence on all possible channel pairs... \n')
-    warning('Ignoring neighboring channels that are contaminated by volume conduction effects (see Nunez et al. 2016, Figure 7)');
-    for iPair = 1:nPairs
-
-        chan1 = pairs{iPair,1};
-        chan2 = pairs{iPair,2};
-        chan1_neighbors = neighbors(strcmp({neighbors.label},chan1)).neighblabel;
-        pairname{iPair,:} = sprintf('%s - %s', pairs{iPair,1}, pairs{iPair,2});
-
-        % If chan2 is neighbor, skip to next pair, otherwise compute coherence
-        if sum(contains(chan1_neighbors, chan2)) == 0
-            fprintf('pair: %s \n', pairname{iPair,:})
-            idx1 = strcmp({chanlocs.labels},chan1);
-            idx2 = strcmp({chanlocs.labels},chan2);
-            [cohr(iPair,:),f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(nfft),noverlap,nfft,fs);
-            % plot(f(f>=0 & f<45), squeeze(cohr(f>=0 & f<45)));
-            % title(pairname); grid on; hold on;
-        else
-            fprintf('pair: %s (neighbors -> ignored) \n', pairname{iPair,:})
-            continue
-        end
-
-        progressbar(iPair/nPairs);
-    end
-
-    % Remove empty rows
-    nans = isnan(cohr(:,1));
-    cohr(nans,:) = [];
-    pairname(nans,:) = [];
-
-    % Export
-    eeg_features.frequency.eeg_coherence = cohr;
-    eeg_features.frequency.eeg_coherence_pair = pairname;
-    eeg_features.frequency.eeg_coherence_f = f;
-
-    fprintf('Coherence estimated on %g pairs after excluding neighbors. \n', length(pairname));
-    
-    % Plot coherence in alpha band
-    % if params.vis
-    %     topoplot(cohr, chanlocs, 'emarker2',{[3 17],'c','r'});
+    % nPairs = size(pairs,1);
+    % pairname = cell(nPairs,1);
+    % cohr = nan(nPairs,nfft/2+1);
+    % progressbar('Estimating EEG coherence on each (non-neighbor) channel pair')
+    % fprintf('Estimating EEG coherence on all possible channel pairs... \n')
+    % warning('Ignoring neighboring channels that are contaminated by volume conduction effects (see Nunez et al. 2016, Figure 7)');
+    % for iPair = 1:nPairs
+    % 
+    %     chan1 = pairs{iPair,1};
+    %     chan2 = pairs{iPair,2};
+    %     chan1_neighbors = neighbors(strcmp({neighbors.label},chan1)).neighblabel;
+    %     pairname{iPair,:} = sprintf('%s - %s', pairs{iPair,1}, pairs{iPair,2});
+    % 
+    %     % If chan2 is neighbor, skip to next pair, otherwise compute coherence
+    %     if sum(contains(chan1_neighbors, chan2)) == 0
+    %         fprintf('pair: %s \n', pairname{iPair,:})
+    %         idx1 = strcmp({chanlocs.labels},chan1);
+    %         idx2 = strcmp({chanlocs.labels},chan2);
+    %         [cohr(iPair,:),f] = mscohere(signals(idx1,:),signals(idx2,:),hamming(nfft),noverlap,nfft,fs);
+    %         % plot(f(f>=0 & f<45), squeeze(cohr(f>=0 & f<45)));
+    %         % title(pairname); grid on; hold on;
+    %     else
+    %         fprintf('pair: %s (neighbors -> ignored) \n', pairname{iPair,:})
+    %         continue
+    %     end
+    % 
+    %     progressbar(iPair/nPairs);
     % end
-
+    % 
+    % % Remove empty rows
+    % nans = isnan(cohr(:,1));
+    % cohr(nans,:) = [];
+    % pairname(nans,:) = [];
+    % 
+    % % Export
+    % eeg_features.frequency.eeg_coherence = cohr;
+    % eeg_features.frequency.eeg_coherence_pair = pairname;
+    % eeg_features.frequency.eeg_coherence_f = f;
+    % fprintf('Coherence estimated on %g pairs after excluding neighbors. \n', length(pairname));
+    
     % Use this method instead? 
     % MVAR coefficients
     % Faes and Nollo (2011). Multivariate Frequency Domain Analysis of 
@@ -252,54 +246,6 @@ if params.eeg_frequency
     eeg_features.frequency.eeg_dtf = DTF;
 
     % Plot each band
-    % if params.vis
-    % 
-    %     % Coherence (measures coupling, symmetric)
-    %     figure('color','w');    
-    %     subplot(2,2,1) 
-    %     title('Coherence - Delta'); 
-    %     coh = mean(COH(:,:,f>0 & f<=3),3);              
-    %     % plotconnectivity(coh_delta,'labels',{chanlocs.labels},'brainimg','off'); 
-    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    %     subplot(2,2,2)
-    %     title('Coherence - Theta')
-    %     coh = mean(COH(:,:,f>=3 & f<=7),3);   
-    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    %     subplot(2,2,3) 
-    %     title('Coherence - Alpha')
-    %     coh = mean(COH(:,:,f>=8 & f<=13),3);   
-    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    %     subplot(2,2,4)
-    %     title('Coherence - Beta')
-    %     coh = mean(COH(:,:,f>=14 & f<=30),3);   
-    %     my_connplot(coh,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    %     % Directed Coherence (DC; measures causality, directionality)
-    %     figure('color','w');    
-    %     subplot(2,2,1) 
-    %     title('Directed coherence - Delta'); 
-    %     dc = mean(DC(:,:,f>0 & f<=3),3);              
-    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    %     subplot(2,2,2)
-    %     title('Directed coherence - Theta')
-    %     dc = mean(DC(:,:,f>=3 & f<=7),3);   
-    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    %     subplot(2,2,3)  % alpha
-    %     title('Directed coherence - Alpha')
-    %     dc = mean(DC(:,:,f>=8 & f<=13),3);   
-    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    %     subplot(2,2,4)  % beta
-    %     title('Directed coherence - Beta')
-    %     dc = mean(DC(:,:,f>=14 & f<=30),3);   
-    %     my_connplot(dc,'labels',{chanlocs.labels},'brainimg','off','threshold',0);
-    % 
-    % end
 end
 
 %% Entropy
@@ -349,11 +295,13 @@ if params.eeg_nonlinear
 
             % Multiscale fuzzy entropy
             fprintf('Computing multiscale fuzzy entropy...')
-            % [mfe, scales, scale_bounds] = compute_mfe(signals_res, m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
-            [rcmfe, scales] = compute_rcmfe(signals_res, m, r, tau, coarseType, nScales, new_fs, n, params.gpu);
+            [mfe, scales, scale_bounds] = compute_mfe(signals_res, m, r, tau, coarseType, nScales, filtData, new_fs, n, params.gpu);
             % plot(scales(end:-1:1),mfe(end:-1:1));  hold on;
             % title('downsampled'); axis tight; box on; grid on
             % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
+
+            % Refined composite multiscale fuzzy entropy
+            % [rcmfe, scales] = compute_rcmfe(signals_res, m, r, tau, coarseType, nScales, new_fs, n, params.gpu);
 
         else
 
@@ -364,9 +312,14 @@ if params.eeg_nonlinear
             % Multiscale fuzzy entropy
             disp('Computing multiscale fuzzy entropy...')
             [mfe, scales, scale_bounds] = compute_mfe(signals(iChan,:), m, r, tau, coarseType, nScales, filtData, fs, n, params.gpu);
-            % plot(scales(end:-1:1),mfe(end:-1:1)); hold on; axis tight; box on; grid on
-            % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
+            plot(scales(end:-1:1),mfe(end:-1:1)); hold on; axis tight; box on; grid on
+            xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
 
+            % Refined composite multiscale fuzzy entropy
+            % disp('Computing refined composite multiscale fuzzy entropy...')
+            % [rcmfe, scales] = compute_rcmfe(signals(iChan,:), m, r, tau, coarseType, nScales, fs, n, params.gpu);
+            % plot(scales(end:-1:1),rcmfe(end:-1:1)); hold on; axis tight; box on; grid on
+            % xticks(scales); xticklabels(scale_bounds(end:-1:1)); xtickangle(45)
         end
 
         % Outputs

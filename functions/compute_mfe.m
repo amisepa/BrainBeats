@@ -144,20 +144,20 @@ parfor iScale = 1:nScales
             end
         end
         
-        % Because of filtering, the scale-wise SD decreases relative to the global scale-
-        % invariant similarity bound r [29]. Thus, r is recalculated for each scale, 
-        % thereby normalizing MSE with respect to changes in overall time series variation at each scale
-        if filtData
-            % r_adj = 0.5*std(sig);
-            r_adj = r*std(sig);
-        else
-            r_adj = r;
-        end
-
 %         % Visualize filter effect on the power spectrum
 %         [psd,f] = pwelch(sig,[],[],[],fs);
 %         plot(f,psd); hold on;
 %         title(num2str(iScale)); legend([num2str(lowcutoff) '-' num2str(highcutoff)]);        
+    end
+
+    % Because of filtering, the scale-wise SD decreases relative to the global scale-
+    % invariant similarity bound r [29]. Thus, r is recalculated for each scale,
+    % thereby normalizing MSE with respect to changes in overall time series variation at each scale
+    if filtData
+        % r_adj = 0.5*std(sig);
+        r_adj = r*std(sig);
+    else
+        r_adj = r;
     end
 
     y = reshape(sig(1:floor(length(sig)/iScale)*iScale),iScale,[]);

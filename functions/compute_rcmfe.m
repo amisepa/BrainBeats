@@ -25,7 +25,7 @@
 %
 % Cedric Cannard, 2022
 
-function [rcmfe, scales] = compute_rcmfe(signal,m,r,tau,coarseType,nScales,fs,n,usegpu)
+function [rcmfe, scales] = compute_rcmfe(signal,m,r,tau,coarseType,nScales,fs,n,useGPU)
 
 % if not srate provided somehow, try to interpolate
 % if ~exist('fs', 'var')
@@ -34,21 +34,37 @@ function [rcmfe, scales] = compute_rcmfe(signal,m,r,tau,coarseType,nScales,fs,n,
 %     errordlg('You need to input the sample rate.'); return
 % end
 
+if ~exist('m','var'), m = 2; end
+if ~exist('r','var'), r = .15; end
+if ~exist('n','var'), n = 2; end
+if ~exist('tau','var'), tau = 1; end
+if tau > 1, signal = downsample(signal, tau); end
+
+% Max scale factor cannot be greater than Nyquist frequency (for EEG)
+if exist('fs','var')
+    nf = fs/2;
+    if nScales >= nf
+        warning("Scale factor cannot be as high as the Nyquist frequency. Lowering it to %g", nf-1);
+    end
+end
+
+% Center and normalize signal to SD of 1
+signal = zscore(signal);
+
 % Simplify SD coarse-graining name
 if contains(lower(coarseType), 'standard')
     coarseType = 'SD';
 end
 
-% max scale factor
-nf = fs/2;  % Nyquist frequency
-if nScales >= nf
-	warning("Scale factor cannot be as high as signal's Nyquist frequency. Lowering it to %g", nf-1);
+% Move it to GPU if applicable
+if useGPU && length(signal) > 1000
+    try
+        signal = gpuArray(signal);
+        disp('Using GPU computing')
+    catch
+        disp('Could not use GPU computing.')
+    end
 end
-
-% Signal is centered and normalized to standard deviation 1
-disp('Normalizing signal to SD = 1.')
-signal = signal - mean(signal);
-signal = signal ./ std(signal);
 
 rcmfe = nan(1,nScales);
 for iScale = 1:nScales
@@ -58,9 +74,9 @@ for iScale = 1:nScales
     temp_A = [];
     temp_B = [];
     
-    for ii = 1:iScale
+    parfor ii = 1:iScale
         
-        if usegpu
+        if useGPU
             sig = gpuArray(signal(ii:end));
         else
             sig = signal(ii:end);
@@ -78,7 +94,7 @@ for iScale = 1:nScales
         end
         
         % Compute fuzzy entropy on the coearsed signal
-        [~, p] = compute_fe(sigCoarse,m,r,n,tau,usegpu);
+        [~, p] = compute_fe(sigCoarse,m,r,n,tau,useGPU);
 
         temp_A = [temp_A p(1)];
         temp_B = [temp_B p(2)];

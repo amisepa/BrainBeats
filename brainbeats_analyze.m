@@ -7,12 +7,12 @@
 
 function brainbeats_analyze()
 
-clear; close all; clc
-eeglab; close;
+error('Sorry, this feature is not ready yet. Coming soon!')
+% clear; close all; clc
+% eeglab; close;
 % mainDir = fileparts(which('eegplugin_BrainBeats.m')); cd(mainDir);
-mainDir = 'C:\Users\Tracy\Desktop\trance_mindwandering'; cd(mainDir);
-outDir = fullfile(mainDir,'statistics');  
-mkdir(outDir); cd(mainDir)
+% outDir = fullfile(mainDir,'statistics');  
+% mkdir(outDir); cd(mainDir)
 
 norm = false;
 

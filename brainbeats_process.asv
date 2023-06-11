@@ -10,9 +10,6 @@
 
 function [EEG, Features, com] = brainbeats_process(EEG, varargin)
 
-Features = [];
-com = '';
-
 % Basic checks
 if ~exist('EEG','var')
     error('This plugin requires that your data (containing both EEG and ECG/PPG signals) are already loaded into EEGLAB.')
@@ -31,6 +28,8 @@ if isempty(EEG.ref)
 end
 
 pop_editoptions('option_single', 0); % ensure double precision
+Features = [];
+com = '';
 
 % Add path to subfolders
 mainpath = fileparts(which('eegplugin_BrainBeats.m'));
@@ -324,18 +323,15 @@ if params.hrv
     fprintf("   - Vest et al. (2018). An open source benchmarked toolbox for cardiovascular waveform and interval analysis. Physiol Meas. \n");
     fprintf("   - Shaffer & Ginsberg (2017). An overview of heart rate variability metrics and norms. Frontiers in public health. \n");
 end
-if strcmp(params.analysis,'features')
-    if params.eeg_frequency
-        fprintf("For the IAF feature, please cite: \n %s \n", "  - Corcoran et al. (2018). Toward a reliable, automated method of individual alpha frequency (IAF) quantification. Psychophysiology. ")
-        fprintf("For the alpha asymmetry feature, please cite: \n %s \n", "  - Smith et al. (2017). Assessing and conceptualizing frontal EEG asymmetry: An updated primer on recording, processing, analyzing, and interpreting frontal alpha asymmetry. International Journal of Psychophysiology.")
-    end
-    if params.hrv_nonlinear || params.eeg_nonlinear
-        fprintf("For the entropy measures, please cite: \n");
-        fprintf("   - Azami & Escudero (2016). Refined Multiscale Fuzzy Entropy based on standard deviation for biomedical signal analysis. Medical & Biological Engineering & Computing. \n");
-        fprintf("   - Costa, Goldberger, Peng (2002). Multiscale entropy analysis of complex physiologic time series. Phys Rev Lett. \n ")
-        fprintf("   - Kosciessa et al. (2020). Standard multiscale entropy reflects neural dynamics at mismatched temporal scales: What's signal irregularity got to do with it? Plos Comput Biol. \n ")
-    end
+if s(params.analysis,{'hep' 'rm_heart'})
+if params.eeg_frequency
+    fprintf("For the IAF feature, please cite: \n %s \n", "  - Corcoran et al. (2018). Toward a reliable, automated method of individual alpha frequency (IAF) quantification. Psychophysiology. ")
 end
-fprintf("Thank you for using the BrainBeats toolbox. Please cite: \n %s \n", "  - Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06. ")
+if params.hrv_nonlinear || params.eeg_nonlinear
+    fprintf("For the entropy measures, please cite: \n");
+    fprintf("   - Azami & Escudero (2016). Refined Multiscale Fuzzy Entropy based on standard deviation for biomedical signal analysis. Medical & Biological Engineering & Computing. \n");
+    fprintf("   - Costa, Goldberger, Peng (2002). Multiscale entropy analysis of complex physiologic time series. Phys Rev Lett. \n ")
+    fprintf("   - Kosciessa et al. (2020). Standard multiscale entropy reflects neural dynamics at mismatched temporal scales: What's signal irregularity got to do with it? Plos Comput Biol. \n ")
+end
 
 disp('Done!'); gong
