@@ -44,7 +44,10 @@ if mode == 1
     % else
     % figure('color','w');
     topoplot(data, chanlocs,'emarker',{'.','k',7,1},'electrodes','on');
-    clim([min(data) max(data)]);
+    try
+        clim([min(data) max(data)]);
+    catch
+    end
     % if strcmpi(dataType,'psd')
     colormap('parula');
     % else
