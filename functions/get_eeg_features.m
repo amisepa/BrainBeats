@@ -21,13 +21,11 @@ if params.parpool
     % delete(gcp('nocreate')) %shut down opened parpool
     p = gcp('nocreate');
     if isempty(p) % if not already on, launch it
-        disp('Initiating parrallel computing (all available processors)...')
+        disp('Initiating parrallel computing (all cores and threads -1)...')
         c = parcluster; % cluster profile
         % N = feature('numcores');        % physical number of cores
         N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
-        if ischar(N)
-            N = str2double(N);
-        end
+        if ischar(N), N = str2double(N); end
         c.NumWorkers = N-1;  % update cluster profile to include all workers
         c.parpool();
     end
@@ -273,7 +271,7 @@ if params.eeg_nonlinear
 
         % Downsample to accelerate on data >5 min with sample rate of 256 hz
         if size(signals,2) > 76800 
-            new_fs = 180;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
+            new_fs = 90;  % for Nyquist freq = lowpass cutoff (i.e. 45 Hz)
             fac = fs / new_fs; % downsample factor
 
             % downsample if integer, otherwise decimate to round factor

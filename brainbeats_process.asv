@@ -100,6 +100,11 @@ else
     end
 end
 
+% Check heart signal type
+if ~contains(params.heart_signal, {'ecg' 'ppg'})
+    error('Heart signal should be either ECG or PPG')
+end
+
 % Check for channel locations for visualization
 if params.vis && params.eeg
     if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
@@ -139,33 +144,34 @@ end
 %%%%% MODE 2 & 3: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
     
-    %%%%%%% Process ECG %%%%%%%
-    % Get RR, SQI ans NN for each ECG electrode
-    % note: using structures as outputs because they often have different
-    % lengths, causing issues
-    if strcmp(params.heart_signal, 'ecg')
-
-        signal = CARDIO.data;
-        nElec = size(signal,1);
-        for iElec = 1:nElec
-            elec = sprintf('elec%g',iElec);
-            fprintf('Detecting R peaks from ECG time series: electrode %g...\n', iElec)
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params);
-
-            % SQI
-            SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
-            [sqi(iElec,:), sqi_times(iElec,:)] = get_sqi(Rpeaks.(elec), signal(iElec,:), params.fs);
-            SQI(iElec,:) = sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:));  
-
-            % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
-            % FIXME: does not take SQI into account
-            rr_t = RR_t.(elec); 
-            rr_t(1) = [];   % remove 1st heartbeat
-            vis = false;    % to visualize artifacts that are inteprolated
-            [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(rr_t, RR.(elec), params, vis);
-            flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec));
-
+    % Get RR and NN intervals from ECG/PPG signals
+    % note: when several electrodes are provided, use the elec with best 
+    % quality for subsequent analysis. Structures to avoid issues when 
+    % intervals have different across electrodes.
+    signal = CARDIO.data;
+    nElec = size(signal,1);
+    for iElec = 1:nElec
+        elec = sprintf('elec%g',iElec);
+        fprintf('Detecting R peaks from ECG time series: electrode %g...\n', iElec)
+        [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params);
+        
+        if strcmp(params.heart_signal, 'ppg')
+            sig_t = CARDIO.times;
         end
+
+        % SQI
+        SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
+        [sqi(iElec,:), sqi_times(iElec,:)] = get_sqi(Rpeaks.(elec), signal(iElec,:), params.fs);
+        SQI(iElec,:) = sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:));  
+
+        % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
+        % FIXME: does not take SQI into account
+        rr_t = RR_t.(elec); 
+        rr_t(1) = [];   % remove 1st heartbeat
+        vis = false;    % to visualize artifacts that are inteprolated
+        [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(rr_t, RR.(elec), params, vis);
+        flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec));
+    end
 
 
 
@@ -225,7 +231,6 @@ if contains(params.analysis, {'features' 'hep'})
         NN = NN.(elec);
     
     %%%%%%% Process PPG %%%%%%%
-    elseif strcmp(params.heart_signal,'ppg')
         % error("Work in progress, sorry!");
         
         % Find hearbeats 
@@ -242,9 +247,6 @@ if contains(params.analysis, {'features' 'hep'})
         % title('RR intervals'); ylabel('RR intervals (s)'); xlabel('Time (s)');
         % axis tight; box on
 
-    else
-        error("Unknown heart signal. Should be 'ecg' or 'ppg'.");
-    end
 
     % Plot filtered ECG and RR series of best electrode and interpolated
     % RR artifacts (if any)
