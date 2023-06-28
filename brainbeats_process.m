@@ -94,7 +94,7 @@ end
 if contains({EEG.chanlocs.labels}, params.heart_channels) == 0
     error('The heart channel names you inputted cannot be found in the current dataset.')
 else
-    % Check it is cell if only one ECG channel (FIXME: move this to getparams_gui)
+    % make sure it's a cell if only one ECG channel is provided
     if ~iscell(params.heart_channels)
         params.heart_channels = {params.heart_channels};
     end
