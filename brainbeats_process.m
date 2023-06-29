@@ -167,12 +167,12 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
         % FIXME: does not take SQI into account
-        rr_t = RR_t.(elec); 
-        if strcmpi(params.heart_signal, 'ecg')
-            rr_t(1) = [];   % remove 1st heartbeat
-        end
-        vis = true;    % to visualize artifacts that are inteprolated
-        [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(rr_t, RR.(elec), params, vis);
+        % tmp_t = RR_t.(elec); 
+        % if strcmpi(params.heart_signal, 'ecg')
+        % rr_t(1) = [];   % remove 1st heartbeat
+        % end
+        vis = false;    % more detailed visualization of RR artifacts
+        [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params, vis);
         flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec));
 
     end
@@ -201,10 +201,8 @@ if contains(params.analysis, {'features' 'hep'})
             fprintf('%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged));
         end
     end
-    if  flaggedRatio > maxThresh % more than 20% of RR series is bad
-        warning on
-        warning("%g%% of the RR series on your best ECG electrode are artifacts, this is below minimum recommendations (max 20%% is tolerated)", round(flaggedRatio,2));
-        error("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
+    if flaggedRatio > maxThresh % more than 20% of RR series is bad
+        warning("%g%% of the RR series on your best electrode are artifacts. Maximum recommendations 20%%! Aborting...", round(flaggedRatio*100,2));
     else
         fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", round(flaggedRatio,2) )
     end
@@ -227,7 +225,9 @@ if contains(params.analysis, {'features' 'hep'})
     % Preprocessing outputs
     Features.HRV.ECG_filtered = sig;
     Features.HRV.ECG_times = sig_t;
-    Features.HRV.SQI = SQI;
+    if exist('SQI','var')
+        Features.HRV.SQI = SQI;
+    end
     Features.HRV.RR = RR;
     Features.HRV.RR_times = RR_t;
     Features.HRV.HR = HR;

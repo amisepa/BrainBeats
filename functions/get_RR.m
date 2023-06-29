@@ -413,8 +413,8 @@ elseif strcmpi(sig_type, 'ppg')
     % will find a fir
     % Rpeaks(1) = [];
 
-    RR = diff(Rpeaks)./fs;
-    RR_t = Rpeaks(2:end)./fs;
+    RR = diff(Rpeaks) ./ fs;
+    RR_t = Rpeaks ./ fs;
     HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
     
     sig = signal; % for output
