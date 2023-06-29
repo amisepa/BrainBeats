@@ -28,12 +28,12 @@ function [pSum, pChans, f] = restingIAF(data, nchan, cmin, fRange, Fs, w, Fw, k,
 % Visit github.com/corcorana/restingIAF for further info on licencing and
 % updates on package development.
 %
-%% Outputs:
+% Outputs:
 %   pSum    = structure containing summary statistics of alpha-band parameters
 %   pChans  = structure containing channel-wise spectral and alpha parameter data
 %   f       = trimmed vector of frequency bins resolved by `pwelch`
 %
-%% Required inputs:
+% Inputs:
 %   data    = vector or matrix containing continuous EEG channel data
 %             (matrix rows = channels, cols = sample points)
 %   nchan   = number of channels in data array
@@ -46,8 +46,7 @@ function [pSum, pChans, f] = restingIAF(data, nchan, cmin, fRange, Fs, w, Fw, k,
 %             freq. bins spanned by filter; must be odd)
 %   k       = polynomial order, Savitzky-Golay filter (must be < Fw)
 %
-%% Optional inputs:
-%
+% Optional inputs:
 %   mpow    = error bound (s.d.) used to determine threshold differentiating 
 %             substantive peaks from background spectral noise (default = 1)
 %   mdiff   = minimal height difference distinguishing a primary peak from
@@ -59,7 +58,7 @@ function [pSum, pChans, f] = restingIAF(data, nchan, cmin, fRange, Fs, w, Fw, k,
 %             next power of 2 above window length)
 %   norm    = normalise power spectra (default = true)
 %
-%% setup inputParser
+% setup inputParser
 p = inputParser;
 p.addRequired('data',...
                 @(x) validateattributes(x, {'numeric'}, ...
@@ -85,7 +84,7 @@ p.addRequired('Fw',...
 p.addRequired('k',...
                 @(x) validateattributes(x, {'numeric'}, ...
                 {'scalar', 'integer', 'positive', '<', Fw }));
-   
+
 p.addOptional('mpow', 1,...
                 @(x) validateattributes(x, {'numeric'}, ...
                 {'scalar', 'positive'}));
@@ -107,7 +106,7 @@ p.addOptional('nfft', [],...
 p.addOptional('norm', true,...
                 @(x) validateattributes(x, {'logical'}, ...
                 {'scalar'}));
-            
+
 p.parse(data, nchan, cmin, fRange, Fs, w, Fw, k, varargin{:})
 
 mpow    = p.Results.mpow;
@@ -117,7 +116,7 @@ tlen    = p.Results.tlen;
 tover   = p.Results.tover;
 nfft    = p.Results.nfft;
 norm    = p.Results.norm;
-%%
+
 % struct for channel data (PSD estimates & derivatives, some additional info)
 pChans = struct('pxx', [], 'minPow', [], 'd0', [], 'd1', [], 'd2', [],...
     'peaks', [], 'pos1', [], 'pos2', [], 'f1', [], 'f2', [], 'inf1', [], 'inf2', [],...
@@ -186,4 +185,321 @@ end
 pSum.pSel = sum(selP);
 pSum.gSel = sum(selG);
 pSum.iaw = iaw;
+
+%% Subfunction 1
+
+function [d0, d1, d2] = sgfDiff(x, Fw, poly, Fs, tlen)
+% Savitzky-Golay Smoothing and Differentiation Filter for extracting
+% estimates of the 0th (smoothed), 1st, & 2nd derivative function of an 
+% input PSD.
+%
+% "Savitzky-Golay filters are optimal in the sense that they minimize the 
+% least-squares error in fitting a polynomial to frames of noisy data."
+%
+% Depends on MATLAB Signal Processing Toolbox function to implement S-G 
+% filter.
+% 
+% Part of the `restingIAF` package, (c) Andrew W. Corcoran, 2016-2017.
+% Visit github.com/corcorana/restingIAF for licence, updates, and further
+% information about package development and testing.
+%
+% Outputs:
+%   d0 = smoothed PSD estimates
+%   d1 = 1st derivative of d0
+%   d2 = 2nd derivative of d0
+%
+% Inputs:
+%   x = spectral data to be filtered/differentiated (vector)
+%   poly = polynomial order (integer, must be < Fw)
+%   Fw = frame width (i.e. number of samples, must be an odd integer)
+%   Fs = sampling rate (integer)
+%   tlen = taper length (i.e. number of samples of pwelch window, integer)
+
+% setup inputParser
+% p = inputParser;
+% p.addRequired('x',...
+%                 @(x) validateattributes(x, {'numeric'}, ...
+%                 {'vector'}));
+% p.addRequired('Fw',...
+%                 @(x) validateattributes(x, {'numeric'}, ...
+%                 {'scalar', 'integer', 'positive', 'odd'}));
+% p.addRequired('poly',...
+%                 @(x) validateattributes(x, {'numeric'}, ...
+%                 {'scalar', 'integer', 'positive', '<', Fw }));
+% p.addRequired('Fs',...
+%                 @(x) validateattributes(x, {'numeric'}, ...
+%                 {'scalar', 'integer', 'positive'}));
+% p.addRequired('tlen',...
+%                 @(x) validateattributes(x, {'numeric'}, ...
+%                 {'scalar', 'integer', 'positive'}));  
+% p.parse(x, Fw, poly, Fs, tlen)
+
+[~, g] = sgolay(poly, Fw);      
+dt = Fs/tlen;
+dx = zeros(length(x),3);
+for p = 0:2                 % p determines order of estimated derivatives
+    dx(:,p+1) = conv(x, factorial(p)/(-dt)^p * g(:,p+1), 'same');
+end
+d0 = dx(:,1);        % smoothed signal post S-G diff filt
+d1 = dx(:,2);        % 1st derivative
+d2 = dx(:,3);        % 2nd derivative
+
+%% Subfunction 2
+
+function [peakF, posZ1, posZ2, f1, f2, inf1, inf2, Q, Qf] = peakBounds(d0, d1, d2, f, w, minPow, minDiff, fres)
+% Take derivatives from Savitzky-Golay curve-fitting and differentiation
+% function sgfDiff, pump out estimates of alpha-band peak & bounds.
+% Also calculates primary peak area Qf via integration between inflections.
+%
+% Depends on `findF1`, `findF2`, and `lessThan1` functions to locate 
+% bounds of individual alpha band.
+%
+% Part of the `restingIAF` package, (c) Andrew W. Corcoran, 2016-2017.
+% Visit github.com/corcorana/restingIAF for licence, updates, and further
+% information about package development and testing.
+%
+% Outputs:
+%   peakF = peak frequency estimate
+%   posZ1 = freq of 1st positive zero-crossing (lower bound alpha interval)
+%   posZ2 = freq of 2nd positive zero-crossing (upper bound alpha interval)
+%   f1 = freq bin for posZ1
+%   f2 = freq bin for posZ2
+%   inf1 = inflection point, ascending edge
+%   inf2 = inflection point, descending edge
+%   Q = area under peak between inf1 & inf2
+%   Qf = Q divided by bandwidth of Q
+%
+% Required inputs:
+%   d0 = smoothed PSD estimate vector
+%   d1 = 1st derivative vector
+%   d2 = 2nd derivative vector
+%   f = frequency bin vector
+%   w = bounds of initial alpha window
+%   minPow = vector of minimum power threshold values defining candidate peaks (regression fit of background spectral activity)
+%   minDiff = minimum difference required to distinguish peak as dominant (proportion of primary peak height)
+%   fres = frequency resolution (determine how many bins to search to establish shallow rolloff in d1)
+
+% evaluate derivative for zero-crossings
+[~, lower_alpha] = min(abs(f-w(1)));      % set lower bound for alpha band
+[~, upper_alpha] = min(abs(f-w(2)));      % set upper bound for alpha band
+
+negZ = zeros(1,4);                              % initialise for zero-crossing count & frequency bin
+cnt = 0;                                        % start counter at 0
+for k = lower_alpha-1:upper_alpha+1             % step through frequency bins in alpha band (start/end at bound -/+ 1 to make sure don't miss switch)
+    if sign(d1(k)) > sign(d1(k+1))              % look for switch from positive to negative derivative values (i.e. downward zero-crossing)
+       	[~, maxk] = max([d0(k), d0(k+1)]);      % ensure correct frequency bin is picked out (find larger of two values either side of crossing (in the smoothed signal))
+       	if maxk == 1
+        	maxim = k;
+        elseif maxk == 2
+            maxim = k+1;
+        end
+        cnt = cnt+1;                % advance counter by 1
+      	negZ(cnt,1) = cnt;          % zero-crossing (i.e. peak) count
+        negZ(cnt,2) = maxim;        % keep bin index for later
+      	negZ(cnt,3) = f(maxim);     % zero-crossing frequency            
+     	negZ(cnt,4) = d0(maxim);    % power estimate
+    end
+end
+    
+% sort out appropriate estimates for output
+if negZ(1,1) == 0                   % if no zero-crossing detected --> report NaNs
+    peakF = NaN;
+    subBin = NaN;
+elseif size(negZ, 1) == 1           % if singular crossing...
+    if log10(negZ(1, 4)) > minPow(negZ(1,2))      % ...and peak power is > minimum threshold --> report frequency
+        peakBin = negZ(1, 2);
+        peakF = negZ(1, 3);
+    else
+        peakF = NaN;                % ...otherwise, report NaNs
+        subBin = NaN;        
+    end
+else 
+    negZ = sortrows(negZ, -4);     % if >1 crossing, re-sort from largest to smallest peak...
+    if log10(negZ(1, 4)) > minPow(negZ(1,2))        % ...if highest peak exceeds min threshold...
+        if negZ(1, 4)*(1-minDiff) > negZ(2, 4)      % ...report frequency of this peak.
+        	peakBin = negZ(1, 2);
+            peakF = negZ(1, 3); 
+        else                        % ...if not...
+            peakF = NaN;
+            subBin = negZ(1, 2);                    % ... index as a subpeak for starting alpha bound search.
+        end
+    else
+        peakF = NaN;                % ...otherwise, report NaNs
+        subBin = NaN;
+    end
+end
+
+
+% search for positive (upward going) zero-crossings (minima / valleys) either side of peak/subpeak(s)
+slen = round(1/fres);    % define number of bins included in shollow slope search (approximate span = 1 Hz)
+
+if isnan(peakF) && isnan(subBin)       % if no evidence of peak activity, no parameter estimation indicated
+    
+    posZ1 = NaN;
+    posZ2 = NaN;
+    f1 = NaN;
+    f2 = NaN;
+    inf1 = NaN;
+    inf2 = NaN;
+    Q = NaN;
+    Qf = NaN;
+
+elseif isnan(peakF)     % deal with spectra lacking a clear primary peak (similar strategy to peak; take highest subpeak as start point, look for minima)
+    
+    [f1, posZ1] = findF1(f, d0, d1, negZ, minPow, slen, subBin); 
+    [f2, posZ2] = findF2(f, d0, d1, negZ, minPow, slen, subBin); 
+        
+    % inflections / Q values not calculated as these spectra won't be included in averaged channel peak analyses 
+    inf1 = NaN;     
+    inf2 = NaN;
+    Q = NaN;
+    Qf = NaN;
+
+else            % now for the primary peak spectra
+    
+    [f1, posZ1] = findF1(f, d0, d1, negZ, minPow, slen, peakBin);  
+    [f2, posZ2] = findF2(f, d0, d1, negZ, minPow, slen, peakBin); 
+    
+    % define boundaries by inflection points (requires 2nd derivative of smoothed signal)
+    inf1 = zeros(1,2);                  % initialise for zero-crossing count & frequency
+    cnt = 0;                            % start counter at 0
+    for k = 1:peakBin-1                 % step through frequency bins prior peak
+        if sign(d2(k)) > sign(d2(k+1))                  % look for switch from positive to negative derivative values (i.e. downward zero-crossing)
+            [~, mink] = min(abs([d2(k), d2(k+1)]));     % ensure correct frequency bin is picked out (find smaller of two values either side of crossing)
+            if mink == 1
+                min1 = k;
+            else
+                min1 = k+1;
+            end
+            cnt = cnt+1;                % advance counter by 1
+            inf1(cnt,1) = cnt;          % zero-crossing count
+            inf1(cnt,2) = f(min1);      % zero-crossing frequency
+        end
+    end
+
+    % sort out appropriate estimates for output
+    if size(inf1, 1) == 1               % if singular crossing --> report frequency
+        inf1 = inf1(1, 2);
+    else
+        inf1 = sortrows(inf1, -2);      % sort by frequency values (descending)...
+        inf1 = inf1(1, 2);              % take highest frequency (bin nearest to peak)
+    end
+    
+    for k = peakBin+1:length(d2)-1                      % step through frequency bins post peak
+        if sign(d2(k)) < sign(d2(k+1))                  % look for upward zero-crossing
+            [~, mink] = min(abs([d2(k), d2(k+1)]));     % ensure frequency bin nearest zero-crossing point picked out (find smaller of two values either side of crossing)
+                if mink == 1
+                    min2 = k;
+                else
+                    min2 = k+1;
+                end
+                inf2 = f(min2);         % zero-crossing frequency
+                break                   % break loop (only need to record first crossing)
+                
+        end
+
+    end
+
+    % estimate approx. area under curve between inflection points either
+    % side of peak, scale by inflection band width 
+    Q = trapz(f(min1:min2), d0(min1:min2));
+    Qf = Q / (min2-min1);
+
+end 
+
+%% Subfunction 3
+
+function [cogs, sel, iaw] = chanGravs(d0, f, f1, f2)
+% Takes smoothed channel spectra and associated estimates of individual 
+% alpha bandwidth [f1:f2], calculate mean bandwidth, estimate CoG across
+% all channels (as per Klimesch's group; e.g, 1990, 1993, & 1997 papers).
+%
+% Part of the `restingIAF` package, (c) Andrew W. Corcoran, 2016-2017.
+% Visit github.com/corcorana/restingIAF for licence, updates, and further
+% information about package development and testing.
+%
+% Outputs:
+%   cogs = centre of gravity derived from averaged f1:f2 frequency window
+%   sel = channels contributing estimates of alpha window bandwidth
+%   iaw = bounds of individual alpha window
+%
+% Inputs:
+%   d0 = vector / matrix of smoothed PSDs
+%   f = frequency bin vector
+%   f1 = vector of f1 bin indices (lower bound, individual alpha window)
+%   f2 = vector of f2 bin indices (upper bound, individual alpha window)
+
+% trim off any NaNs in f1/f2 vectors
+trim_f1 = f1(~isnan(f1));
+trim_f2 = f2(~isnan(f2));
+
+% derive average f1 & f2 values across chans, then look for nearest freq bin
+mean_f1 = dsearchn(f, mean(f(trim_f1)));
+mean_f2 = dsearchn(f, mean(f(trim_f2)));
+iaw = [mean_f1, mean_f2];
+        
+% calculate CoG for each channel spectra on basis of averaged alpha window
+cogs = zeros(1,size(d0,2));
+for d = 1:length(cogs)
+    if isempty(trim_f1) || isempty(trim_f2)
+        cogs(d) = NaN;
+    else
+        cogs(d) = nansum(d0(mean_f1:mean_f2,d).*f(mean_f1:mean_f2)) / sum(d0(mean_f1:mean_f2,d));
+    end
+end
+
+% report which channels contribute to averaged window
+sel = ~isnan(f1);
+
+%% subfunction 4
+
+function [selP, sums] = chanMeans(chanCogs, selG, peaks, specs, qf, cmin)
+% Takes channel-wise estimates of peak alpha frequency (PAF) / centre of
+% gravity (CoG) and calculates mean and standard deviation if cmin 
+% condition satisfied. PAFs are weighted in accordance with qf, which aims
+% to quantify the relative strength of each channel peak. 
+%
+% Part of the `restingIAF` package, (c) Andrew W. Corcoran, 2016-2017.
+% Visit github.com/corcorana/restingIAF for licence, updates, and further
+% information about package development and testing.
+%
+% Outputs:
+%   selP = channels contributing peak estimates to calculation of mean PAF
+%   sums = structure containing summary estimates (m, std) for PAF and CoG
+%
+% Inputs:
+%   chanCogs = vector of channel-wise CoG estimates
+%   selG = vector (logical) of channels selected for individual alpha band estimation
+%   peaks = vector of channel-wise PAF estimates
+%   specs = matrix of smoothed spectra (helpful for plotting weighted estimates)
+%   qf = vector of peak quality estimates (area bounded by inflection points)
+%   cmin = min number of channels required to generate cross-channel mean
+
+% channel selection and weights
+selP = ~isnan(peaks);               % evaluate whether channel provides estimate of PAF
+
+% qWt = nansum(qf)/sum(selP);       % average area under peak (Qf) across viable channels (depricated: was used when calculating cross-recording comparisons)
+chanWts = qf/max(qf);               % channel weightings scaled in proportion to Qf value of channel manifesting highest Qf
+
+% average across peaks
+if sum(selP) < cmin                 % if number of viable channels < cmin threshold, don't calculate cross-channel mean & std
+    sums.paf = NaN;
+    sums.pafStd = NaN;
+    sums.muSpec = NaN;
+else                                % else compute (weighted) cross-channel average PAF estimate and corresponding std of channel PAFs
+    sums.paf = nansum(bsxfun(@times, peaks, chanWts))/nansum(chanWts);
+    sums.pafStd = std(peaks,'omitnan');
+    % estimate averaged spectra for plotting
+    wtSpec = bsxfun(@times, specs, chanWts);
+    sums.muSpec = nansum(wtSpec, 2)/nansum(chanWts);
+end
+
+% now for the gravs (no channel weighting, all channels included if cmin satisfied)
+if sum(selG) < cmin
+    sums.cog = NaN;
+    sums.cogStd = NaN;
+else
+    sums.cog = mean(chanCogs, 2, 'omitnan');
+    sums.cogStd = std(chanCogs,'omitnan');
+end
 
