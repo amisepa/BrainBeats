@@ -153,15 +153,11 @@ if contains(params.analysis, {'features' 'hep'})
     for iElec = 1:nElec
         elec = sprintf('elec%g',iElec);
         fprintf('Detecting R peaks from ECG time series: electrode %g...\n', iElec)
-        [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params);
-        
-        if strcmp(params.heart_signal, 'ppg')
-            sig_t = CARDIO.times;
-        end
+        [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params.fs, params.heart_signal);
 
         % SQI
         SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
-        [sqi(iElec,:), sqi_times(iElec,:)] = get_sqi(Rpeaks.(elec), signal(iElec,:), params.fs);
+        [sqi(iElec,:), sqi_times(iElec,:)] = get_sqi(Rpeaks.(elec), signal(iElec,:), params.fs, params.heart_signal);
         SQI(iElec,:) = sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:));  
 
         % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
@@ -175,9 +171,6 @@ if contains(params.analysis, {'features' 'hep'})
 
 
 
-        [beats, sig] = process_ppg_fast(ppg, params.fs);
-        RR = diff(beats)./params.fs;
-        RR_t = beats(2:end)./params.fs;
         % hold on; plot(RR_t,RR); axis tight; %legend('original','fast')
         % title('RR intervals'); xlabel('Time (s)'); ylabel('intervals between heartbeats')
 

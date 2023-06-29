@@ -27,15 +27,15 @@ if ~exist('fs','var')
 end
 
 % params
-BUFLN = 4096;           % must be a power of 2
-EYE_CLS = 0.34;         % eye-closing period is set to 0.34 sec (340 ms)
-LPERIOD  = fs*8;        % learning period in samples (default = 8 s)
-SLPW = 0.17;            % Slope width (170 ms) for PPG
-NDP = 2.5;              % threshold in s (default = 2.5) -> adjust if no pulse found
-TmDEF = 5;              % minimum threshold value (default = 5)
-Tm = TmDEF;
+BUFLN = 4096;                       % must be a power of 2
+LPERIOD  = fs*8;                    % learning period in samples (default = 8 s)
+Tm = 5;                             % minimum threshold value (default = 5)
+EyeClosing = round(fs * .34);       % eye-closing period is set to 0.34 sec (340 ms)
+ExpectPeriod = round(fs * 2.5);	    % threshold in s (default = 2.5) -> adjust if no pulse found
+SLPwindow = round(fs * .17);        % Slope window size (deafult = 170 ms)
+timer = 0;
 
-heartbeats=[];
+heartbeats = [];
 beat_n = 1;
 
 INVALID_signal = -32758;
@@ -61,12 +61,6 @@ else
     signal = (signal-median(min_signal))./(median(max_signal)-median(min_signal)).*4000-2000;
 end
 
-% samplingInterval = 1000.0/fs;
-% spm = 60 * fs;
-EyeClosing = round(fs * EYE_CLS);   % /* set eye-closing period */
-ExpectPeriod = round(fs * NDP);	  % /* maximum expected RR interval */
-SLPwindow = round(fs * SLPW);       % /* slope window size */
-timer=0;
 
 ebuf(1:BUFLN)=0;
 lbuf=ebuf;

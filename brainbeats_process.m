@@ -100,6 +100,11 @@ else
     end
 end
 
+% Check heart signal type
+if ~contains(params.heart_signal, {'ecg' 'ppg'})
+    error('Heart signal should be either ECG or PPG')
+end
+
 % Check for channel locations for visualization
 if params.vis && params.eeg
     if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
@@ -139,112 +144,79 @@ end
 %%%%% MODE 2 & 3: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
     
-    %%%%%%% Process ECG %%%%%%%
-    % Get RR, SQI ans NN for each ECG electrode
-    % note: using structures as outputs because they often have different
-    % lengths, causing issues
-    if strcmp(params.heart_signal, 'ecg')
+    % Get RR and NN intervals from ECG/PPG signals
+    % note: when several electrodes are provided, use the elec with best 
+    % quality for subsequent analysis. Structures to avoid issues when 
+    % intervals have different across electrodes.
+    signal = CARDIO.data;
+    nElec = size(signal,1);
+    for iElec = 1:nElec
+        elec = sprintf('elec%g',iElec);
+        fprintf('Detecting R peaks from ECG time series: electrode %g...\n', iElec)
+        [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params.fs, params.heart_signal);
 
-        signal = CARDIO.data;
-        nElec = size(signal,1);
-        for iElec = 1:nElec
-            elec = sprintf('elec%g',iElec);
-            fprintf('Detecting R peaks from ECG time series: electrode %g...\n', iElec)
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params);
-
-            % SQI
-            SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
+        % SQI
+        SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
+        if strcmpi(params.heart_signal, 'ecg')
             [sqi(iElec,:), sqi_times(iElec,:)] = get_sqi(Rpeaks.(elec), signal(iElec,:), params.fs);
             SQI(iElec,:) = sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:));  
+        % else      
+        %     [sqi, ~, annot]= get_sqi_ppg(beats,ppg',params.fs,30); %FIXME: doesn't work
+        %     sqi = [beats'./params.fs, sqi'./100];
+        end
 
-            % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
-            % FIXME: does not take SQI into account
-            rr_t = RR_t.(elec); 
+        % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
+        % FIXME: does not take SQI into account
+        rr_t = RR_t.(elec); 
+        if strcmpi(params.heart_signal, 'ecg')
             rr_t(1) = [];   % remove 1st heartbeat
-            vis = false;    % to visualize artifacts that are inteprolated
-            [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(rr_t, RR.(elec), params, vis);
-            flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec));
-
         end
+        vis = true;    % to visualize artifacts that are inteprolated
+        [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(rr_t, RR.(elec), params, vis);
+        flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec));
 
-
-
-        [beats, sig] = process_ppg_fast(ppg, params.fs);
-        RR = diff(beats)./params.fs;
-        RR_t = beats(2:end)./params.fs;
-        % hold on; plot(RR_t,RR); axis tight; %legend('original','fast')
-        % title('RR intervals'); xlabel('Time (s)'); ylabel('intervals between heartbeats')
-
-        % calculate signal quality index (SQI) --> doesn't work
-        % [sqi, ~, annot]= get_sqi_ppg(beats,ppg',params.fs,30);
-        % sqi = [beats'./params.fs, ppgsqi_numeric'./100];
-
-
-
-
-
-        % Keep only ECG data of electrode with the lowest number of RR
-        % artifacts (FIXME: add SQI)
-        % [~, best_elec] = min(SQI);
-        % sqi = [sqi_times(best_elec,:); sqi(best_elec,:)];
-        % SQI = SQI(best_elec);
-        [~,best_elec] = min(struct2array(flaggedRatio));
-        elec = sprintf('elec%g',best_elec);
-        maxThresh = .2;         % max portion of artifacts (.2 default from Vest et al. 2019)
-        % if SQI > maxThresh    % more than 20% of RR series is bad
-        %      warning on
-        %     warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",round(SQI,2));
-        %     error("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
-        % else
-        %     fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", SQI )
-        % end
-        flaggedRatio = flaggedRatio.(elec);
-        flagged = flagged.(elec);
-        if sum(flagged) > 0
-            if contains(params.rr_correct,'remove')
-                fprintf('%g heart beats were flagged as artifacts and removed. \n', sum(flagged));
-            else
-                fprintf('%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged));
-            end
-        end
-        if  flaggedRatio > maxThresh % more than 20% of RR series is bad
-            warning on
-            warning("%g%% of the RR series on your best ECG electrode are artifacts, this is below minimum recommendations (max 20%% is tolerated)", round(flaggedRatio,2));
-            error("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
-        else
-            fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", round(flaggedRatio,2) )
-        end
-        sig_t = sig_t(best_elec,:);
-        sig = sig(best_elec,:);
-        RR = RR.(elec);
-        RR_t = RR_t.(elec);
-        RR_t(1) = [];       % always ignore 1st hearbeat
-        Rpeaks = Rpeaks.(elec);
-        Rpeaks(1) = [];     % always ignore 1st hearbeat
-        NN_t = NN_t.(elec);
-        NN = NN.(elec);
-    
-    %%%%%%% Process PPG %%%%%%%
-    elseif strcmp(params.heart_signal,'ppg')
-        % error("Work in progress, sorry!");
-        
-        % Find hearbeats 
-        % CARDIO = pop_resample(CARDIO,125); % algorithms perform best at 125 hz
-
-        % quick visualization
-        % [NN, NN_t, flagged] = clean_rr(RR_t, RR, params, vis);
-        % flaggedRatio = sum(flagged) / length(flagged);
-        % sig_t = CARDIO.times;
-        % Rpeaks = beats;
-        % figure; plot(RR_t,RR,'-','color','#A2142F','linewidth',1);
-        % hold on; plot(NN_t, NN,'-','color',"#0072BD", 'LineWidth', 1);
-        % legend('RR artifacts','NN intervals')
-        % title('RR intervals'); ylabel('RR intervals (s)'); xlabel('Time (s)');
-        % axis tight; box on
-
-    else
-        error("Unknown heart signal. Should be 'ecg' or 'ppg'.");
     end
+
+    % Keep only ECG data of electrode with the lowest number of RR
+    % artifacts (FIXME: add SQI)
+    % [~, best_elec] = min(SQI);
+    % sqi = [sqi_times(best_elec,:); sqi(best_elec,:)];
+    % SQI = SQI(best_elec);
+    [~,best_elec] = min(struct2array(flaggedRatio));
+    elec = sprintf('elec%g',best_elec);
+    maxThresh = .2;         % max portion of artifacts (.2 default from Vest et al. 2019)
+    % if SQI > maxThresh    % more than 20% of RR series is bad
+    %      warning on
+    %     warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",round(SQI,2));
+    %     error("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
+    % else
+    %     fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", SQI )
+    % end
+    flaggedRatio = flaggedRatio.(elec);
+    flagged = flagged.(elec);
+    if sum(flagged) > 0
+        if contains(params.rr_correct,'remove')
+            fprintf('%g heart beats were flagged as artifacts and removed. \n', sum(flagged));
+        else
+            fprintf('%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged));
+        end
+    end
+    if  flaggedRatio > maxThresh % more than 20% of RR series is bad
+        warning on
+        warning("%g%% of the RR series on your best ECG electrode are artifacts, this is below minimum recommendations (max 20%% is tolerated)", round(flaggedRatio,2));
+        error("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
+    else
+        fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", round(flaggedRatio,2) )
+    end
+    sig_t = sig_t(best_elec,:);
+    sig = sig(best_elec,:);
+    RR = RR.(elec);
+    RR_t = RR_t.(elec);
+    RR_t(1) = [];       % always ignore 1st hearbeat
+    Rpeaks = Rpeaks.(elec);
+    Rpeaks(1) = [];     % always ignore 1st hearbeat
+    NN_t = NN_t.(elec);
+    NN = NN.(elec);
 
     % Plot filtered ECG and RR series of best electrode and interpolated
     % RR artifacts (if any)
