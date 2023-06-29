@@ -80,9 +80,6 @@ if params.eeg_frequency
         eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB;
         eeg_features.frequency.freqs(iChan,:) = f;
 
-        % Get individualized frequency bounds
-        % [pSpec.sums, pSpec.chans, f]= restingIAF(EEG.data, EEG.nbchan, 3, [1 40], EEG.srate, [13 30], 11, 5);
-
         % Delta
         eeg_features.frequency.delta(iChan,:) = mean( pwr_dB(f >= f(1) & f <= 3) );
         eeg_features.frequency.delta_norm(iChan,:) = eeg_features.frequency.delta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
@@ -90,37 +87,37 @@ if params.eeg_frequency
             bounds = get_freqBounds(pwr, f, fs, [f(1) 3], winSize,0.25);  % individualized frequency bounds
             eeg_features.frequency.delta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
         catch
-            fprintf('Could not detect individualized bounds for Delta. \n')
+            fprintf('Could not detect individualized frequency bounds for Delta \n')
         end
 
         % Theta
         eeg_features.frequency.theta(iChan,:) = mean( pwr_dB(f >= 3 & f <= 7) );
         eeg_features.frequency.theta_norm(iChan,:) = eeg_features.frequency.theta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        bounds = get_freqBounds(pwr, f, fs, [2 8], winSize, 0.25);  % individualized lower/upper bounds
         try
+            bounds = get_freqBounds(pwr, f, fs, [2 8], winSize, 0.25);  % individualized lower/upper bounds
             eeg_features.frequency.theta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
         catch
-            fprintf('Could not detect individualized bounds for Theta. \n')
+            fprintf('Could not detect individualized frequency bounds for Theta \n')
         end
 
         % Alpha
         eeg_features.frequency.alpha(iChan,:) = mean( pwr_dB(f >= 7.5 & f <= 13) );
         eeg_features.frequency.alpha_norm(iChan,:) = eeg_features.frequency.alpha(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        bounds = get_freqBounds(pwr, f, fs, [7 14], winSize, 1);  % individualized lower/upper bounds
         try
+            bounds = get_freqBounds(pwr, f, fs, [7 14], winSize, 1);  % individualized lower/upper bounds
             eeg_features.frequency.alpha_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
         catch
-            fprintf('Could not detect individualized bounds Alpha. \n')
+            fprintf('Could not detect individualized frequency bounds for Alpha \n')
         end
 
         % Beta
         eeg_features.frequency.beta(iChan,:) = mean( pwr_dB(f >= 13.5 & f <= 30) );
         eeg_features.frequency.beta_norm(iChan,:) = eeg_features.frequency.beta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        bounds = get_freqBounds(pwr, f, fs, [13 30], winSize, 0.25);  % individualized lower/upper bounds
         try
+            bounds = get_freqBounds(pwr, f, fs, [13 30], winSize, 0.25);  % individualized lower/upper bounds
             eeg_features.frequency.beta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
         catch
-            fprintf('Could not detect individualized bounds Beta. \n')
+            fprintf('Could not detect individualized frequency bounds for Beta \n')
         end
 
         % Low gamma
@@ -130,7 +127,7 @@ if params.eeg_frequency
             bounds = get_freqBounds(pwr, f, fs, [30 45], winSize, 0.25);  % individualized lower/upper bounds
             eeg_features.frequency.low_gamma_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
         catch
-            fprintf('Could not detect individualized bounds Low-gamma. \n')
+            fprintf('Could not detect individualized frequency bounds for Low gamma \n')
         end
 
         % Individual alpha frequency (IAF) (my code, not working)

@@ -187,5 +187,3 @@ pSum.pSel = sum(selP);
 pSum.gSel = sum(selG);
 pSum.iaw = iaw;
 
-
-end

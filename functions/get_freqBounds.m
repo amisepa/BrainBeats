@@ -1,15 +1,19 @@
-% Input power in dB is best!
+% Find individualized frequency bounds based on power spectra distribution.
 % 
-% Cedric Cannard, 2023
+% Input power in uv^2 (not normalized) is best!
+% 
+% Method developed by Corcoran et al. (2017) in the resting IAF toolbox.
+% 
+% Copyright (C) - Cedric Cannard, 2023, BrainBeats toolbox
 
-function [bounds, peak] = get_freqBounds(pwr, f, fs, w, winSize)
+function [bounds, peak] = get_freqBounds(pwr, f, fs, w, winSize, mpow)
 
 % Parameters
 Fw = 11;            % SGF frame width (11 corresponding to a frequency span of ~2.69 Hz @ ~.24Hz frequency resolution)
 k = 5;              % SGF polynomial order (default = 5)
 mdiff = .2;    % minimal height difference distinguishing a primary peak from
                 % competing peaks (default = 0.2; i.e. 20% peak height)
-mpow = 1;       % error bound (SD) threshold to differentiate peaks from background spectral noise (default = 1)
+% mpow = 1;       % error bound (SD) threshold to differentiate peaks from background spectral noise (default = 1)
 
 
 % fit 1st order poly (regression line) to normalised spectra (log-scaled)
@@ -171,4 +175,3 @@ else            % now for the primary peak spectra
 end 
 
 bounds = [pos1 pos2];
-
