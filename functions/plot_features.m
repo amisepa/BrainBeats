@@ -195,8 +195,7 @@ end
 
 %% Coherence
 
-
-if params.vis && params.eeg_frequency
+if params.eeg && params.eeg_frequency
 
     try
         f = EEG.frequency.eeg_coh_f;

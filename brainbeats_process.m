@@ -332,7 +332,7 @@ if params.hrv
     fprintf("   - Shaffer & Ginsberg (2017). An overview of heart rate variability metrics and norms. Frontiers in public health. \n");
 end
 if strcmp(params.analysis,'features')
-    if params.eeg_frequency
+    if params.eeg && params.eeg_frequency
         fprintf("For the IAF feature, please cite: \n %s \n", "  - Corcoran et al. (2018). Toward a reliable, automated method of individual alpha frequency (IAF) quantification. Psychophysiology. ")
         fprintf("For the alpha asymmetry feature, please cite: \n %s \n", "  - Smith et al. (2017). Assessing and conceptualizing frontal EEG asymmetry: An updated primer on recording, processing, analyzing, and interpreting frontal alpha asymmetry. International Journal of Psychophysiology.")
         fprintf("For the EEG coherence measures, please cite: \n");
