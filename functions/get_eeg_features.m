@@ -146,35 +146,55 @@ if params.eeg_frequency
     eeg_features.frequency.IAF = [pChans.gravs];
 
     % Asymmetry (use log(pwr) no pwr_dB) - on all pairs
-    nPairs = floor(size(chanlocs,2)/2+1); % floor for montages with odd # of electrodes
-    pairs = nan(nPairs,2);
-    pairLabels = cell(nPairs,1);
-    asy = nan(nPairs,1);
+    nChan = size(chanlocs,2);
+    % if rem(nChan,2) == 0 %even
+    nPairs = floor(nChan/2); 
+    % % else
+    % %     nPairs = floor(nChan/2+1);
+    % end 
+    % pairs = nan(nPairs,2);
+    % pairLabels = cell(nPairs,1);
+    % asy = nan(nPairs,1);
     fprintf('Extracting (z-normalized) EEG asymmetry on %g channel pairs... \n',nPairs)
-    for iPair = 1:nPairs
+    for iChan = 1:nChan
+        
+        % if not left electrode, skip
+        if chanlocs(iChan).theta >= 0 
+            % pairs(iChan,:) = [NaN NaN];
+            % pairLabels(iChan,:) = {' '  ' '};
+            continue; 
+        end
 
-        % find pairs using X distance
-        for iChan2 = 1:size(chanlocs,2)
-            if iChan2 == iPair
-                distX(iChan2,:) = NaN;
+        % find matching pair from right side using theta distance
+        for iChan2 = 1:nChan
+            if iChan2 == iChan
+                elec_dist(iChan2,:) = NaN;
             else
-                distX(iChan2,:) = diff([chanlocs(iPair).X chanlocs(iChan2).X ]);
+                elec_dist(iChan2,:) = diff([abs(chanlocs(iChan).theta) abs(chanlocs(iChan2).theta) ]);
             end
         end
-        [~, match] = min(abs(distX));
-        pairs(iPair,:) = [iPair match];
-        pairLabels(iPair,:) = { sprintf('%s %s', chanlocs(iPair).labels, chanlocs(match).labels) };
+        [~, match] = min(abs(elec_dist));
+        pairs(iChan,:) = [iChan match];
+        pairLabels(iChan,:) = { sprintf('%s %s', chanlocs(iChan).labels, chanlocs(match).labels) };
+        
+        % Ignore midline electrodes
+        % if contains(pairLabels{iChan}, 'z'), continue, end
 
-        if contains(pairLabels{iPair}, 'z')
-            continue
-        end
+        % Ensure pairs are always left-right to remove duplicates
+        % if rem(str2double(pairLabels{iChan}(end)),2) ~= 0 % second elec should be even number
+        %     pairs(iChan,:) = [match iChan];
+        %     pairLabels(iChan,:) = { sprintf('%s %s', chanlocs(match).labels, chanlocs(iChan).labels) };
+        % end
+    end
+    
+    % Remove duplicate or empty pairs
+    % pairLabels(pairs(:,1) == 0) = [];
+    % pairs(pairs(:,1) == 0,:) = [];
+    % [pairLabels, idx] = unique(pairLabels);
+    % pairs = pairs(idx,:);
 
-        % flip if order is not left - left
-        if rem(str2double(pairLabels{iPair}(end)),2) ~= 0 % second elec should be even number
-            pairs(iPair,:) = [match iPair];
-            pairLabels(iPair,:) = { sprintf('%s %s', chanlocs(match).labels, chanlocs(iPair).labels) };
-        end
-
+    % asy = nan(length(pairs),length(f));
+    for iPair = 1:size(pairs,1)
         % Z-normalize by correcting for overall alpha power (see Allen et al. 2004 and Smith et al. 2017)
         alpha_left = mean(eeg_features.frequency.alpha(pairs(iPair,1),:));
         alpha_right = mean(eeg_features.frequency.alpha(pairs(iPair,2),:));
@@ -187,23 +207,23 @@ if params.eeg_frequency
     eeg_features.frequency.asymmetry = asy(~isnan(asy));
     eeg_features.frequency.asymmetry_pairs = pairLabels(~isnan(asy));
 
-    if params.vis
+    % if params.vis
         % topoplot(asy, chanlocs, 'emarker2',{[3 17],'b','r'}); 
-    end
+    % end
 
-    % EEG coherence (magnitude squared coherence estimate)
+    %%%% EEG coherence (magnitude squared coherence estimate) %%%%%
     % (only on pairs on electrodes that are not neighbors; see Nunez 2016:
     % https://escholarship.org/content/qt5fb0q5wx/qt5fb0q5wx.pdf)
     % FIXME: neighbors are incorrect with low-density montages, should use
-    % distance in cm instead. 
-    nfft = fs*2;
-    noverlap = nfft/2;
+    % actual distance instead?. 
+    % nfft = fs*2;
+    % noverlap = nfft/2;
 
     % neighbor electrodes
-    neighbors = get_channelneighbors(chanlocs);
+    % neighbors = get_channelneighbors(chanlocs);
 
     % all possible pairs
-    pairs = nchoosek({chanlocs.labels}, 2);
+    % pairs = nchoosek({chanlocs.labels}, 2);
 
     % remove pairs that are neighbors
     % nPairs = size(pairs,1);
@@ -250,10 +270,33 @@ if params.eeg_frequency
     % MVAR coefficients
     % Faes and Nollo (2011). Multivariate Frequency Domain Analysis of 
     % Causal Interactions in Physiological Time Series. https://www.intechopen.com/chapters/12918
-    % nfft = fs*2;  % 2-s windows
+    nfft = fs*2;  % 2-s windows
     fprintf('Computing multivariate frequency domain analysis of causal interactions between all EEG channels...')
     Su = eye(nChan,nChan);
-    [DC,DTF,PDC,GPDC,IPDC,COH,PCOH,PCOH2,H,S,P,f] = fdMVAR_5order(signals,Su,nfft,fs);
+    [DC,DTF,PDC,~,~,COH,PCOH,~,~,~,~,f] = fdMVAR_5order(signals,Su,nfft,fs);
+
+    % Deal with complex and negative values
+    if ~isreal(DC)
+        DC = real(DC);
+        % DC(DC < 0) = 0;
+    end
+    if ~isreal(DTF)
+        DTF = real(DTF);
+        % DTF(DTF < 0) = 0;
+    end
+    if ~isreal(PDC)
+        PDC = real(PDC);
+        % PDC(PDC < 0) = 0;
+    end
+    if ~isreal(COH)
+        COH = real(COH);
+        % COH(COH < 0) = 0;
+    end
+    if ~isreal(PCOH)
+        PCOH = real(PCOH);
+        % PCOH(PCOH < 0) = 0;
+    end
+    
     eeg_features.frequency.eeg_coh = COH;
     eeg_features.frequency.eeg_coh_f = f;
     eeg_features.frequency.eeg_pcoh = PCOH;

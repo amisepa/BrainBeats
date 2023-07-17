@@ -191,7 +191,11 @@ end
 
 %% Asymmetry (work in progress)
 
-
+% if params.eeg && params.eeg_frequency
+%     asy = EEG.frequency.asy;
+%     figure('color','w');
+%     topoplot(coh, chanlocs, 'emarker2',{[1 2],'b','r'}); 
+% end
 
 %% Coherence
 
@@ -251,7 +255,5 @@ if params.eeg && params.eeg_frequency
     catch
         warning('EEG coherence plots failed.')
     end
-
-    % topoplot(coh, chanlocs, 'emarker2',{[1 2],'b','r'}); 
 
 end
