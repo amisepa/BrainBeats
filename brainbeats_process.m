@@ -131,10 +131,6 @@ end
 EEG.data = double(EEG.data);  % ensure double precision
 params.fs = EEG.srate;
 
-% keep only EEG and ECG channels (require "type" fields in EEG.chanlocs)
-% EEG = pop_select(EEG, 'chantype',{'ECG','EEG'});  
-CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
-EEG = pop_select(EEG,'nochannel',params.heart_channels); 
 
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 if strcmp(params.analysis,'rm_heart')
@@ -144,6 +140,11 @@ end
 %%%%% MODE 2 & 3: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
     
+    % Keep only EEG and ECG channels in separate structures
+    % EEG = pop_select(EEG, 'chantype',{'ECG','EEG'});  
+    CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
+    EEG = pop_select(EEG,'nochannel',params.heart_channels); 
+
     % Get RR and NN intervals from ECG/PPG signals
     % note: when several electrodes are provided, use the elec with best 
     % quality for subsequent analysis. Structures to avoid issues when 

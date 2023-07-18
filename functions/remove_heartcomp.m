@@ -30,7 +30,8 @@ else
 end
 
 EEG = pop_iclabel(EEG,'default');
-EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.95 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
+EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.9 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
+% pop_selectcomps(EEG,1:EEG.nbchan); colormap('parula');
 heart_comp = find(EEG.reject.gcompreject);
 
 if ~isempty(heart_comp)
@@ -54,6 +55,7 @@ if ~isempty(heart_comp)
 
     % Remove ECG channel
     EEG = pop_select(EEG,'nochannel', params.heart_channels);
+
 else
     fprintf('Sorry, no heart component was detected. Make sure the ECG channel you selected is correct. \nYou may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended). \n')
 end

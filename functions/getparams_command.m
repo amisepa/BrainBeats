@@ -44,8 +44,17 @@ end
 idx = find(contains(inputs,'clean_eeg'));
 if ~isempty(idx)
     params.clean_eeg = varargin{idx*2};
+    params.eeg = true;
 else
     params.clean_eeg = false;
+    params.eeg = false;
+end
+
+% Includes EEG or not (for plotting)
+if strcmp(params.analysis,{'hep' 'rm_heart'})
+    params.eeg = true;
+else
+    params.eeg = false;
 end
 
 % EEG features
