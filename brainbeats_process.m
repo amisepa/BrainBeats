@@ -131,7 +131,6 @@ end
 EEG.data = double(EEG.data);  % ensure double precision
 params.fs = EEG.srate;
 
-
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 if strcmp(params.analysis,'rm_heart')
     EEG = remove_heartcomp(EEG, params);
@@ -290,6 +289,7 @@ if contains(params.analysis, {'features' 'hep'})
 
     end
 end
+EEG.brainbeats = Features;
 
 %%%%%% PLOT & SAVE FEATURES %%%%%%%
 if strcmp(params.analysis,'features')
@@ -324,6 +324,7 @@ elseif contains(params.analysis,'rm_heart')
     com = sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',{'%s'},'clean_eeg',%g,'vis',%g,'save',%g);",...
     params.analysis,params.heart_signal,params.heart_channels{:},params.clean_eeg,params.vis,params.save);
 end
+com = char(com);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%% References %%%%%%%%%%%%%%%%%%%%%%%%
