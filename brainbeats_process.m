@@ -1,9 +1,42 @@
-%% Brainbeats_process
-% Process single EEGLAB files containg EEG and cardiovascular (ECG or PPG)
-% signals. 
+% BRAINBEATS_PROCESS - process ECG (HRV) and EEG data. Either can be processed
+%                      separately. Process single EEGLAB files containg EEG 
+%                      and cardiovascular (ECG or PPG) signals.
+% Usage:
+%    [EEG, features] = brainbeats_process(EEG, 'key', 'val')
 % 
+% Inputs:
+%  'analysis'       - ['bep'|'features'] extract 'bep' (brain evoked potential and 
+%                     clean RR), or extract HRV and/or 'features'. Default is ???
+%  'heart_signal'   - [ppg'|'ecg'] use PPG or ECG
+%  'heart_channels' - [cell array of string] name(s) of the channel to
+%                     process
+%  'rr_correct'     - ['pchip'] correction method for RR
+%  'clean_eeg'      - [0|1] clean EEG with ASR
+%  'parpool'        - [0|1] use paralell toolbox. Default is 0.
+%  'rm_heart'       - [0|1] remvove heart channel (1) after processing it,
+%                     or not (0). Default is on.
+%  'hrv_features'   - [cell array of string] HRV features to compute. See
+%                     GET_HRV_FEATURES for more information. Choices are
+%                     'time' (time-domain measures), 'frequency' (frequency
+%                     domain measures, and 'nonlinear' (non linear
+%                     measures)
+%  'eeg_features'   - [cell array of string] HRV features to compute. See
+%                     GET_EEG_FEATURES for more information. Choices are
+%                     'time' (time-domain measures), 'frequency' (frequency
+%                     domain measures)
+%  'norm'           - [0|1] normalize measure (describe with respect to
+%                     what????????)
+%  'gpu'            - [0|1] use GPU. Default is 0.
+%  'vis'            - [0|1] set vizualization to on (1) or off (0). Default is on.
+%  'save'           - [0|1] save results into a MATLAB file (1) or not (0). Default is on.
+%
+% Outputs:
+%   EEG      - modified EEGLAB dataset. A EEG.brainbeats field is created
+%              containing all the measures computed for the dataset.
+%   features - Features computed (same as field EEG.brainbeats)
+%
+% Other options (not documented yet)
 % Method 1: Hearbteat evoked potentials (HEP) and oscillations (HEO).
-% Method 2: Extract EEG and HRV features.
 % Method 3: Remove heart components from EEG signals.
 % 
 % Copyright (C) - Cedric Cannard, 2023
