@@ -38,7 +38,7 @@ shortTrials = find(IBI<550);
 if ~isempty(shortTrials)
     warning('Removing %g trials with interbeat intervals (IBI) < 550 ms', length(shortTrials))
     IBI(shortTrials) = [];
-    EEG.event(shortTrials).type = [];
+    [EEG.event(shortTrials).type] = deal([]);
 else
     fprintf('All trial have an interbeat interval (IBI) above 550 ms (minimum recommended). \n')
 end
