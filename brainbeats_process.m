@@ -5,12 +5,23 @@
 %    [EEG, features] = brainbeats_process(EEG, 'key', 'val')
 % 
 % Inputs:
-%  'analysis'       - ['bep'|'features'] extract 'bep' (brain evoked potential and 
-%                     clean RR), or extract HRV and/or 'features'. Default is ???
+%  'analysis'       - ['bep'|'features'|'rm_heart'] extract 'bep' (brain evoked potential  
+%                     and clean RR), or extract HRV and/or EEG 'features', or 'rm_heart'
+%                     to remove the heart contribution from the EEG.
 %  'heart_signal'   - [ppg'|'ecg'] use PPG or ECG
 %  'heart_channels' - [cell array of string] name(s) of the channel to
 %                     process
-%  'rr_correct'     - ['pchip'] correction method for RR
+%  'rr_correct'     - [see below] correction method for RR.
+%                       'pchip' - ????? (default)
+%                       'linear' - 
+%                       'cubic' -
+%                       'nearest' -
+%                       'next' -
+%                       'previous' -
+%                       'spline' -
+%                       'cubic' -
+%                       'makima' -
+%                       'remove' -
 %  'clean_eeg'      - [0|1] clean EEG with ASR
 %  'parpool'        - [0|1] use paralell toolbox. Default is 0.
 %  'rm_heart'       - [0|1] remvove heart channel (1) after processing it,
@@ -20,10 +31,13 @@
 %                     'time' (time-domain measures), 'frequency' (frequency
 %                     domain measures, and 'nonlinear' (non linear
 %                     measures)
+%  'hrv_spec'       - ['LombScargle'|'pwelch'|'fft'|'burg'] method to compute the 
+%                     HRV spectrum. Default is 'LombScargle'.
 %  'eeg_features'   - [cell array of string] HRV features to compute. See
 %                     GET_EEG_FEATURES for more information. Choices are
 %                     'time' (time-domain measures), 'frequency' (frequency
-%                     domain measures)
+%                     domain measures), and 'nonlinear' (non linear
+%                     measures)
 %  'norm'           - [0|1] normalize measure (describe with respect to
 %                     what????????)
 %  'gpu'            - [0|1] use GPU. Default is 0.
@@ -284,10 +298,6 @@ if contains(params.analysis, {'features' 'hep'})
     
     %%%%% MODE 3: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
-
-            % defaults (FIXME: add options to GUI)
-            params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
-            params.hrv_overlap =  0.25; % 25%
 
             % File length (we take the whole series for now to allow ULF and VLF as much as possible)
             file_length = floor(EEG.xmax)-1;
