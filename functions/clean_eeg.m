@@ -127,13 +127,16 @@ elseif params.clean_eeg_step == 1
 
     end
     
-    % Run IClabel
+    % Run ICA at effective data rank (see Kim et al. 2023). Use Picard when
+    % possible to increase speed.
     dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
     if exist('picard.m','file')
         EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
     else
         EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
     end
+
+    % Classify and remove bad components with IClabel
     EEG = pop_iclabel(EEG,'default');
     EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; NaN NaN; NaN NaN; NaN NaN]);
     badComp = find(EEG.reject.gcompreject);

@@ -25,21 +25,18 @@
 %   - VLF: at least 28 minutes
 %   - LF: at least 125 s
 %   - HF: at least 34 s
-% Different window lengths are implemented to maximize trade-off between 
-% time resolution and frequency resolution for each band.
+% To maximize trade-off between time resolution and frequency resolution,
+% sliding time windows using these minimum lengths are used for each band.
+% Warnings are printed when length is smaller than minimum recommended. 
 % 
-% Currently, HRV metrics are computed over the whole time-series for faster 
-% computation and allow computation of ULF and VLF as much as possible
-% (requiring long recordings to be accurate). Sliding time windows will be 
-% implemented in the future for assessing changes over time, when enough 
-% data are provided. 
+% Time and nonlinear HRV features are computed over the whole time-series for faster 
+% computation and higher reliability. 
 % 
-% Cedric Cannard, 2023
+% Copyright (C) - Cedric Cannard, 2023
 
 function HRV = get_hrv_features(NN, NN_times, params)
 
-% FIXME: add sliding windows for for all features to look at how they 
-% change over time.
+% FIXME: ask user if sliding windows should be averaged (default) or not (e.g. to look at change over time).
 
 %% Time domain
 if params.hrv_time
@@ -72,6 +69,7 @@ if params.hrv_time
 end
 
 %% Frequency domain
+
 if params.hrv_frequency
 
     disp('Extracting HRV features in the frequency domain...')
@@ -106,8 +104,8 @@ if params.hrv_frequency
                 nfft = 1024;    % use this instead? 2^nextpow2(length(NN(win_idx)))
                 fvec = bands(iBand,1):1/nfft:bands(iBand,2);
                                 
-                % Lomb-Scargle Periodogram (no resampling required; best method)
-                if strcmp(params.hrv_spec, 'Lomb-Scargle periodogram') || strcmp(params.hrv_spec, 'LombScargle')
+                % Lomb-Scargle Periodogram (no resampling required and best method)
+                if strcmp(params.hrv_spec, 'LombScargle')
                     if params.norm
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized'); 
                         fprintf('Computing normalized Lomb-Scargle periodogram on the NN series. \n')
@@ -134,7 +132,7 @@ if params.hrv_frequency
                         pwr = pwr(1:length(freqs));
             
                     else
-                        error("params.hrv_spec can only be 'Lomb-Scargle periodogram', 'pwelch', or 'fft'. ")
+                        error("params.hrv_spec can only be 'LombScargle', 'pwelch', or 'fft'. ")
                     end
                 end
                 

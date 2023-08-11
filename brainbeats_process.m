@@ -1,45 +1,48 @@
-% BRAINBEATS_PROCESS - process ECG (HRV) and EEG data. Either can be processed
-%                      separately. Process single EEGLAB files containg EEG 
-%                      and cardiovascular (ECG or PPG) signals.
+% BRAINBEATS_PROCESS - Process single EEGLAB files containg EEG and cardiovascular (ECG or PPG) signals.
+% 
 % Usage:
 %    [EEG, features] = brainbeats_process(EEG, 'key', 'val')
 % 
 % Inputs:
-%  'analysis'       - ['bep'|'features'|'rm_heart'] extract 'bep' (brain evoked potential  
-%                     and clean RR), or extract HRV and/or EEG 'features', or 'rm_heart'
-%                     to remove the heart contribution from the EEG.
-%  'heart_signal'   - [ppg'|'ecg'] use PPG or ECG
-%  'heart_channels' - [cell array of string] name(s) of the channel to
-%                     process
-%  'rr_correct'     - [see below] correction method for RR.
-%                       'pchip' - ????? (default)
-%                       'linear' - 
-%                       'cubic' -
-%                       'nearest' -
-%                       'next' -
-%                       'previous' -
-%                       'spline' -
-%                       'cubic' -
-%                       'makima' -
-%                       'remove' -
-%  'clean_eeg'      - [0|1] clean EEG with ASR
+%  'analysis'       - 'hep' (heartbeat-evoked potentials) | 'features' (extract EEG and HRV features) |
+%                       'rm_heart' | extract heart components from EEG signals.
+%  'heart_signal'   - [ppg'|'ecg'] define if cardiovascular signal to process is PPG or ECG.
+%  'heart_channels' - [cell array of character] name(s) of the heart channel to process
+%  'rr_correct'     - [see below] correction method for RR artifacts. Interpolation algorithms:
+%                       'pchip'     (default; shape-preserving piecewise cubic), 
+%                       'linear' 
+%                       'cubic'     (falls back to 'spline' interpolation for irregularly-spaced data)
+%                       'nearest'   (nearest neighbor)
+%                       'next'      (next neighbor)
+%                       'previous'  (previous neighbor)
+%                       'spline'    (piecewise cubic spline) 
+%                       'makima' (modified Akima cubic interpolation)
+%                    Or remove them instead with: 'remove'.
+%  'clean_eeg'      - [0|1] filter EEG data (bandpass zero-phase FIR 1-45 Hz), 
+%                       re-reference data do infinity using REST, remove
+%                       bad channels and interpolate them. For HEP, bad
+%                       trials are removed, whereas for Features, artifacts
+%                       are removed with Artifact Subspace Reconstruction
+%                       (ASR). Source separation (ICA) is performed taking
+%                       into account effective data rank (see Kim et al.
+%                       2023), before classifying and removing bad
+%                       components with ICLabel (muscle and heart with 95%
+%                       confidence, eye with 90% confidence).
 %  'parpool'        - [0|1] use paralell toolbox. Default is 0.
-%  'rm_heart'       - [0|1] remvove heart channel (1) after processing it,
-%                     or not (0). Default is on.
-%  'hrv_features'   - [cell array of string] HRV features to compute. See
+%  'rm_heart'       - [0|1] remove heart channel (1, default) after processing it,
+%                     or not (0). 
+%  'hrv_features'   - [cell array of characters] HRV features to compute. See
 %                     GET_HRV_FEATURES for more information. Choices are
 %                     'time' (time-domain measures), 'frequency' (frequency
-%                     domain measures, and 'nonlinear' (non linear
-%                     measures)
-%  'hrv_spec'       - ['LombScargle'|'pwelch'|'fft'|'burg'] method to compute the 
-%                     HRV spectrum. Default is 'LombScargle'.
-%  'eeg_features'   - [cell array of string] HRV features to compute. See
+%                     domain measures, and 'nonlinear' (nonlinear domain measures).
+%  'hrv_spec'       - ['LombScargle'|'pwelch'|'fft'] method to compute the 
+%                     HRV spectrum. Default is 'LombScargle'. pwelch and
+%                     fft implement resampling. 
+%  'eeg_features'   - [cell array of string] EEG features to compute. See
 %                     GET_EEG_FEATURES for more information. Choices are
-%                     'time' (time-domain measures), 'frequency' (frequency
-%                     domain measures), and 'nonlinear' (non linear
-%                     measures)
-%  'norm'           - [0|1] normalize measure (describe with respect to
-%                     what????????)
+%                     'time' (time domain), 'frequency' (frequency domain), 
+%                     and 'nonlinear' (nonlinear domain).
+%  'norm'           - [0|1] normalize HRV and EEG spectra (Features mode). 
 %  'gpu'            - [0|1] use GPU. Default is 0.
 %  'vis'            - [0|1] set vizualization to on (1) or off (0). Default is on.
 %  'save'           - [0|1] save results into a MATLAB file (1) or not (0). Default is on.
