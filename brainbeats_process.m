@@ -315,16 +315,15 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%% eegh %%%%%%%%%%%%%%%%%%%%%%%%
 if contains(params.analysis,'hep')
-    com = sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',{'%s'},'rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis',%g,'save',%g);",...
-    params.analysis,params.heart_signal,params.heart_channels{:},params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save);
+    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis',%g,'save',%g);",...
+        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save));
 elseif contains(params.analysis,'features') 
-    com = sprintf("[~, Features] = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',{'%s'},'rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis',%g,'save',%g);",...
-    params.analysis,params.heart_signal,params.heart_channels{:},params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save);
+    com = char(sprintf("[~, Features] = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis',%g,'save',%g);",...
+        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save));
 elseif contains(params.analysis,'rm_heart') 
-    com = sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',{'%s'},'clean_eeg',%g,'vis',%g,'save',%g);",...
-    params.analysis,params.heart_signal,params.heart_channels{:},params.clean_eeg,params.vis,params.save);
+    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','clean_eeg',%g,'vis',%g,'save',%g);",...
+        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.clean_eeg,params.vis,params.save));
 end
-
 
 %%%%%%%%%%%%%%%%%%%%%%%% References %%%%%%%%%%%%%%%%%%%%%%%%
 if params.hrv

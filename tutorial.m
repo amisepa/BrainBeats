@@ -10,7 +10,7 @@ EEG = pop_loadset('filename','sample_data1.set','filepath',fullfile(mainDir,'sam
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
     'heart_channels',{'ECG1' 'ECG2'},'clean_rr','pchip','clean_eeg',true, ...
     'parpool',false,'gpu',false,'vis',true,'false',true); 
-% pop_eegplot(EEG,1,1,1)
+% pop_eegplot(EEG,1,1,1);
 
 %% METHOD 2: Extract EEG and HRV features
 
