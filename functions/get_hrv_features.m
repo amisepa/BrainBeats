@@ -107,7 +107,7 @@ if params.hrv_frequency
                 fvec = bands(iBand,1):1/nfft:bands(iBand,2);
                                 
                 % Lomb-Scargle Periodogram (no resampling required; best method)
-                if strcmp(params.hrv_spec, 'Lomb-Scargle periodogram')
+                if strcmp(params.hrv_spec, 'Lomb-Scargle periodogram') || strcmp(params.hrv_spec, 'LombScargle')
                     if params.norm
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized'); 
                         fprintf('Computing normalized Lomb-Scargle periodogram on the NN series. \n')
@@ -125,7 +125,7 @@ if params.hrv_frequency
             
                     % Pwelch
                     if strcmp(params.hrv_spec, 'pwelch')
-                        [pwr,freqs] = pwelch(NN_resamp,[],[],2^nextpow2(length(NN_resamp)),resamp_freq);
+                        [pwr,freqs] = pwelch(NN_resamp,minLength(iBand),[],[],resamp_freq);
                         
                     % FFT
                     elseif strcmp(params.hrv_spec, 'fft')
