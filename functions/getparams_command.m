@@ -135,6 +135,22 @@ else
     params.gpu = false;
 end
 
+% hrv_spec
+idx = find(contains(inputs,'hrv_spec'));
+if ~isempty(idx)
+    params.hrv_spec = varargin{idx*2};
+else
+    params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
+end
+
+% hrv_overlap
+idx = find(contains(inputs,'hrv_overlap'));
+if ~isempty(idx)
+    params.hrv_overlap = varargin{idx*2};
+else
+    params.hrv_overlap =  0.25;
+end
+
 % Plot outputs
 idx = find(contains(inputs,'vis'));
 if ~isempty(idx)

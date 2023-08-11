@@ -26,7 +26,7 @@ p = fileparts(which('eegplugin_BrainBeats.m'));
 addpath(p);
 addpath(fullfile(p,'functions'))
 addpath(fullfile(p,'sample_data'))
-addpath(fullfile(p,'functions','restingIAF'));
+%addpath(fullfile(p,'functions','restingIAF'));
 
 % find menu
 menu = findobj(fig, 'tag', 'tools');

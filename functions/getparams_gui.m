@@ -132,6 +132,10 @@ else
     params.clean_eeg = false;
 end
 
+% defaults (FIXME: add options to GUI)
+params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
+params.hrv_overlap =  0.25; % 25%
+            
 % % Normalize freq features
 % params.norm = logical(params.norm);
 % 

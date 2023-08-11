@@ -1,9 +1,56 @@
-%% Brainbeats_process
-% Process single EEGLAB files containg EEG and cardiovascular (ECG or PPG)
-% signals. 
+% BRAINBEATS_PROCESS - process ECG (HRV) and EEG data. Either can be processed
+%                      separately. Process single EEGLAB files containg EEG 
+%                      and cardiovascular (ECG or PPG) signals.
+% Usage:
+%    [EEG, features] = brainbeats_process(EEG, 'key', 'val')
 % 
+% Inputs:
+%  'analysis'       - ['bep'|'features'|'rm_heart'] extract 'bep' (brain evoked potential  
+%                     and clean RR), or extract HRV and/or EEG 'features', or 'rm_heart'
+%                     to remove the heart contribution from the EEG.
+%  'heart_signal'   - [ppg'|'ecg'] use PPG or ECG
+%  'heart_channels' - [cell array of string] name(s) of the channel to
+%                     process
+%  'rr_correct'     - [see below] correction method for RR.
+%                       'pchip' - ????? (default)
+%                       'linear' - 
+%                       'cubic' -
+%                       'nearest' -
+%                       'next' -
+%                       'previous' -
+%                       'spline' -
+%                       'cubic' -
+%                       'makima' -
+%                       'remove' -
+%  'clean_eeg'      - [0|1] clean EEG with ASR
+%  'parpool'        - [0|1] use paralell toolbox. Default is 0.
+%  'rm_heart'       - [0|1] remvove heart channel (1) after processing it,
+%                     or not (0). Default is on.
+%  'hrv_features'   - [cell array of string] HRV features to compute. See
+%                     GET_HRV_FEATURES for more information. Choices are
+%                     'time' (time-domain measures), 'frequency' (frequency
+%                     domain measures, and 'nonlinear' (non linear
+%                     measures)
+%  'hrv_spec'       - ['LombScargle'|'pwelch'|'fft'|'burg'] method to compute the 
+%                     HRV spectrum. Default is 'LombScargle'.
+%  'eeg_features'   - [cell array of string] HRV features to compute. See
+%                     GET_EEG_FEATURES for more information. Choices are
+%                     'time' (time-domain measures), 'frequency' (frequency
+%                     domain measures), and 'nonlinear' (non linear
+%                     measures)
+%  'norm'           - [0|1] normalize measure (describe with respect to
+%                     what????????)
+%  'gpu'            - [0|1] use GPU. Default is 0.
+%  'vis'            - [0|1] set vizualization to on (1) or off (0). Default is on.
+%  'save'           - [0|1] save results into a MATLAB file (1) or not (0). Default is on.
+%
+% Outputs:
+%   EEG      - modified EEGLAB dataset. A EEG.brainbeats field is created
+%              containing all the measures computed for the dataset.
+%   features - Features computed (same as field EEG.brainbeats)
+%
+% Other options (not documented yet)
 % Method 1: Hearbteat evoked potentials (HEP) and oscillations (HEO).
-% Method 2: Extract EEG and HRV features.
 % Method 3: Remove heart components from EEG signals.
 % 
 % Copyright (C) - Cedric Cannard, 2023
@@ -131,7 +178,6 @@ end
 EEG.data = double(EEG.data);  % ensure double precision
 params.fs = EEG.srate;
 
-
 %%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
 if strcmp(params.analysis,'rm_heart')
     EEG = remove_heartcomp(EEG, params);
@@ -253,10 +299,6 @@ if contains(params.analysis, {'features' 'hep'})
     %%%%% MODE 3: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
 
-            % defaults (FIXME: add options to GUI)
-            params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
-            params.hrv_overlap =  0.25; % 25%
-
             % File length (we take the whole series for now to allow ULF and VLF as much as possible)
             file_length = floor(EEG.xmax)-1;
             if file_length < 300
@@ -290,6 +332,7 @@ if contains(params.analysis, {'features' 'hep'})
 
     end
 end
+EEG.brainbeats = Features;
 
 %%%%%% PLOT & SAVE FEATURES %%%%%%%
 if strcmp(params.analysis,'features')
@@ -324,6 +367,7 @@ elseif contains(params.analysis,'rm_heart')
     com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','clean_eeg',%g,'vis',%g,'save',%g);",...
         params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.clean_eeg,params.vis,params.save));
 end
+com = char(com);
 
 %%%%%%%%%%%%%%%%%%%%%%%% References %%%%%%%%%%%%%%%%%%%%%%%%
 if params.hrv
