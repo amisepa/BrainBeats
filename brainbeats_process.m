@@ -331,8 +331,9 @@ if contains(params.analysis, {'features' 'hep'})
         Features.EEG = eeg_features;
 
     end
+
+    EEG.features = Features;
 end
-EEG.brainbeats = Features;
 
 %%%%%% PLOT & SAVE FEATURES %%%%%%%
 if strcmp(params.analysis,'features')
@@ -340,7 +341,7 @@ if strcmp(params.analysis,'features')
     % Save in same repo as loaded file (FIXME: ASK USER FOR OUTPUT DIR)
     if params.save
         outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
-        fprintf("Saving Features in %s \n", outputPath);
+        fprintf("Saving features in EEG.features and exporting them here: %s \n", outputPath);
         save(outputPath,'Features');
     end
 
