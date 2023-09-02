@@ -140,7 +140,7 @@ idx = find(contains(inputs,'hrv_spec'));
 if ~isempty(idx)
     params.hrv_spec = varargin{idx*2};
 else
-    params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
+    params.hrv_spec = 'LombScargle';  % 'LombScargle' (default), 'pwelch', 'fft'
 end
 
 % hrv_overlap

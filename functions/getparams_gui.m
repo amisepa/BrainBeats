@@ -1,4 +1,8 @@
-% Get parameters specified by user via GUI.
+% Get parameters specified by user via GUI, stoted into the "params"
+% structure.
+% 
+% Example: 
+%   params = getparams_gui(EEG)
 % 
 % Cedric Cannard, April 2023 
 
@@ -133,5 +137,5 @@ else
 end
 
 % defaults (FIXME: add options to GUI)
-params.hrv_spec = 'LombScargle';  % 'LombScargle' (default), 'pwelch', 'fft', 'burg'
-params.hrv_overlap =  0.25; % 25%
+params.hrv_spec = 'LombScargle';  % 'LombScargle' (default), 'pwelch', 'fft'
+params.hrv_overlap =  0.25; % 25% overlap for sliding windows

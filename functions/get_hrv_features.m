@@ -130,11 +130,8 @@ if params.hrv_frequency
                         pwr = fft(NN_resamp).*conj(fft(NN_resamp))/length(NN_resamp);
                         freqs = resamp_freq*(0:floor(length(NN_resamp)/2)+1)/length(NN_resamp);
                         pwr = pwr(1:length(freqs));
-            
-                    else
-                        error("params.hrv_spec can only be 'LombScargle', 'pwelch', or 'fft'. ")
                     end
-                end
+                end 
                 
                 % Freq index
                 freq_idx = bands(iBand,1) <= freqs & freqs <= bands(iBand,2);
