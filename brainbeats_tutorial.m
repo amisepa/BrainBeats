@@ -1,3 +1,7 @@
+% BrainBeats tutorial
+% Launch each section one by one by clicking in the section and pressing: 
+% CTRL/CMD + ENTER
+
 clear; close all; clc
 eeglab; close; 
 mainDir = fileparts(which('eegplugin_BrainBeats.m')); cd(mainDir);
@@ -30,7 +34,4 @@ EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sam
 % EEG = brainbeats_process(EEG);  % GUI mode
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,'save',false,'vis',true);
-
-
-
 

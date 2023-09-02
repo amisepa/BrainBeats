@@ -93,9 +93,13 @@ if params.hrv_frequency
             winLength = minLength(iBand);
             stepSize = winLength * (1 - params.hrv_overlap);
             nWindows = floor((NN_times(end) - winLength) / stepSize) + 1;
-    
+            
+            fprintf('Frequency band: %s \n', bandNames{iBand})
+
             % Compute PSD on each sliding window
             for iWin = 1:nWindows
+                fprintf(' - window %g \n', iWin)
+
                 start_idx = (iWin - 1) * stepSize + 1;
                 end_idx = start_idx + winLength - 1;
                 win_idx = NN_times >= start_idx & NN_times <= end_idx;
@@ -108,10 +112,10 @@ if params.hrv_frequency
                 if strcmp(params.hrv_spec, 'LombScargle')
                     if params.norm
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized'); 
-                        fprintf('Computing normalized Lomb-Scargle periodogram on the NN series. \n')
+                        fprintf('Computing normalized Lomb-Scargle periodogram on the NN series... \n')
                     else
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'psd'); 
-                        fprintf('Computing standard Lomb-Scargle periodogram on the NN series. \n')
+                        fprintf('Computing standard Lomb-Scargle periodogram on the NN series... \n')
                     end 
                 
                 % pwelch or FFT (require resampling)
@@ -124,12 +128,14 @@ if params.hrv_frequency
                     % Pwelch
                     if strcmp(params.hrv_spec, 'pwelch')
                         [pwr,freqs] = pwelch(NN_resamp,minLength(iBand),[],[],resamp_freq);
-                        
+                        fprintf('Computing pwelch on the NN series... \n')
+
                     % FFT
                     elseif strcmp(params.hrv_spec, 'fft')
                         pwr = fft(NN_resamp).*conj(fft(NN_resamp))/length(NN_resamp);
                         freqs = resamp_freq*(0:floor(length(NN_resamp)/2)+1)/length(NN_resamp);
                         pwr = pwr(1:length(freqs));
+                        fprintf('Computing FFT on the NN series... \n')
                     end
                 end 
                 
@@ -212,8 +218,11 @@ end
 
 % Nonlinear domain
 if params.hrv_nonlinear
+    
+    disp('Extracting HRV features in the time domain...')
 
     % Poincare
+    fprintf('Computing Poincare... \n')
     SDSD = std(diff(NN));
     SDRR = std(NN);
     SD1 = (1 / sqrt(2)) * SDSD;     % measures the width of poincare cloud
@@ -223,10 +232,11 @@ if params.hrv_nonlinear
     HRV.nonlinear.Poincare.SD1SD2 = SD1/SD2;
 
     % Entropy (FIXME: install get_entropy plugin if not already installed)
+    fprintf('Computing entropy features... \n')
     tau = 1;
     m = 2;
     coarseType = 'Standard deviation';
-    nScales = 20;
+    nScales = 30;
     r = .15;
     n = 2;
     filtData = false;

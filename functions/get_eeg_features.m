@@ -266,12 +266,12 @@ if params.eeg_frequency
     % eeg_features.frequency.eeg_coherence_f = f;
     % fprintf('Coherence estimated on %g pairs after excluding neighbors. \n', length(pairname));
     
-    % Use this method instead? 
-    % MVAR coefficients
+    % MVAR coefficients (faster and better approach, but doesnt deal with
+    % neighbors)
     % Faes and Nollo (2011). Multivariate Frequency Domain Analysis of 
     % Causal Interactions in Physiological Time Series. https://www.intechopen.com/chapters/12918
     nfft = fs*2;  % 2-s windows
-    fprintf('Computing multivariate frequency domain analysis of causal interactions between all EEG channels...')
+    fprintf('Computing multivariate frequency domain analysis of causal interactions between all EEG channels... \n')
     Su = eye(nChan,nChan);
     [DC,DTF,PDC,~,~,COH,PCOH,~,~,~,~,f] = fdMVAR_5order(signals,Su,nfft,fs);
 
