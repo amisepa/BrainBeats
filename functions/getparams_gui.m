@@ -39,7 +39,7 @@ uilist = { ...
     ...
     {} {'style' 'checkbox' 'tag' 'eeg_time' 'string' ' Time domain (RMS, mode, skewness, kurtosis, IQR, etc.)' 'value' 1 'userdata' 'eeg' 'enable' 'off'} ...
     ...
-    {} {'style' 'checkbox' 'tag' 'eeg_frequency' 'string' ' Frequency domain (delta, theta, alpha, beta, low-gamma, IAF, asymmetry, coherence)' 'value' 1 'userdata' 'eeg' 'enable' 'off'} ...
+    {} {'style' 'checkbox' 'tag' 'eeg_frequency' 'string' ' Frequency domain (band-power, IAF, asymmetry, coherence)' 'value' 1 'userdata' 'eeg' 'enable' 'off'} ...
     ...
     {} {'style' 'checkbox' 'tag' 'eeg_nonlinear' 'string' ' Nonlinear domain (entropy)' 'value' 1 'userdata' 'eeg' 'enable' 'off'} ...
     {} ...
@@ -133,20 +133,5 @@ else
 end
 
 % defaults (FIXME: add options to GUI)
-params.hrv_spec = 'Lomb-Scargle periodogram';  % 'Lomb-Scargle periodogram' (default), 'pwelch', 'fft', 'burg'
+params.hrv_spec = 'LombScargle';  % 'LombScargle' (default), 'pwelch', 'fft', 'burg'
 params.hrv_overlap =  0.25; % 25%
-            
-% % Normalize freq features
-% params.norm = logical(params.norm);
-% 
-% % Parallel computing
-% params.parpool = logical(params.parpool);
-% 
-% % GPU computing
-% params.gpu = logical(params.gpu);
-% 
-% % Visualize outputs
-% params.vis = logical(params.vis);
-% 
-% % Save outputs
-% params.save = logical(params.save);

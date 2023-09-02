@@ -42,7 +42,13 @@
 %                     GET_EEG_FEATURES for more information. Choices are
 %                     'time' (time domain), 'frequency' (frequency domain), 
 %                     and 'nonlinear' (nonlinear domain).
-%  'norm'           - [0|1] normalize HRV and EEG spectra (Features mode). 
+%  'norm'           - [0|1] normalize HRV and EEG spectra (Features mode).
+%                     For HRV, applied during Lomb-Scargle periodogram
+%                     estimation by scaling the total power with variance
+%                     in the time series, and in a 2nd step dy dividing
+%                     each band power by total power to provide more
+%                     intuitive measure of the relative contribution of
+%                     each frequency component to overall power. 
 %  'gpu'            - [0|1] use GPU. Default is 0.
 %  'vis'            - [0|1] set vizualization to on (1) or off (0). Default is on.
 %  'save'           - [0|1] save results into a MATLAB file (1) or not (0). Default is on.
