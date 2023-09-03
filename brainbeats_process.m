@@ -1,7 +1,7 @@
 % BRAINBEATS_PROCESS - Process single EEGLAB files containg EEG and cardiovascular (ECG or PPG) signals.
 % 
 % Usage:
-%    [EEG, features] = brainbeats_process(EEG, 'key', 'val')
+%    [EEG, com] = brainbeats_process(EEG, 'key', 'val')
 % 
 % Inputs:
 %  'analysis'       - 'hep' (heartbeat-evoked potentials) | 'features' (extract EEG and HRV features) |
@@ -64,7 +64,7 @@
 % 
 % Copyright (C) - Cedric Cannard, 2023
 
-function [EEG, Features, com] = brainbeats_process(EEG, varargin)
+function [EEG, com] = brainbeats_process(EEG, varargin)
 
 Features = [];
 com = '';

@@ -19,7 +19,7 @@
 function vers = eegplugin_BrainBeats(fig,try_strings,catch_strings)
 
 % Plugin version
-vers = '1.1';
+vers = '1.2';
 
 % Add paths to subfolders
 p = fileparts(which('eegplugin_BrainBeats.m'));
@@ -32,10 +32,10 @@ addpath(fullfile(p,'sample_data'))
 menu = findobj(fig, 'tag', 'tools');
 
 % menu callbacks
-process = [try_strings.no_check '[EEG, FEATURES, LASTCOM] = brainbeats_process(EEG);' catch_strings.new_and_hist];
-analyze = [try_strings.no_check '[] = brainbeats_analyze();' catch_strings.new_and_hist];
+process = [try_strings.no_check '[EEG, LASTCOM] = brainbeats_process(EEG);' catch_strings.new_and_hist];
+% analyze = [try_strings.no_check '[] = brainbeats_analyze();' catch_strings.new_and_hist];
   
 % create menus
 submenu = uimenu(menu, 'Label', 'BrainBeats', 'separator', 'on');
 uimenu(submenu, 'Label', 'Process file (subject level)', 'CallBack', process);
-uimenu(submenu, 'Label', 'Run statistics on features (group level)', 'CallBack', analyze);
+% uimenu(submenu, 'Label', 'Run statistics on features (group level)', 'CallBack', analyze);

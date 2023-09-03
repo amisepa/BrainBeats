@@ -249,8 +249,8 @@ if params.hrv_nonlinear
     % figure; area(HRV.MFE_scales, HRV.nonlinear.multiscale_fuzzy_entropy); axis tight
     
 
-
-    % Phase rectified signal averaging (PRSA) (FIXME)
+    % Phase rectified signal averaging (PRSA)
+    fprintf('Computing phase rectified signal averaging (PRSA)... \n')
     thresh = 20;
     lowAnchor = 1-thresh/100-.0001; % lower limit for the AC anchor selection
     highAnchor = 1+thresh/100;      % The upper limit for the DC anchor selection
