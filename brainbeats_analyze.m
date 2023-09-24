@@ -10,12 +10,15 @@
 
 function brainbeats_analyze()
 
-error('Sorry, group level statistics are not available yet. Work in progress!Coming soon!')
-% clear; close all; clc
-% eeglab; close;
-% mainDir = fileparts(which('eegplugin_BrainBeats.m')); cd(mainDir);
-% outDir = fullfile(mainDir,'statistics');  
-% mkdir(outDir); cd(mainDir)
+% error('Sorry, group level statistics are not available yet. Work in progress!Coming soon!')
+clear; close all; clc
+eeglab; close;
+mainDir = fileparts(which('eegplugin_BrainBeats.m')); cd(mainDir);
+outDir = 'Desktop\stats';
+mkdir(outDir); cd(mainDir)
+
+mainDir = 'G:\Shared drives\Science\Monroe_Interaxon_IONS';
+codeDir = fullfile(mainDir, 'virtual_lab', 'analysis');
 
 norm = false;
 
@@ -24,7 +27,8 @@ EEG = table.empty;
 
 % Condition/group 1
 % [files,path] = uigetfile('*.mat','Select feature files for condition/group 1','MultiSelect','on');
-files = {'sub-01_mindwandering_session-1_features.mat'	'sub-02_mindwandering_session-2_features.mat'	'sub-03_mindwandering_session-2_features.mat'	'sub-04_mindwandering_session-1_features.mat'	'sub-05_mindwandering_session-1_features.mat'	'sub-06_mindwandering_session-1_features.mat'	'sub-07_mindwandering_session-2_features.mat'	'sub-08_mindwandering_session-1_features.mat'	'sub-09_mindwandering_session-1_features.mat'	'sub-10_mindwandering_session-1_features.mat'	'sub-11_mindwandering_session-1_features.mat'	'sub-12_mindwandering_session-1_features.mat'	'sub-13_mindwandering_session-2_features.mat'};
+% files = {'sub-01_mindwandering_session-1_features.mat'	'sub-02_mindwandering_session-2_features.mat'	'sub-03_mindwandering_session-2_features.mat'	'sub-04_mindwandering_session-1_features.mat'	'sub-05_mindwandering_session-1_features.mat'	'sub-06_mindwandering_session-1_features.mat'	'sub-07_mindwandering_session-2_features.mat'	'sub-08_mindwandering_session-1_features.mat'	'sub-09_mindwandering_session-1_features.mat'	'sub-10_mindwandering_session-1_features.mat'	'sub-11_mindwandering_session-1_features.mat'	'sub-12_mindwandering_session-1_features.mat'	'sub-13_mindwandering_session-2_features.mat'};
+files = {'sub-54_pre_features-eeg.mat'	'sub-56_pre_features-eeg.mat'};
 path = fullfile(mainDir,'data');
 for iFile = 1:length(files)
     
@@ -165,11 +169,14 @@ labels = [HRV.Properties.VariableNames EEG.Properties.VariableNames ];
 plot_corrmatrix(C1,labels)
 
 load hospital
-X = [hospital.Weight hospital.BloodPressure];
+X = [hospital.Age hospital.Weight];
+labels = {'Age' 'Weight'};
 figure('color','w'); 
-subplot(2,1,1); plotmatrix(C); title('Scatter plot'); 
+subplot(3,1,1); plotmatrix(X); title('Scatter plot'); 
 R = corrcoef(X);
-subplot(2,1,2); imagesc(R); title('Correlation coefficient (R)'); colorbar
+subplot(3,1,2); imagesc(R); title('Correlation coefficient (R)'); colorbar
+subplot(3,1,3)
+plot_corrmatrix(R,labels)
 
 %% Z-normalization
 

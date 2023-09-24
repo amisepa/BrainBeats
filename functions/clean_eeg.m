@@ -1,6 +1,6 @@
 function [EEG, params] = clean_eeg(EEG, params)
 
-% Remove bad channels
+% Filter, re-reference, and remove bad channels
 if params.clean_eeg_step == 0
     
     EEG = pop_eegfiltnew(EEG,'locutoff',1,'minphase',false);    % use causal minimum-phase filter for pre-event analysis

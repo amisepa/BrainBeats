@@ -230,11 +230,11 @@ elseif strcmpi(sig_type, 'ppg')
     end
 
     BUFLN = 4096;                       % must be a power of 2
-    LPERIOD  = fs*8;                    % learning period in samples (default = 8 s)
+    LPERIOD  = fs*20;                    % learning period in samples (default = 8 s)
     thresh = 5;                         % minimum threshold value (default = 5)
     EyeClosing = round(fs* .3);        % eye-closing period is set to 0.3 sec (300 ms)
     ExpectPeriod = round(fs* 2.5);	    % threshold in s (default = 2.5) -> adjust if no pulse found
-    SLPwindow = round(fs* .17);        % Slope window size (deafult = 170 ms)
+    SLPwindow = round(fs* .17);        % Slope window size (default = 170 ms)
     timer = 0;
     
     Rpeaks = [];  % these are actually onsets of heartbeats (or pulse wave) 

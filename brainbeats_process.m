@@ -330,22 +330,23 @@ if contains(params.analysis, {'features' 'hep'})
             [EEG, params] = clean_eeg(EEG, params);
         end
 
-        % Extract EEG features
+        % Extract EEG features and store in EEGLAB structure
         if params.eeg
             params.chanlocs = EEG.chanlocs;
-            eeg_features = get_eeg_features(EEG.data, params);
+            EEG.features = get_eeg_features(EEG.data, params);
         end
 
-        % Final output with everything
-        Features.EEG = eeg_features;
+        % Final output with everything to export separately as .mat file
+        Features.EEG = EEG.features;
 
     end
 
-    EEG.features = Features;
 end
 
 %%%%%% PLOT & SAVE FEATURES %%%%%%%
 if strcmp(params.analysis,'features')
+    
+    [hrv, eeg] = extract_features(Features);   
 
     % Save in same repo as loaded file (FIXME: ASK USER FOR OUTPUT DIR)
     if params.save
