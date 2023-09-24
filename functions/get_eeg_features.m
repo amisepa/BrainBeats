@@ -281,19 +281,21 @@ if params.eeg_frequency
     [dc,~,pdc,gpdc,~,coh,pcoh,~,~,~,~,f] = fdMVAR_5order(signals,Su,nfft,fs);
 
     % Deal with complex and negative values
-    if ~isreal(dc)
-        dc = abs(dc);  % abs to convert everything to positive, real to preserve polarity
-    end
-    if ~isreal(pdc)
-        pdc = abs(pdc);
-    end
     if ~isreal(coh)
         coh = abs(coh);
     end
     if ~isreal(pcoh)
         pcoh = abs(pcoh);
     end
-    
+    if ~isreal(dc)
+        dc = abs(dc);  % abs to convert everything to positive, real to preserve polarity
+    end
+    if ~isreal(pdc)
+        pdc = abs(pdc);
+    end
+    if ~isreal(gpdc)
+        gpdc = abs(gpdc);
+    end
     eeg_features.frequency.eeg_coh_f = f;
     eeg_features.frequency.eeg_coh = coh;
     eeg_features.frequency.eeg_pcoh = pcoh;
@@ -308,8 +310,8 @@ if params.eeg_frequency
     coh_delta = tril(mean(coh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     coh_delta(logical(eye(size(coh_delta)))) = 1;           % one diagonal
     % imagesc(abs(coh_delta)); colorbar
-    labels = {chanlocs.labels};
-    plot_corrmatrix(coh_delta,labels)
+    % labels = {chanlocs.labels};
+    % plot_corrmatrix(coh_delta,labels)
     idx = f>=3 & f<8;
     coh_theta = tril(mean(coh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     coh_theta(logical(eye(size(coh_theta)))) = 1;           % one diagonal
@@ -353,9 +355,9 @@ if params.eeg_frequency
     idx = f>=8 & f<=13;
     pcoh_alpha = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     pcoh_alpha(logical(eye(size(pcoh_alpha)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_alpha)); colorbar
+    figure; imagesc(abs(pcoh_alpha)); colorbar
     labels = {chanlocs.labels};
-    plot_corrmatrix(pcoh_alpha,labels)
+    figure; plot_corrmatrix(pcoh_alpha,labels)
     idx = f>13 & f<=30;
     pcoh_beta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
     pcoh_beta(logical(eye(size(pcoh_beta)))) = 1;             % one diagonal
@@ -376,31 +378,31 @@ if params.eeg_frequency
     % information in neural circuits. Based on Granger Causality. 
     idx = f<=3;
     dc_delta = tril(mean(dc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
-    pcoh_delta(logical(eye(size(pcoh_delta)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_delta)); colorbar
+    dc_delta(logical(eye(size(dc_delta)))) = 1;           % one diagonal
+    % imagesc(abs(dc_delta)); colorbar
     idx = f>=3 & f<8;
-    pcoh_theta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
-    pcoh_theta(logical(eye(size(pcoh_theta)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_theta)); colorbar
+    dc_theta = tril(mean(dc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    dc_theta(logical(eye(size(dc_theta)))) = 1;           % one diagonal
+    % imagesc(abs(dc_theta)); colorbar
     idx = f>=8 & f<=13;
-    pcoh_alpha = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
-    pcoh_alpha(logical(eye(size(pcoh_alpha)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_alpha)); colorbar
+    dc_alpha = tril(mean(dc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    dc_alpha(logical(eye(size(dc_alpha)))) = 1;           % one diagonal
+    % figure;imagesc(abs(dc_alpha)); colorbar
     labels = {chanlocs.labels};
-    plot_corrmatrix(pcoh_alpha,labels)
+    plot_corrmatrix(dc_alpha,labels)
     idx = f>13 & f<=30;
-    pcoh_beta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
-    pcoh_beta(logical(eye(size(pcoh_beta)))) = 1;             % one diagonal
-    % imagesc(abs(pcoh_beta)); colorbar
+    dc_beta = tril(mean(dc(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
+    dc_beta(logical(eye(size(dc_beta)))) = 1;             % one diagonal
+    % imagesc(abs(dc_beta)); colorbar
     idx = f>30 & f<=50;
-    pcoh_lowgamma = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1); % zero upper triangle
-    pcoh_lowgamma(logical(eye(size(pcoh_lowgamma)))) = 1;     % one diagonal
-    % imagesc(abs(pcoh_lowgamma)); colorbar
-    eeg_features.frequency.eeg_pcoh_delta = pcoh_delta;
-    eeg_features.frequency.eeg_pcoh_theta = pcoh_theta;
-    eeg_features.frequency.eeg_pcoh_alpha = pcoh_alpha;
-    eeg_features.frequency.eeg_pcoh_beta = pcoh_beta;
-    eeg_features.frequency.eeg_pcoh_lowgamma = pcoh_lowgamma;
+    dc_lowgamma = tril(mean(dc(:,:,idx),3,'omitnan'),-1); % zero upper triangle
+    dc_lowgamma(logical(eye(size(dc_lowgamma)))) = 1;     % one diagonal
+    % imagesc(abs(dc_lowgamma)); colorbar
+    eeg_features.frequency.eeg_dc_delta = dc_delta;
+    eeg_features.frequency.eeg_dc_theta = dc_theta;
+    eeg_features.frequency.eeg_dc_alpha = dc_alpha;
+    eeg_features.frequency.eeg_dc_beta = dc_beta;
+    eeg_features.frequency.eeg_dc_lowgamma = dc_lowgamma;
 
     % PARTIAL DIRECTED COHERENCE PER BAND
     % By accounting for all other signals, it provides a more refined measure 
@@ -409,32 +411,68 @@ if params.eeg_frequency
     % on Y, not mediated through other signals. 
     % DC = total influence (direct + mediated), PDC = direct influenc only.
     idx = f<=3;
-    pcoh_delta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
-    pcoh_delta(logical(eye(size(pcoh_delta)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_delta)); colorbar
+    pdc_delta = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    pdc_delta(logical(eye(size(pdc_delta)))) = 1;           % one diagonal
+    % imagesc(abs(pdc_delta)); colorbar
     idx = f>=3 & f<8;
-    pcoh_theta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
-    pcoh_theta(logical(eye(size(pcoh_theta)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_theta)); colorbar
+    pdc_theta = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    pdc_theta(logical(eye(size(pdc_theta)))) = 1;           % one diagonal
+    % imagesc(abs(pdc_theta)); colorbar
     idx = f>=8 & f<=13;
-    pcoh_alpha = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
-    pcoh_alpha(logical(eye(size(pcoh_alpha)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_alpha)); colorbar
+    pdc_alpha = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    pdc_alpha(logical(eye(size(pdc_alpha)))) = 1;           % one diagonal
+    % figure; imagesc(abs(pdc_alpha)); colorbar
     labels = {chanlocs.labels};
-    plot_corrmatrix(pcoh_alpha,labels)
+    plot_corrmatrix(pdc_alpha,labels)
     idx = f>13 & f<=30;
-    pcoh_beta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
-    pcoh_beta(logical(eye(size(pcoh_beta)))) = 1;             % one diagonal
-    % imagesc(abs(pcoh_beta)); colorbar
+    pdc_beta = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
+    pdc_beta(logical(eye(size(pdc_beta)))) = 1;             % one diagonal
+    % imagesc(abs(pdc_beta)); colorbar
     idx = f>30 & f<=50;
-    pcoh_lowgamma = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1); % zero upper triangle
-    pcoh_lowgamma(logical(eye(size(pcoh_lowgamma)))) = 1;     % one diagonal
-    % imagesc(abs(pcoh_lowgamma)); colorbar
-    eeg_features.frequency.eeg_pcoh_delta = pcoh_delta;
-    eeg_features.frequency.eeg_pcoh_theta = pcoh_theta;
-    eeg_features.frequency.eeg_pcoh_alpha = pcoh_alpha;
-    eeg_features.frequency.eeg_pcoh_beta = pcoh_beta;
-    eeg_features.frequency.eeg_pcoh_lowgamma = pcoh_lowgamma;
+    pdc_lowgamma = tril(mean(pdc(:,:,idx),3,'omitnan'),-1); % zero upper triangle
+    pdc_lowgamma(logical(eye(size(pdc_lowgamma)))) = 1;     % one diagonal
+    % imagesc(abs(pdc_lowgamma)); colorbar
+    eeg_features.frequency.eeg_pdc_delta = pdc_delta;
+    eeg_features.frequency.eeg_pdc_theta = pdc_theta;
+    eeg_features.frequency.eeg_pdc_alpha = pdc_alpha;
+    eeg_features.frequency.eeg_pdc_beta = pdc_beta;
+    eeg_features.frequency.eeg_pdc_lowgamma = pdc_lowgamma;
+
+    % GENERALIZED PARTIAL DIRECTED COHERENCE PER BAND
+    % Extension of PDC that factors in the input noise covariance when 
+    % determining causality. This normalization is considering the relative 
+    % strength of the direct connections in the presence of background noise 
+    % or input variances. It provides a more detailed picture of the dynamics, 
+    % especially when the system's components (e.g., EEG channels or brain regions) 
+    % have different noise levels or variances. especially useful in scenarios 
+    % where there's variability in the noise levels or input variances across signals or brain regions.
+    idx = f<=3;
+    gpdc_delta = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    gpdc_delta(logical(eye(size(gpdc_delta)))) = 1;           % one diagonal
+    % figure; imagesc(abs(gpdc_delta)); colorbar
+    idx = f>=3 & f<8;
+    gpdc_theta = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    gpdc_theta(logical(eye(size(gpdc_theta)))) = 1;           % one diagonal
+    % figure; imagesc(abs(gpdc_theta)); colorbar
+    idx = f>=8 & f<=13;
+    gpdc_alpha = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
+    gpdc_alpha(logical(eye(size(gpdc_alpha)))) = 1;           % one diagonal
+    % figure; imagesc(abs(gpdc_alpha)); colorbar
+    % labels = {chanlocs.labels};
+    % plot_corrmatrix(gpdc_alpha,labels)
+    idx = f>13 & f<=30;
+    gpdc_beta = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
+    gpdc_beta(logical(eye(size(gpdc_beta)))) = 1;             % one diagonal
+    figure; imagesc(abs(gpdc_beta)); colorbar
+    idx = f>30 & f<=50;
+    gpdc_lowgamma = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1); % zero upper triangle
+    gpdc_lowgamma(logical(eye(size(gpdc_lowgamma)))) = 1;     % one diagonal
+    % figure; imagesc(abs(gpdc_lowgamma)); colorbar
+    eeg_features.frequency.eeg_gpdc_delta = gpdc_delta;
+    eeg_features.frequency.eeg_gpdc_theta = gpdc_theta;
+    eeg_features.frequency.eeg_gpdc_alpha = gpdc_alpha;
+    eeg_features.frequency.eeg_gpdc_beta = gpdc_beta;
+    eeg_features.frequency.eeg_gpdc_lowgamma = gpdc_lowgamma;
 
     warning('Causal relationships between neighboring channels should be interpreted with caution due to volume conduction effects. See for example https://escholarship.org/content/qt5fb0q5wx/qt5fb0q5wx.pdf')
 
