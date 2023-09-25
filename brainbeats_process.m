@@ -346,8 +346,6 @@ end
 %%%%%% PLOT & SAVE FEATURES %%%%%%%
 if strcmp(params.analysis,'features')
     
-    [hrv, eeg] = extract_features(Features);   
-
     % Save in same repo as loaded file (FIXME: ASK USER FOR OUTPUT DIR)
     if params.save
         outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));

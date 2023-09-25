@@ -309,25 +309,25 @@ if params.eeg_frequency
     idx = f<=3;
     coh_delta = tril(mean(coh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     coh_delta(logical(eye(size(coh_delta)))) = 1;           % one diagonal
-    % imagesc(abs(coh_delta)); colorbar
+    % imagesc(coh_delta); colorbar
     % labels = {chanlocs.labels};
     % plot_corrmatrix(coh_delta,labels)
     idx = f>=3 & f<8;
     coh_theta = tril(mean(coh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     coh_theta(logical(eye(size(coh_theta)))) = 1;           % one diagonal
-    % imagesc(abs(coh_theta)); colorbar
+    % imagesc(coh_theta); colorbar
     idx = f>=8 & f<=13;
     coh_alpha = tril(mean(coh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     coh_alpha(logical(eye(size(coh_alpha)))) = 1;           % one diagonal
-    % imagesc(abs(coh_alpha)); colorbar
+    % imagesc(coh_alpha); colorbar
     idx = f>13 & f<=30;
     coh_beta = tril(mean(coh(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
     coh_beta(logical(eye(size(coh_beta)))) = 1;             % one diagonal
-    % imagesc(abs(coh_beta)); colorbar
+    % imagesc(coh_beta); colorbar
     idx = f>30 & f<=50;
     coh_lowgamma = tril(mean(coh(:,:,idx),3,'omitnan'),-1); % zero upper triangle
     coh_lowgamma(logical(eye(size(coh_lowgamma)))) = 1;     % one diagonal
-    % imagesc(abs(coh_lowgamma)); colorbar
+    % imagesc(coh_lowgamma); colorbar
     eeg_features.frequency.eeg_coh_delta = coh_delta;
     eeg_features.frequency.eeg_coh_theta = coh_theta;
     eeg_features.frequency.eeg_coh_alpha = coh_alpha;
@@ -347,21 +347,21 @@ if params.eeg_frequency
     idx = f<=3;
     pcoh_delta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     pcoh_delta(logical(eye(size(pcoh_delta)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_delta)); colorbar
+    % imagesc(pcoh_delta); colorbar
     idx = f>=3 & f<8;
     pcoh_theta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     pcoh_theta(logical(eye(size(pcoh_theta)))) = 1;           % one diagonal
-    % imagesc(abs(pcoh_theta)); colorbar
+    % imagesc(pcoh_theta); colorbar
     idx = f>=8 & f<=13;
     pcoh_alpha = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     pcoh_alpha(logical(eye(size(pcoh_alpha)))) = 1;           % one diagonal
-    figure; imagesc(abs(pcoh_alpha)); colorbar
-    labels = {chanlocs.labels};
-    figure; plot_corrmatrix(pcoh_alpha,labels)
+    % figure; imagesc(pcoh_alpha); colorbar
+    % labels = {chanlocs.labels};
+    % figure; plot_corrmatrix(pcoh_alpha,labels)
     idx = f>13 & f<=30;
     pcoh_beta = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
     pcoh_beta(logical(eye(size(pcoh_beta)))) = 1;             % one diagonal
-    % imagesc(abs(pcoh_beta)); colorbar
+    % imagesc(pcoh_beta); colorbar
     idx = f>30 & f<=50;
     pcoh_lowgamma = tril(mean(pcoh(:,:,idx),3,'omitnan'),-1); % zero upper triangle
     pcoh_lowgamma(logical(eye(size(pcoh_lowgamma)))) = 1;     % one diagonal
@@ -379,25 +379,25 @@ if params.eeg_frequency
     idx = f<=3;
     dc_delta = tril(mean(dc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     dc_delta(logical(eye(size(dc_delta)))) = 1;           % one diagonal
-    % imagesc(abs(dc_delta)); colorbar
+    % imagesc(dc_delta); colorbar
     idx = f>=3 & f<8;
     dc_theta = tril(mean(dc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     dc_theta(logical(eye(size(dc_theta)))) = 1;           % one diagonal
-    % imagesc(abs(dc_theta)); colorbar
+    % imagesc(dc_theta); colorbar
     idx = f>=8 & f<=13;
     dc_alpha = tril(mean(dc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     dc_alpha(logical(eye(size(dc_alpha)))) = 1;           % one diagonal
-    % figure;imagesc(abs(dc_alpha)); colorbar
-    labels = {chanlocs.labels};
-    plot_corrmatrix(dc_alpha,labels)
+    % figure;imagesc(dc_alpha); colorbar
+    % labels = {chanlocs.labels};
+    % plot_corrmatrix(dc_alpha,labels)
     idx = f>13 & f<=30;
     dc_beta = tril(mean(dc(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
     dc_beta(logical(eye(size(dc_beta)))) = 1;             % one diagonal
-    % imagesc(abs(dc_beta)); colorbar
+    % imagesc(dc_beta); colorbar
     idx = f>30 & f<=50;
     dc_lowgamma = tril(mean(dc(:,:,idx),3,'omitnan'),-1); % zero upper triangle
     dc_lowgamma(logical(eye(size(dc_lowgamma)))) = 1;     % one diagonal
-    % imagesc(abs(dc_lowgamma)); colorbar
+    % imagesc(dc_lowgamma); colorbar
     eeg_features.frequency.eeg_dc_delta = dc_delta;
     eeg_features.frequency.eeg_dc_theta = dc_theta;
     eeg_features.frequency.eeg_dc_alpha = dc_alpha;
@@ -413,25 +413,25 @@ if params.eeg_frequency
     idx = f<=3;
     pdc_delta = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     pdc_delta(logical(eye(size(pdc_delta)))) = 1;           % one diagonal
-    % imagesc(abs(pdc_delta)); colorbar
+    % imagesc(pdc_delta); colorbar
     idx = f>=3 & f<8;
     pdc_theta = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     pdc_theta(logical(eye(size(pdc_theta)))) = 1;           % one diagonal
-    % imagesc(abs(pdc_theta)); colorbar
+    % imagesc(pdc_theta); colorbar
     idx = f>=8 & f<=13;
     pdc_alpha = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     pdc_alpha(logical(eye(size(pdc_alpha)))) = 1;           % one diagonal
-    % figure; imagesc(abs(pdc_alpha)); colorbar
-    labels = {chanlocs.labels};
-    plot_corrmatrix(pdc_alpha,labels)
+    % figure; imagesc(pdc_alpha); colorbar
+    % labels = {chanlocs.labels};
+    % plot_corrmatrix(pdc_alpha,labels)
     idx = f>13 & f<=30;
     pdc_beta = tril(mean(pdc(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
     pdc_beta(logical(eye(size(pdc_beta)))) = 1;             % one diagonal
-    % imagesc(abs(pdc_beta)); colorbar
+    % imagesc(pdc_beta); colorbar
     idx = f>30 & f<=50;
     pdc_lowgamma = tril(mean(pdc(:,:,idx),3,'omitnan'),-1); % zero upper triangle
     pdc_lowgamma(logical(eye(size(pdc_lowgamma)))) = 1;     % one diagonal
-    % imagesc(abs(pdc_lowgamma)); colorbar
+    % imagesc(pdc_lowgamma); colorbar
     eeg_features.frequency.eeg_pdc_delta = pdc_delta;
     eeg_features.frequency.eeg_pdc_theta = pdc_theta;
     eeg_features.frequency.eeg_pdc_alpha = pdc_alpha;
@@ -449,25 +449,25 @@ if params.eeg_frequency
     idx = f<=3;
     gpdc_delta = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     gpdc_delta(logical(eye(size(gpdc_delta)))) = 1;           % one diagonal
-    % figure; imagesc(abs(gpdc_delta)); colorbar
+    % figure; imagesc(gpdc_delta); colorbar
     idx = f>=3 & f<8;
     gpdc_theta = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     gpdc_theta(logical(eye(size(gpdc_theta)))) = 1;           % one diagonal
-    % figure; imagesc(abs(gpdc_theta)); colorbar
+    % figure; imagesc(gpdc_theta); colorbar
     idx = f>=8 & f<=13;
     gpdc_alpha = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);    % zero upper triangle
     gpdc_alpha(logical(eye(size(gpdc_alpha)))) = 1;           % one diagonal
-    % figure; imagesc(abs(gpdc_alpha)); colorbar
+    % figure; imagesc(gpdc_alpha); colorbar
     % labels = {chanlocs.labels};
     % plot_corrmatrix(gpdc_alpha,labels)
     idx = f>13 & f<=30;
     gpdc_beta = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1);     % zero upper triangle
     gpdc_beta(logical(eye(size(gpdc_beta)))) = 1;             % one diagonal
-    figure; imagesc(abs(gpdc_beta)); colorbar
+    % figure; imagesc(gpdc_beta); colorbar
     idx = f>30 & f<=50;
     gpdc_lowgamma = tril(mean(gpdc(:,:,idx),3,'omitnan'),-1); % zero upper triangle
     gpdc_lowgamma(logical(eye(size(gpdc_lowgamma)))) = 1;     % one diagonal
-    % figure; imagesc(abs(gpdc_lowgamma)); colorbar
+    % figure; imagesc(gpdc_lowgamma); colorbar
     eeg_features.frequency.eeg_gpdc_delta = gpdc_delta;
     eeg_features.frequency.eeg_gpdc_theta = gpdc_theta;
     eeg_features.frequency.eeg_gpdc_alpha = gpdc_alpha;

@@ -201,62 +201,36 @@ end
 
 if params.eeg && params.eeg_frequency
 
-    try
-        f = EEG.frequency.eeg_coh_f;
-        chanlocs = params.chanlocs;
-    
-        % Coherence (measures coupling, symmetric)
-        figure('color','w');
-        COH = EEG.frequency.eeg_pcoh;
-    
-        subplot(2,2,1)
-        title('Coherence - Delta');
-        coh = mean(COH(:,:,f>0 & f<=3),3);
-        % plotconnectivity(coh_delta,'labels',{chanlocs.labels},'brainimg','off');
-        my_connplot(abs(coh),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-        % imagesc(coh); colorbar
-        % labels = {chanlocs.labels};
-        % plot_corrmatrix(coh,labels)
+    % f = EEG.frequency.eeg_coh_f;
+    chanlocs = params.chanlocs;
+    % my_connplot(EEG.frequency.eeg_pcoh_delta,'labels',{chanlocs.labels},'brainimg','off');
 
-        subplot(2,2,2)
-        title('Coherence - Theta')
-        coh = mean(COH(:,:,f>=3 & f<=7),3);
-        my_connplot(abs(coh),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-    
-        subplot(2,2,3)
-        title('Coherence - Alpha')
-        coh = mean(COH(:,:,f>=8 & f<=13),3);
-        my_connplot(abs(coh),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-    
-        subplot(2,2,4)
-        title('Coherence - Beta')
-        coh = mean(COH(:,:,f>=14 & f<=30),3);
-        my_connplot(abs(coh),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-    
-        % Directed Coherence (DC; measures causality, directionality)
-        DC = EEG.frequency.eeg_dc;
-        figure('color','w');
-        subplot(2,2,1)
-        title('Directed coherence - Delta');
-        dc = mean(DC(:,:,f>0 & f<=3),3);
-        my_connplot(abs(dc),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-    
-        subplot(2,2,2)
-        title('Directed coherence - Theta')
-        dc = mean(DC(:,:,f>=3 & f<=7),3);
-        my_connplot(abs(dc),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-    
-        subplot(2,2,3)  % alpha
-        title('Directed coherence - Alpha')
-        dc = mean(DC(:,:,f>=8 & f<=13),3);
-        my_connplot(abs(dc),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-    
-        subplot(2,2,4)  % beta
-        title('Directed coherence - Beta')
-        dc = mean(DC(:,:,f>=14 & f<=30),3);
-        my_connplot(abs(dc),'labels',{chanlocs.labels},'brainimg','off','threshold',0.5);
-    catch
-        warning('EEG coherence plots failed.')
-    end
+    % Partial coherence
+    figure('color','w');
+    % subplot(2,2,1)
+    % imagesc(EEG.frequency.eeg_pcoh_delta);
+    % % labels = {chanlocs.labels};
+    % % plot_corrmatrix(EEG.frequency.eeg_pcoh_delta,labels)
+    % title('Partial coherence - Delta'); colorbar
+    % xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
+    % yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
+
+    % subplot(2,2,2)
+    % imagesc(EEG.frequency.eeg_pcoh_theta);
+    % title('Partial coherence - Theta'); colorbar
+    % xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
+    % yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
+
+    subplot(2,1,1)
+    imagesc(EEG.frequency.eeg_pcoh_alpha);
+    title('Partial coherence - Alpha'); colorbar
+    xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
+    yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
+
+    subplot(2,1,2)
+    imagesc(EEG.frequency.eeg_pcoh_beta);
+    title('Partial coherence - Beta'); colorbar
+    xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
+    yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
 
 end
