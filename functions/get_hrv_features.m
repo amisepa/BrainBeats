@@ -252,7 +252,7 @@ if params.hrv_nonlinear
     % Phase rectified signal averaging (PRSA)
     fprintf('Computing phase rectified signal averaging (PRSA)... \n')
     thresh = 20;
-    lowAnchor = 1-thresh/100-.0001; % lower limit for the AC anchor selection
+    lowAnchor = 1-thresh/100-0.0001; % lower limit for the AC anchor selection
     highAnchor = 1+thresh/100;      % The upper limit for the DC anchor selection
     drr_per = NN(2:end)./NN(1:end-1);
     ac_anchor = (drr_per > lowAnchor) & (drr_per <= .9999); % defines ac anchors, no changes greater than 5%
