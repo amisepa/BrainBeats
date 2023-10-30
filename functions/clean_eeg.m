@@ -19,22 +19,32 @@ if params.clean_eeg_step == 0
     end
     
     % Remove bad channels
+    EEG.etc.clean_channel_mask = true(1,EEG.nbchan);
     oriEEG = EEG;
-    EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
-        'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
-        'WindowCriterion','off','BurstRejection','off','Distance','off');    
-    % disp('Detecting flat line...')
-    % EEG = clean_flatlines(EEG,5,20); 
-    % try 
-    %     EEG = clean_channels(EEG, .8, 4, 5, .6, 100); 
-    % catch
-    %     disp('Your dataset appears to lack correct channel locations; using a location-free channel cleaning method.');
-    %     EEG = clean_channels_nolocs(EEG,.45,.2,10,.33,true); 
-    % end
-    badChan = ~contains({oriEEG.chanlocs.labels}, {EEG.chanlocs.labels});    
-    fprintf(1, 'Bad channels were: ');
+    % EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
+    %     'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
+    %     'WindowCriterion','off','BurstRejection','off','Distance','off');    
+    disp('Detecting bad EEG channels...')
+    EEG = clean_flatlines(EEG,5);   % remove channels that have flat lines
+    win_length = 5;     % window length (deafult = 5 s)
+    line_thresh = 5;    % line noise threshold (default = 5)
+    maxBad = .15;        % max tolerated portion of channel to be bad before removal (default = .4)
+    corrThresh = .85;   % correlation threshold to be considered bad (default = .85)
+    nSamp = 200;        % number of ransac samples (default = 50; higher is more robust but longer)
+    try 
+        EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
+    catch
+        warning('Your dataset appears to lack correct channel locations. Using the location-free parameters to remove bad EEG channels.');
+        EEG = clean_channels_nolocs(EEG,0.45,0.1,win_length,.4);
+    end
+    badChan = ~ismissing({oriEEG.chanlocs.labels}, {EEG.chanlocs.labels});
+    params.bad_channels = badChan; % will be used for feature outputs
+    fprintf(1, 'Bad EEG channels removed from data: ');
     fprintf(1, '%s ', oriEEG.chanlocs(badChan).labels )
     fprintf(1, '\n')
+    EEG.etc.clean_channel_mask(badChan) = false; 
+    badChan = { oriEEG.chanlocs(badChan).labels };
+    EEG = pop_select(EEG,'nochannel', badChan);
     
     % Visualize removed channels
     if params.vis
@@ -45,10 +55,14 @@ if params.clean_eeg_step == 0
     end
 
     % Interpolate them
-    EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
-    EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
+    if EEG.nbchan >30
+        EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
+        EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
+    else
+        warning('Cannot interpolate bad EEG channels reliably with less than 30 channels')
+    end
 
-    % % Add ECG channels back
+    % % Add ECG channels back?
     % EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
     % EEG.nbchan = EEG.nbchan + ECG.nbchan;
     % for iChan = 1:ECG.nbchan
@@ -68,30 +82,26 @@ elseif params.clean_eeg_step == 1
 
     % HEP
     if strcmp(params.analysis, 'hep')
+        
+        % if params.vis
+        %     figure('color','w');
+        %     visWeights = 'on';
+        % else
+        %     visWeights = 'off';
+        % end
+        % for iChan = 1:EEG.nbchan
+        %     [dist(iChan,:),out(iChan,:),rf,w1,w2] = limo_pcout(squeeze(EEG.data(iChan,:,:))','figure',visWeights);
+        % end
+        % bad_trials = find(isoutlier(sum(~out,1)/EEG.nbchan,'mean'));
+        % eegplot(EEG.data(:,:,bad_trials))
 
-        % Remove bad trials
-        warning('Removing bad trials...')
-        b = design_fir(100,[2*[0 45 50]/EEG.srate 1],[1 1 0 0]);
-        sigRMS = nan(1,size(EEG.data,3));
-        snr = nan(1,size(EEG.data,3));
-        for iEpoch = 1:size(EEG.data,3)
-            sigRMS(:,iEpoch) = rms(rms(squeeze(EEG.data(:,:,iEpoch)),2));
-            tmp = filtfilt_fast(b,1, squeeze(EEG.data(:,:,iEpoch))');
-            snr(:,iEpoch) = rms(mad(squeeze(EEG.data(:,:,iEpoch)) - tmp'));
-        end
-        badRMS = isoutlier(sigRMS,'grubbs');
-        badSNR = isoutlier(snr,'grubbs');
-        badTrials = unique([find(badRMS) find(badSNR)]);
-        % pop_eegplot(EEG,1,1,1);
+        % Detect and remove bad epochs
+        badTrials = find_badTrials(EEG,'grubbs', params.vis);
         EEG = pop_rejepoch(EEG, badTrials, 0);
 
-        % run RMS a 2nd time less aggressive in case some were missed
-        sigRMS = nan(1,size(EEG.data,3));
-        for iEpoch = 1:size(EEG.data,3)
-            sigRMS(:,iEpoch) = rms(rms(squeeze(EEG.data(:,:,iEpoch)),2));
-        end
-        badRMS = isoutlier(sigRMS,'mean');
-        EEG = pop_rejepoch(EEG, find(badRMS), 0);
+        % % run RMS a 2nd time more conservative in case some were missed
+        % badTrials = find_badTrials(EEG,'mean', params.vis);
+        % EEG = pop_rejepoch(EEG, badTrials, 0);
 
     % Features
     elseif strcmp(params.analysis, 'features')
@@ -127,24 +137,37 @@ elseif params.clean_eeg_step == 1
 
     end
     
-    % Run ICA at effective data rank (see Kim et al. 2023). Use Picard when
-    % possible to increase speed.
+    % Run ICA at effective data rank to control for ghost ICs (Kim et al. 2023). 
+    % Use Picard algorithm when possible to increase speed. 
+    % use lrate=1e-5 and maxsteps=2000 to obtain reproducible ICA results
     dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
     if exist('picard.m','file')
-        EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
+        EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard', ...
+            'pca',dataRank);
     else
-        EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
+        EEG = pop_runica(EEG,'icatype','runica','extended',1, ...
+            'pca',dataRank,'lrate',1e-5,'maxsteps',2000);
     end
 
     % Classify and remove bad components with IClabel
     EEG = pop_iclabel(EEG,'default');
-    EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; NaN NaN; NaN NaN; NaN NaN]);
+    if strcmp(params.analysis, 'hep') 
+        % Do not remove heart components if any
+        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
+    else
+        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
+    end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
     
-    % Visualize tagged components
+    % Visualize indepent components tagged as bad
     if params.vis
-        pop_selectcomps(EEG,1:20);         
+        nComps = size(EEG.icaact,1);
+        if nComps >= 20
+            pop_selectcomps(EEG,1:20); 
+        else
+            pop_selectcomps(EEG,1:nComps)
+        end
         colormap("parula")
     end
     
