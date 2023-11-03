@@ -14,15 +14,14 @@ cd(mainDir); % go to the plugin directory
 
 % Load sample raw data file into EEGLAB
 EEG = pop_loadset('filename','sample_data2.set','filepath',fullfile(mainDir,'sample_data'));
+EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'save',false,'vis',true); 
 
 % Process file for HEP analysis using default parameters (WARNINGL EEG data 
 % must be preprocessed because they will not be preprocessed by default!!!)
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'}); 
+    'heart_channels',{'ECG1' 'ECG2'}); 
 % pop_eegplot(EEG,1,1,1);  % to visualize
-
-EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'save',false,'vis',true); 
 
 % Same but adjusting some paramters
 %   - 'clean_rr' to choose the method to interpolate RR artifacts (default = 'pchip')

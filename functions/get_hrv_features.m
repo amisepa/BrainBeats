@@ -63,6 +63,7 @@ if params.hrv_time
     HRV.time.RMSSD = sqrt(mean(diff(NN.*1000).^2));  % in ms
 
     % pNN50 (fraction of differences larger than alpha = 50)
+    % FIXME: add requirement 2 min of data (see Ginsberg and Schaffer 2017)
     alpha = 50;
     HRV.time.pNN50 = sum( abs(diff(NN)) >= alpha/1000 )/length(diff(NN));
 
