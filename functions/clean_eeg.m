@@ -1,10 +1,46 @@
+%% BrainBeats clean_eeg
+% When users choose to preprocess their EEG data with BrainBeats:
+% 1) If EEG data have not been filtered, a lowpass at 1 Hz and highoass at 
+%   45 Hz are applied (linear zero-phase FIR filters). 
+% 2) If data were not already referenced and have at least 30 channels, 
+%   they re-referenced to infinity (REST method). 
+% 3) bad EEG channels are identified and reomved using the clean_flatlines, 
+%   and clean_channels algorithms from K. Kothe (clean_artifacts). 
+%   Default parameters: 
+%       - correlation threshold = 85; 
+%       - window length = 5 to capture low-frequency artifacts; 
+%       - line noise threshold = 5; 
+%       - maximum portion of channel to be considred a bad channel = 15%; 
+%       - 85% of available RAM to increase speed.
+%       - # of ransac samples = 200 (more computation but more reliable)
+% 4) Bad channels are interpolated using spherical splines. 
+% 5a) For continuous data, large artifacts are removed using Artifact 
+%   subspace reconstruction (ASR). 
+% 5b) For epoched data (HEP), bad epochs are detected and removed using
+%   custom amplitude and SNR metrics. 
+% 6) The preconditioned ICA algorithm is used to to perform fast but reliable 
+%   blind source spearation, implementing PCA-dimension reduction to control 
+%   for effective data rank and avoid gohst IC aritfacts (see Kim et al. 2023). 
+%   If users do not wish to use PICARD, the infomax algorithm is used, with 
+%   'lrate' = 1e-5 and 'maxsteps' = 2000 to allow replication. 
+% 7) ICLabel classifies bad independent components: 
+%       - muscle (95% confidence);
+%       - eye (90% confidence)
+%       - heart (99% confidence) --> NOT removed for HEP since we want that
+%           activity to see how the brain processes heartbeats.
+%       - line noise (99% confidence)
+%       - channel noise (99% confidence)
+%   Tagged components are extracted automatically from EEG signals. 
+% 
+% Cedric Cannard (C), BrainBeats 2023
+
 function [EEG, params] = clean_eeg(EEG, params)
 
 % Filter, re-reference, and remove bad channels
 if params.clean_eeg_step == 0
     
     EEG = pop_eegfiltnew(EEG,'locutoff',1,'minphase',false);    % use causal minimum-phase filter for pre-event analysis
-    EEG = pop_eegfiltnew(EEG,'hicutoff',45,'filtorder',846,'minphase',false); % use causal minimum-phase filter for pre-event analysis
+    EEG = pop_eegfiltnew(EEG,'hicutoff',45,'filtorder',846,'minphase',false); % causal minimum-phase filter should be used for pre-event analysis
     
     % Reference to average or infinity/REST
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
@@ -26,10 +62,10 @@ if params.clean_eeg_step == 0
     %     'WindowCriterion','off','BurstRejection','off','Distance','off');    
     disp('Detecting bad EEG channels...')
     EEG = clean_flatlines(EEG,5);   % remove channels that have flat lines
+    corrThresh = .85;   % correlation threshold to be considered bad (default = .85)
     win_length = 5;     % window length (deafult = 5 s)
     line_thresh = 5;    % line noise threshold (default = 5)
     maxBad = .15;        % max tolerated portion of channel to be bad before removal (default = .4)
-    corrThresh = .85;   % correlation threshold to be considered bad (default = .85)
     nSamp = 200;        % number of ransac samples (default = 50; higher is more robust but longer)
     try 
         EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
@@ -152,7 +188,7 @@ elseif params.clean_eeg_step == 1
     % Classify and remove bad components with IClabel
     EEG = pop_iclabel(EEG,'default');
     if strcmp(params.analysis, 'hep') 
-        % Do not remove heart components if any
+        % Do not remove heart components for HEP
         EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
         EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
