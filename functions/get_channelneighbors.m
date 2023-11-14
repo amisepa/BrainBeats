@@ -3,58 +3,20 @@
 % 
 % inputs:
 %       chanlocs - structure with EEG channel XYZ coordinates
-%       vis - plot visualization (1) or not (0)
+%       compress - compresssion (1, more neighbors, default) or not (0, less neighbors)
+% 
+% Example:
+%       [neighbors, channeighbstructmat] = get_channelneighbors(chanlocs,compress)
 % 
 % Cedric Cannard, Sep 2022
 
-function [neighbors, channeighbstructmat] = get_channelneighbors(chanlocs)
+function [neighbors, channeighbstructmat] = get_channelneighbors(chanlocs,compress)
 
-compress = true;  % default = true
+if isempty(compress)
+    compress = true;  % default = true
+end
 
-% cfg.elec.elecpos(:,1) = [ chanlocs.X ];
-% cfg.elec.elecpos(:,2) = [ chanlocs.Y ];
-% cfg.elec.elecpos(:,3) = [ chanlocs.Z ];
-% cfg.elec.label = { chanlocs.labels };
-% cfg.label = { chanlocs.labels };
-% cfg.method = 'triangulation';
-
-% find channel neighbors
-% data = cfg;
-% data = rmfield(data, 'method');   % second input must not be method
-% cfg  = rmfield(cfg, 'label');     % first input must not be data
-
-% neighbors = ft_prepare_neighbours(cfg, data); %%% TO EXTRACT
-% cfg.feedback = 'no';
-% cfg.channel  = 'all';
-% cfg.compress = 'yes';
-% cfg.parcellation = 'parcellation';
-% cfg.senstype = 'eeg';
-
-% check if the input data is valid for this function
-% data = ft_checkdata(data);
-
-% set the default for senstype depending on the data
-% cfg.senstype = ft_getopt(cfg, 'senstype', 'eeg');
-
-% get 3D positions from the sensor description
-% sens = ft_fetch_sens(cfg, data);
-% chanpos = sens.chanpos;
-% label   = sens.label;
-
-% remove channels that are not in data
-% [dum, sensidx] = match_str(data.label, label);
-% chanpos = chanpos(sensidx, :);
-% label   = label(sensidx);
-% desired = ft_channelselection(cfg.channel, label);
-% [sensidx] = match_str(label, desired);
-% chanpos = chanpos(sensidx, :);
-% label   = label(sensidx);
-
-% Project sensor positions on 2D plane if not already the case
-% if size(chanpos, 2) == 2 || all( chanpos(:,3) == 0 )
-%     proj = chanpos(:,1:2); % already on a 2D plane
-% else
-% project sensor on a 2D plane (from function elproj)
+% Project sensor positions on 2D plane
 x = [chanlocs.X]';
 y = [chanlocs.Y]';
 z = [chanlocs.Z]';
@@ -71,9 +33,6 @@ if compress
     tri_y = delaunay(proj(:,1), proj(:,2)./2); % compress in the y-direction
     tri = [tri; tri_x; tri_y];
 end
-
-% Compute the neighbourhood geometry from the gradiometer/electrode positions
-% neighbors = compneighbstructfromtri(chanpos, label, tri);
 
 % mark neighbors according to triangulation
 nchan = length(x);
@@ -108,29 +67,10 @@ for i = 1:nchan
 end
 % neighbors = rmfield(neighbors, 'dist');
 
-% Only select channels that are in the data
-% if isfield(cfg, 'channel') && ~isempty(cfg.channel)
-% %     desired = ft_channelselection(cfg.channel, data.label);
-%     desired = data.label;
-% end
-% complete = struct;
-% for i = 1:numel(desired)
-% complete(i).label = desired{i};
-% sel = find(strcmp({neighbors(:).label}, desired{i}));
-% if numel(sel)==1
-%   % take the set of neighbors from the definition
-%   complete(i).neighblabel = neighbors(sel).neighblabel;
-% else
-%   % there are no neighbors defined for this channel
-%   complete(i).neighblabel = {};
-% end
-% end
-% neighbors = complete;
-
 % Convert neighbors into row-arrays for a nicer code representation
-% for i = 1:length(neighbors)
-%   neighbors(i).neighblabel = neighbors(i).neighblabel(:)';
-% end
+for i = 1:length(neighbors)
+  neighbors(i).neighblabel = neighbors(i).neighblabel(:)';
+end
 
 % check that all chans have neighbors and report average
 k = 0;
