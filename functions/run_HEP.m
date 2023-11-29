@@ -59,7 +59,7 @@ end
 
 % Visualize IBI distribution and lower 95% percentile that will be used as
 % epoch length
-if params.vis
+if params.vis_outputs
     figure('color','w'); histfit(IBI); hold on
     plot([prctile(IBI,5) prctile(IBI,5)],ylim,'--r','linewidth',2)
     % plot([prctile(IBI,97.5) prctile(IBI,97.5)],ylim,'--r','linewidth',2)
@@ -97,7 +97,7 @@ HEP = pop_rejepoch(HEP, find(idx), 0);
 % over frontocentral electrodes (Fz, Cz, Pz), most likely in the alpha
 % band for ERSP. 
 
-if params.vis
+if params.vis_outputs
 
     figure
     pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0, 'ydir',1);
@@ -145,7 +145,7 @@ if params.vis
     % ERSP and ITC (bootstrap + FDR-corrected)
     figure('color','w');
     pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8],'topovec',1,'elocs', ...
-        HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[7 30], ...
+        HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[8 30], ...
         'baseline',0,'plotphase','on','padratio',2, ...
         'alpha',0.05,'mcorrect','fdr','naccu',1000,'caption', ...
         sprintf('%s (FDR-corrected)',elecName));
@@ -155,7 +155,7 @@ end
 
 % Save
 if params.save
-    newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
+    newname = sprintf('%s_HEP.set', HEP.filename(1:end-5));
     pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
 end
 

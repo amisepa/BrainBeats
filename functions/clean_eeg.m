@@ -12,7 +12,8 @@
 %       - line noise threshold = 5; 
 %       - maximum portion of channel to be considred a bad channel = 15%; 
 %       - 85% of available RAM to increase speed.
-%       - # of ransac samples = 200 (more computation but more reliable)
+%       - # of ransac samples = 500 (more computation but more accurate and 
+%       replicable)
 % 4) Bad channels are interpolated using spherical splines. 
 % 5a) For continuous data, large artifacts are removed using Artifact 
 %   subspace reconstruction (ASR). 
@@ -40,7 +41,7 @@ function [EEG, params] = clean_eeg(EEG, params)
 if params.clean_eeg_step == 0
     
     EEG = pop_eegfiltnew(EEG,'locutoff',1,'minphase',false);    % use causal minimum-phase filter for pre-event analysis
-    EEG = pop_eegfiltnew(EEG,'hicutoff',45,'filtorder',846,'minphase',false); % causal minimum-phase filter should be used for pre-event analysis
+    EEG = pop_eegfiltnew(EEG,'hicutoff',45,'minphase',false);   % causal minimum-phase filter should be used for pre-event analysis
     
     % Reference to average or infinity/REST
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
@@ -62,15 +63,15 @@ if params.clean_eeg_step == 0
     %     'WindowCriterion','off','BurstRejection','off','Distance','off');    
     disp('Detecting bad EEG channels...')
     EEG = clean_flatlines(EEG,5);   % remove channels that have flat lines
-    corrThresh = .85;   % correlation threshold to be considered bad (default = .85)
+    corrThresh = .75;   % correlation threshold to be considered bad (default = .85)
     win_length = 5;     % window length (deafult = 5 s)
     line_thresh = 5;    % line noise threshold (default = 5)
-    maxBad = .15;        % max tolerated portion of channel to be bad before removal (default = .4)
-    nSamp = 200;        % number of ransac samples (default = 50; higher is more robust but longer)
+    maxBad = .25;       % max tolerated portion of channel to be bad before removal (original default = .4)
+    nSamp = 500;        % number of ransac samples (original = 50; higher is longer but more accurate and replicable)
     try 
         EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
     catch
-        warning('Your dataset appears to lack correct channel locations. Using the location-free parameters to remove bad EEG channels.');
+        warning('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.');
         EEG = clean_channels_nolocs(EEG,0.45,0.1,win_length,.4);
     end
     badChan = ~ismissing({oriEEG.chanlocs.labels}, {EEG.chanlocs.labels});
@@ -83,7 +84,7 @@ if params.clean_eeg_step == 0
     EEG = pop_select(EEG,'nochannel', badChan);
     
     % Visualize removed channels
-    if params.vis
+    if params.vis_cleaning
         % EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
         % EEG.etc.clean_channel_mask(badChan) = false;
         vis_artifacts(EEG,oriEEG);
@@ -119,24 +120,12 @@ elseif params.clean_eeg_step == 1
     % HEP
     if strcmp(params.analysis, 'hep')
         
-        % if params.vis
-        %     figure('color','w');
-        %     visWeights = 'on';
-        % else
-        %     visWeights = 'off';
-        % end
-        % for iChan = 1:EEG.nbchan
-        %     [dist(iChan,:),out(iChan,:),rf,w1,w2] = limo_pcout(squeeze(EEG.data(iChan,:,:))','figure',visWeights);
-        % end
-        % bad_trials = find(isoutlier(sum(~out,1)/EEG.nbchan,'mean'));
-        % eegplot(EEG.data(:,:,bad_trials))
-
         % Detect and remove bad epochs
-        badTrials = find_badTrials(EEG,'grubbs', params.vis);
-        EEG = pop_rejepoch(EEG, badTrials, 0);
+        badTrials = find_badTrials(EEG,'grubbs', params.vis_cleaning);
+        EEG = pop_rejepoch(EEG, badTrials, 0); 
 
-        % % run RMS a 2nd time more conservative in case some were missed
-        % badTrials = find_badTrials(EEG,'mean', params.vis);
+        % Run RMS a 2nd time more conservative in case some were missed
+        % badTrials = find_badTrials(EEG,'mean', params.vis_cleaning);
         % EEG = pop_rejepoch(EEG, badTrials, 0);
 
     % Features
@@ -167,7 +156,7 @@ elseif params.clean_eeg_step == 1
         % end
         fprintf('%g %% of data were considered to be artifacts and were removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
         
-        if params.vis
+        if params.vis_cleaning
             vis_artifacts(EEG,oriEEG); 
         end
 
@@ -191,13 +180,13 @@ elseif params.clean_eeg_step == 1
         % Do not remove heart components for HEP
         EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
-        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
+        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; .99 1; .99 1; NaN NaN]);
     end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
     
     % Visualize indepent components tagged as bad
-    if params.vis
+    if params.vis_cleaning
         nComps = size(EEG.icaact,1);
         if nComps >= 20
             pop_selectcomps(EEG,1:20); 
@@ -214,7 +203,7 @@ elseif params.clean_eeg_step == 1
     end
     
     % plot final cleaned data
-    if params.vis
+    if params.vis_cleaning
         if strcmp(params.analysis, 'hep')
             pop_eegplot(EEG,1,1,1);
         % elseif strcmp(params.analysis, 'features')

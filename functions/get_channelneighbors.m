@@ -10,11 +10,9 @@
 % 
 % Cedric Cannard, Sep 2022
 
-function [neighbors, channeighbstructmat] = get_channelneighbors(chanlocs,compress)
+function [neighbors, channeighbstructmat] = get_channelneighbors(chanlocs)
 
-if isempty(compress)
-    compress = true;  % default = true
-end
+compress = true; 
 
 % Project sensor positions on 2D plane
 x = [chanlocs.X]';
@@ -83,7 +81,7 @@ end
 if k==0
     warning('No neighbouring channels were specified or found');
 else
-    fprintf('there are on average %.1f neighbors per channel\n', k/length(neighbors));
+    fprintf('There are on average %.1f neighbors per channel\n', k/length(neighbors));
 end
 
 % Visual feedback (or try convert_3dto2d for eeglab topo with nose and labels)

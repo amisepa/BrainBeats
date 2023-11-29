@@ -37,10 +37,10 @@ heart_comp = find(EEG.reject.gcompreject);
 if ~isempty(heart_comp)
 
     % Visualize heart component
-    if params.vis
+    if params.vis_outputs
         pop_selectcomps(EEG,heart_comp); colormap("parula")
     end
-
+    
     % Substract heart component from signal
     fprintf('Removing %g heart component(s). \n', length(heart_comp));
     oriEEG = EEG;
@@ -49,7 +49,7 @@ if ~isempty(heart_comp)
 
     % visualize with ECG signal to see heartbeats and corresponding
     % contamination in EEG
-    if params.vis
+    if params.vis_outputs
         vis_artifacts(EEG,oriEEG);
     end
 

@@ -106,7 +106,8 @@ if params.hrv_frequency
                 win_idx = NN_times >= start_idx & NN_times <= end_idx;
 
                 % Frequency vector for this band
-                nfft = 1024;    % use this instead? 2^nextpow2(length(NN(win_idx)))
+                % nfft = 1024; 
+                nfft = 2^nextpow2(length(NN(win_idx)));    % use this instead? 
                 fvec = bands(iBand,1):1/nfft:bands(iBand,2);
                                 
                 % Lomb-Scargle Periodogram (no resampling required and best method)
@@ -124,7 +125,7 @@ if params.hrv_frequency
 
                     % Resample
                     resamp_freq = 7;
-                    NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR with 
+                    NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR 
             
                     % Pwelch
                     if strcmp(params.hrv_spec, 'pwelch')
@@ -199,7 +200,7 @@ if params.hrv_frequency
     HRV.frequency.pwr = [cat(1, PWR{:})];
     HRV.frequency.bands = bands;
 
-    % if vis
+    % if params.vis_outputs
     %     subplot(2,2,2+iWin); hold on;
     %     x = find(ulf_idx); y = pwr(ulf_idx);
     %     area(x,y,'FaceColor',[0.6350 0.0780 0.1840],'FaceAlpha',.7);
@@ -220,7 +221,7 @@ end
 % Nonlinear domain
 if params.hrv_nonlinear
     
-    disp('Extracting HRV features in the time domain...')
+    disp('Extracting HRV features in the nonlinear domain...')
 
     % Poincare
     fprintf('Computing Poincare... \n')
@@ -232,21 +233,28 @@ if params.hrv_nonlinear
     HRV.nonlinear.Poincare.SD2 = SD2*1000;      % in ms
     HRV.nonlinear.Poincare.SD1SD2 = SD1/SD2;
 
-    % Entropy (FIXME: install get_entropy plugin if not already installed)
-    fprintf('Computing entropy features... \n')
-    tau = 1;
+    % Fuzzy entropy (FIXME: install get_entropy plugin if not already installed)
+    fprintf('Extracting nonlinear features from NN intervals (sample entropy and fractal dimension)... \n')
     m = 2;
-    coarseType = 'Standard deviation';
-    nScales = 30;
     r = .15;
-    n = 2;
-    filtData = false;
-    useGPU = false;
+
+    % Sample entropy (fast method)
+    HRV.nonlinear.SE = compute_se_fast(NN,m,r);
+
+    % Fractal dimension
+    HRV.nonlinear.FD = fractal_volatility(NN);
+
     % Fuzzy entropy
-    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau,useGPU);
-    % Multiscale fuzzy entropy
-    [HRV.nonlinear.MFE, HRV.nonlinear.MFE_scales] = compute_mfe(NN, ...
-        m, r, tau, coarseType, nScales, filtData, params.fs, n, useGPU);
+    % tau = 1;
+    % n = 2;
+    % HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau,params.gpu);
+
+    % Multiscale fuzzy entropy (MFE)
+    % coarseType = 'Standard deviation';
+    % nScales = 30;
+    % filtData = false;
+    % [HRV.nonlinear.MFE, HRV.nonlinear.MFE_scales] = compute_mfe(NN, ...
+    %     m, r, tau, coarseType, nScales, filtData, params.fs, n, params.gpu);
     % figure; area(HRV.MFE_scales, HRV.nonlinear.multiscale_fuzzy_entropy); axis tight
     
 

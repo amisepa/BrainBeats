@@ -1,6 +1,5 @@
 function plot_topo(data,chanlocs,mode,dataType)
 
-
 chanlabels = {chanlocs.labels};
 x = [ chanlocs.X ]';
 y = [ chanlocs.Y ]';
@@ -26,7 +25,7 @@ else
     coord = chanpos; % use 3-D data for plotting
 end
 
-%% 2D scalp topography with colors (band-power, IAF, fuzzy entropy)
+%% 2D scalp topography with colors (band-power, IAF, entropy)
 if mode == 1
 
     % Deal with near-0 values (for entropy data)

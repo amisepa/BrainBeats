@@ -26,7 +26,7 @@ badTrials = unique([find(badRMS) find(badSNR)]);
 
 if vis
     eegplot(EEG.data(:,:,badTrials),'srate',EEG.srate,'events',EEG.event, ...
-        'spacing',80,'title','Bad epochs removed','plottitle','Bad epochs removed');
+        'spacing',80,'title','Bad epochs removed','plottitle','Bad epochs');
 end
 
 fprintf('Trials detected: %g \n', length(badTrials));

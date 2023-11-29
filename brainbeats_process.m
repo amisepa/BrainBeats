@@ -50,19 +50,17 @@
 %                     intuitive measure of the relative contribution of
 %                     each frequency component to overall power. 
 %  'gpu'            - [0|1] use GPU. Default is 0.
-%  'vis'            - [0|1] set vizualization to on (1) or off (0). Default is on.
+%  'vis_cleaning'   - [0|1] set vizualization of preprocessing plots to 
+%                     on (1) or off (0). Default is on.
+%  'vis_outputs'    - [0|1] set vizualization of outputs to on (1) or 
+%                     off (0). Default is on.
 %  'save'           - [0|1] save results into a MATLAB file (1) or not (0). Default is on.
 %
 % Outputs:
-%   EEG      - modified EEGLAB dataset. A EEG.brainbeats field is created
-%              containing all the measures computed for the dataset.
-%   features - Features computed (same as field EEG.brainbeats)
+%   EEG      - modified EEGLAB dataset. A EEG.features field is created
+%              containing all the features computed for the dataset.
 %
-% Other options (not documented yet)
-% Method 1: Hearbteat evoked potentials (HEP) and oscillations (HEO).
-% Method 3: Remove heart components from EEG signals.
-% 
-% Copyright (C) - Cedric Cannard, 2023
+% Copyright (C) - BrainBEats, Cedric Cannard, 2023
 
 function [EEG, com] = brainbeats_process(EEG, varargin)
 
@@ -71,134 +69,55 @@ com = '';
 
 % Basic checks
 if ~exist('EEG','var')
-    error('This plugin requires that your data (containing both EEG and ECG/PPG signals) are already loaded into EEGLAB.')
+    errordlg('The BrainBeats plugin requires that your data (containing both EEG and ECG/PPG signals) are already loaded into EEGLAB.')
 end
 if nargin < 1
-    help pop_BrainBeats; return;
-end
-if isempty(EEG) || isempty(EEG.data)
-    error('Empty EEG dataset.');
-end
-if isempty(EEG.chanlocs(1).labels)
-    error('No channel labels.');
-end
-if isempty(EEG.ref)
-    warning('EEG data not referenced! Referencing is highly recommended');
+    help brainbeats_process; return;
 end
 
-pop_editoptions('option_single', 0); % ensure double precision
-
-% Add path to subfolders
+% Add path to subfunctions
 mainpath = fileparts(which('eegplugin_BrainBeats.m'));
 addpath(fullfile(mainpath, 'functions'));
-% addpath(fullfile(mainpath, 'functions', 'restingIAF'));
-% outPath = fullfile(mainpath, 'sample_data'); %FIXME: ASK USER FOR OUTPUT DIR
 
-% Install dependency plugins
-fprintf('Installing necessary EEGLAB plugins... \n')
-if ~exist('clean_asr','file')
-    plugin_askinstall('clean_asr','clean_asr', 0);
-end
-if ~exist('picard','file')
-    plugin_askinstall('picard', 'picard', 0);
-end
-if ~exist('iclabel','file')
-    plugin_askinstall('iclabel', 'iclabel', 0);
-end
-
-
-%%%%%%%%%%%%%%%%%%%% Main parameters %%%%%%%%%%%%%%%%%%%%%
+% Get parameters from GUI or command line
 if nargin == 1
-    params = getparams_gui(EEG);                % GUI
+    [params, abort] = getparams_gui(EEG);                % GUI
+    if abort
+        disp('Aborted.'); return 
+    end
 elseif nargin > 1
     params = getparams_command(varargin{:});    % Command line
 end
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% if GUI was aborted (FIXME: should not send this error)
-if ~isfield(params, 'heart_channels')
-    disp('Aborted'); return
-end
+% run routine checks
+[EEG, params, err] = run_checks(EEG,params);
+if err, return; end  % stop program if there was an error (because errdlg 
+% does not stop program)
 
-% Check if data format is compatible with chosen analysis and select analysis
-if isfield(params,'analysis')
-    switch params.analysis
-        case 'continuous'
-            if length(size(EEG.data)) ~= 2
-                error("You selected feature-based analysis but your data are not continuous.")
-            end
-        case 'epoched'
-            if length(size(EEG.data)) ~= 3
-                error("You selected HEP analysis but your data are not epoched.")
-            end
-    end
-else
-    % Select analysis based on data format if not defined
-    if length(size(EEG.data)) == 2
-        params.analysis = 'continuous';
-        disp("Analysis not defined. Continuous data detected: selecting 'feature-based mode' by default")
-    elseif length(size(EEG.data)) == 3
-        params.analysis = 'epoched';
-        disp("Analysis not defined. Epoched data detected: selecting 'heart-beat evoked potential (HEP) mode' by default")
-    else
-        error("You did not define the analysis to run, and your data format was not recognized. " + ...
-            "Should be 'continuous' or 'epoched', and something may be wrong with your data format ")
-    end
-end
-
-% Check if heart channels are in file (for command line mode)
-if contains({EEG.chanlocs.labels}, params.heart_channels) == 0
-    error('The heart channel names you inputted cannot be found in the current dataset.')
-else
-    % make sure it's a cell if only one ECG channel is provided
-    if ~iscell(params.heart_channels)
-        params.heart_channels = {params.heart_channels};
-    end
-end
-
-% Check heart signal type
-if ~contains(params.heart_signal, {'ecg' 'ppg'})
-    error('Heart signal should be either ECG or PPG')
-end
-
-% Check for channel locations for visualization
-if params.vis && params.eeg
-    if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
-        error("Electrode location coordinates must be loaded for visualizing outputs.");
-    end
-end
-
-% Parallel computing
-if ~isfield(params,'parpool') 
-    params.parpool = false;
-end
-
-% GPU computing
-if ~isfield(params,'gpu') 
-    params.gpu = false;
-end
-
-% Save outputs?
-if ~isfield(params,'save') 
-    params.save = true;
-end
-
-%%%%%%%%%%%%% PREP EEG DATA %%%%%%%%%%%%%
-EEG.data = double(EEG.data);  % ensure double precision
-params.fs = EEG.srate;
-
-%%%%% MODE 1: remove heart components from EEG signals with IClabel %%%%%
-if strcmp(params.analysis,'rm_heart')
-    EEG = remove_heartcomp(EEG, params);
-end
-
-%%%%% MODE 2 & 3: RR, SQI, and NN %%%%%
+%%%%% MODE 1 & 2: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
     
     % Keep only EEG and ECG channels in separate structures
     % EEG = pop_select(EEG, 'chantype',{'ECG','EEG'});  
     CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
     EEG = pop_select(EEG,'nochannel',params.heart_channels); 
+
+    % basic check for missed auxiliary channels that could cause issues 
+    % (very limited by dataset's electrode labels)
+    idx = contains({EEG.chanlocs.labels}, {'ecg' 'ECG' 'aux' 'AUX'});
+    if any(idx)
+        auxChan = strjoin({EEG.chanlocs(idx).labels});
+        opts.Interpreter = 'tex';
+        opts.Default = 'Yes';
+        quest = sprintf("The following channels may not be EEG or ECG/PPG and may cause serious innacuracies: \n\n %s \n\n They are about to be removed, please confirm", auxChan);
+        answer = questdlg(quest,'Potentially undesirable electrodes','Yes','No','Cancel',opts);
+        % ans = questdlg(");
+        if strcmp(answer,'Cancel')
+            disp('Aborted.'); return
+        elseif strcmp(answer,'Yes')
+            EEG = pop_select(EEG,'nochannel',{EEG.chanlocs(idx).labels}); 
+        end
+    end
 
     % Get RR and NN intervals from ECG/PPG signals
     % note: when several electrodes are provided, use the elec with best 
@@ -227,8 +146,7 @@ if contains(params.analysis, {'features' 'hep'})
         % if strcmpi(params.heart_signal, 'ecg')
         % rr_t(1) = [];   % remove 1st heartbeat
         % end
-        vis = false;    % more detailed visualization of RR artifacts
-        [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params, vis);
+        [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
         flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec));
 
     end
@@ -244,7 +162,7 @@ if contains(params.analysis, {'features' 'hep'})
     % if SQI > maxThresh    % more than 20% of RR series is bad
     %      warning on
     %     warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",round(SQI,2));
-    %     error("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
+    %     errordlg("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
     % else
     %     fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", SQI )
     % end
@@ -274,7 +192,7 @@ if contains(params.analysis, {'features' 'hep'})
 
     % Plot filtered ECG and RR series of best electrode and interpolated
     % RR artifacts (if any)
-    if params.vis
+    if params.vis_cleaning
         plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, flagged)
     end
     
@@ -300,12 +218,12 @@ if contains(params.analysis, {'features' 'hep'})
         [EEG, params] = clean_eeg(EEG, params);
     end
 
-    %%%%% MODE 2: Heartbeat-evoked potentials (HEP) %%%%%
+    %%%%% MODE 1: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
         EEG = run_HEP(EEG, params, Rpeaks);
     end 
     
-    %%%%% MODE 3: HRV features %%%%%
+    %%%%% MODE 2: HRV features %%%%%
     if strcmp(params.analysis,'features') && params.hrv
 
             % File length (we take the whole series for now to allow ULF and VLF as much as possible)
@@ -316,13 +234,13 @@ if contains(params.analysis, {'features' 'hep'})
             params.file_length = file_length;
 
             % Extract HRV measures
-            HRV = get_hrv_features(NN, NN_t, params);
+            features_hrv = get_hrv_features(NN, NN_t, params);
 
             % Final output with everything
-            Features.HRV = HRV;
+            Features.HRV = features_hrv;
     end
-
-    %%%%% MODE 3: EEG features %%%%%
+    
+    %%%%% MODE 2: EEG features %%%%%
     if strcmp(params.analysis,'features') && params.eeg
 
         % Clean EEG artifacts with ASR
@@ -333,30 +251,42 @@ if contains(params.analysis, {'features' 'hep'})
         % Extract EEG features and store in EEGLAB structure
         if params.eeg
             params.chanlocs = EEG.chanlocs;
-            EEG.features = get_eeg_features(EEG.data, params);
+            features_eeg = get_eeg_features(EEG.data, params);
         end
 
-        % Final output with everything to export separately as .mat file
-        Features.EEG = EEG.features;
+        % Final output with everything
+        Features.EEG = features_eeg;
 
+    end
+
+    % Store in EEGLAB structure (independent of saving choice in case user 
+    % wants to save .set file on their own in a script)
+    if strcmp(params.analysis,'features')
+        EEG.features = Features;
+        disp("Features are stored in the EEG.features field")
+    end
+
+    % Save and plot features  
+    if strcmp(params.analysis,'features')
+
+        % Save in same repo as original file 
+        if params.save
+            outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
+            fprintf("Exporting all features in a .mat file at this location: %s \n", outputPath);
+            save(outputPath,'Features');
+        end
+    
+        % Plot features
+        if params.vis_outputs
+            plot_features(Features,params)
+        end
     end
 
 end
 
-%%%%%% PLOT & SAVE FEATURES %%%%%%%
-if strcmp(params.analysis,'features')
-    
-    % Save in same repo as loaded file (FIXME: ASK USER FOR OUTPUT DIR)
-    if params.save
-        outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
-        fprintf("Saving features in EEG.features and exporting them here: %s \n", outputPath);
-        save(outputPath,'Features');
-    end
-
-    % Plot features
-    if params.vis
-        plot_features(Features,params)
-    end
+%%%%% MODE 3: remove heart components from EEG signals %%%%%
+if strcmp(params.analysis,'rm_heart')
+    EEG = remove_heartcomp(EEG, params);
 end
 
 % Shut down parallel pool
@@ -365,26 +295,26 @@ end
 % end
 
 
-%%%%%%%%%%%%%%%%%%%%%%%% eegh %%%%%%%%%%%%%%%%%%%%%%%%
+% eegh
 if contains(params.analysis,'hep')
-    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis',%g,'save',%g);",...
-        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save));
+    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis_cleaning',%g,'vis_outputs',%g,'save',%g);",...
+        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis_cleaning,params.vis_outputs,params.save));
 elseif contains(params.analysis,'features') 
-    com = char(sprintf("[~, Features] = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis',%g,'save',%g);",...
-        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis,params.save));
+    com = char(sprintf("[~, Features] = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','rr_correct','%s','clean_eeg',%g,'parpool',%g,'gpu',%g,'vis_cleaning',%g,'vis_outputs',%g,'save',%g);",...
+        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.rr_correct,params.clean_eeg,params.parpool,params.gpu,params.vis_cleaning,params.vis_outputs,params.save));
 elseif contains(params.analysis,'rm_heart') 
-    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','clean_eeg',%g,'vis',%g,'save',%g);",...
-        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.clean_eeg,params.vis,params.save));
+    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels','%s','clean_eeg',%g,'vis_cleaning',%g,'vis_outputs',%g,'save',%g);",...
+        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.clean_eeg,params.vis_cleaning,params.vis_outputs,params.save));
 end
 com = char(com);
 
-%%%%%%%%%%%%%%%%%%%%%%%% References %%%%%%%%%%%%%%%%%%%%%%%%
-if params.hrv
-    fprintf("For cardivosacular signal processing and HRV metrics, please cite: \n ");
-    fprintf("   - Vest et al. (2018). An open source benchmarked toolbox for cardiovascular waveform and interval analysis. Physiol Meas. \n");
-    fprintf("   - Shaffer & Ginsberg (2017). An overview of heart rate variability metrics and norms. Frontiers in public health. \n");
-end
-if strcmp(params.analysis,'features')
+% References
+% if params.hrv
+%     fprintf("For cardivosacular signal processing and HRV metrics, please cite: \n ");
+%     fprintf("   - Vest et al. (2018). An open source benchmarked toolbox for cardiovascular waveform and interval analysis. Physiol Meas. \n");
+%     fprintf("   - Shaffer & Ginsberg (2017). An overview of heart rate variability metrics and norms. Frontiers in public health. \n");
+% end
+% if strcmp(params.analysis,'features')
 %     if params.eeg && params.eeg_frequency
 %         fprintf("For the IAF feature, please cite: \n %s \n", "  - Corcoran et al. (2018). Toward a reliable, automated method of individual alpha frequency (IAF) quantification. Psychophysiology. ")
 %         fprintf("For the alpha asymmetry feature, please cite: \n %s \n", "  - Smith et al. (2017). Assessing and conceptualizing frontal EEG asymmetry: An updated primer on recording, processing, analyzing, and interpreting frontal alpha asymmetry. International Journal of Psychophysiology.")
@@ -392,19 +322,20 @@ if strcmp(params.analysis,'features')
 %         fprintf("   - Cao et al. (2016). Resting-state EEG power and coherence vary between migraine phases. The journal of headache and pain. \n");
 %         fprintf("   - Pascual-Marqui et al. (2014). Assessing direct paths of intracortical causal information flow of oscillatory activity with the isolated effective coherence (iCoh). Frontiers in human neuroscience. \n");
 %     end
-    if params.hrv_nonlinear || params.eeg_nonlinear
-        fprintf("For the entropy measures, please cite: \n");
-        fprintf("   - Azami & Escudero (2016). Refined Multiscale Fuzzy Entropy based on standard deviation for biomedical signal analysis. Medical & Biological Engineering & Computing. \n");
+%     if params.hrv_nonlinear || params.eeg_nonlinear
+%         fprintf("For the entropy measures, please cite: \n");
+%         fprintf("   - Azami & Escudero (2016). Refined Multiscale Fuzzy Entropy based on standard deviation for biomedical signal analysis. Medical & Biological Engineering & Computing. \n");
 %         fprintf("   - Costa, Goldberger, Peng (2002). Multiscale entropy analysis of complex physiologic time series. Phys Rev Lett. \n ")
 %         fprintf("   - Kosciessa et al. (2020). Standard multiscale entropy reflects neural dynamics at mismatched temporal scales: What's signal irregularity got to do with it? Plos Comput Biol. \n ")
-    end
-end
+%     end
+% end
 % if strcmp(params.analysis,'hep')
 %     fprintf("For HEP methods, please cite: \n");
 %     fprintf("   - Candia-Rivera et al. (2021). The role of electroencephalography electrical reference in the assessment of functional brain–heart interplay: From methodology to user guidelines. Neuroscience Methods. \n");
 %     fprintf("   - Park & Blanke (2019). Heartbeat-evoked cortical responses: Underlying mechanisms, functional roles, and methodological considerations. NeuroImage. \n");
 % end
 fprintf('\n\n')
-fprintf("Thank you for using the BrainBeats toolbox! \nPlease cite: \nCannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06 \n")
+fprintf("Done! Thank you for using the BrainBeats toolbox! \n");
+fprintf("Please cite: Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06 \n")
 
-disp('Done!'); gong
+ gong

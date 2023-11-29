@@ -31,7 +31,7 @@
 % Cedric Cannard, 2022
 
 
-function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params, vis)
+function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params)
 
 fs = params.fs;
 
@@ -152,19 +152,19 @@ else
     t_TooFasyBeats = t_NonPhysBeats;
 end
 
-if vis
-    figure('color','w');
-    plot(t_rr,rr_original,t_Outliers,NN_Outliers);
-    legend('raw','interp1(after outliers removed)')
-    hold on
-    plot(t_NonPhysBeats,NN_NonPhysBeats+.01);
-    hold on; plot(t_NonPhysBeats,toolow,'o')
-    legend('raw','interp1(after outliers removed)',...
-        'interp2(after too low)','toolow')
-    hold on; plot(t_TooFasyBeats,NN_TooFastBeats);
-    legend('raw','interp1(after outliers removed)',...
-        'interp2(after too low)','toolow','interp3 (after too fast removed)')
-end
+% if params.vis_cleaning
+%     figure('color','w');
+%     plot(t_rr,rr_original,t_Outliers,NN_Outliers);
+%     legend('raw','interp1(after outliers removed)')
+%     hold on
+%     plot(t_NonPhysBeats,NN_NonPhysBeats+.01);
+%     hold on; plot(t_NonPhysBeats,toolow,'o')
+%     legend('raw','interp1(after outliers removed)',...
+%         'interp2(after too low)','toolow')
+%     hold on; plot(t_TooFasyBeats,NN_TooFastBeats);
+%     legend('raw','interp1(after outliers removed)',...
+%         'interp2(after too low)','toolow','interp3 (after too fast removed)')
+% end
 
 % Remove erroneous data at the end of a record (i.e. a un-physiologic point
 % caused by removing data at the end of a record)

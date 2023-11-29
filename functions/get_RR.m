@@ -204,7 +204,7 @@ if strcmpi(sig_type, 'ecg')
     HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
 
     % Visualize
-    % if params.vis
+    % if params.vis_cleaning
     %     figure('color','w');
     %     subplot(2,1,1);
     %     plot(tm,sig,'color','#0072BD'); hold on;
