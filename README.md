@@ -1,5 +1,7 @@
 # BrainBeats
 
+![brainbeats_logo](https://github.com/amisepa/BrainBeats/assets/58382227/77a45f40-2cb7-433b-9445-686a5ddc74d7)
+
 The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing and analysis of EEG and cardiovascular signals (ECG/PPG). Both the general user interface (GUI) and command line are supported (see tutorial). 
 
 ## 3 methods available 
