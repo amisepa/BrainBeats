@@ -1,7 +1,7 @@
 # BrainBeats
 
-<p align="center" width="50%">
-    <img src="https://github.com/amisepa/BrainBeats/blob/v1.3/brainbeats_logo.png">
+<p align="center" width="100%">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.3/brainbeats_logo.png">
 </p>
 
 
