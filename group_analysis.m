@@ -3,8 +3,17 @@
 % Unizp the folder and copy-paste the path below
 clear; close all; clc
 
+% Launch EEGLAB
+eeglab; close;
+
 % Copy path to data folder here
-dataDir = 'C:\Users\Tracy\Downloads\ds003944';
+% dataDir = 'C:\Users\Tracy\Downloads\ds003944';
+
+params.data_path = 'C:\Users\Tracy\Downloads\ds003944';
+params.analysis = 'hep';
+params.type = 'difference';
+brainbeats_analyze(params)
+
 
 % Import participants data
 cd(dataDir)
@@ -19,16 +28,15 @@ idx = contains(ids,'A');
 ids(idx) = []; age(idx) = []; grp(idx) = [];
 nSub = length(ids);
 
-% Launch EEGLAB
-eeglab; close;
 
 % Install the bva-io EEGLAB plugin 
-% Go to File > Manage eeglab extensions > click on bva-io > Install
+% Go to File > Manage eeglab extensions > select the "bva-io" plugin > Install
 
 % Path to electrode locations
 locPath = fileparts(which('dipfitdefs.m'));
 
 % Loop through files and process them for HEP
+tstart = tic;
 progressbar('Prossessing files for HEP analysis')
 for iFile = 1:nSub
 
@@ -52,12 +60,11 @@ for iFile = 1:nSub
     % Remove unnecessary channels
     EEG = pop_select(EEG, 'rmchannel',{'VEOG' 'Misc' 'M2'});
 
-    % Downsample to 125 Hz to accelerate things
+    % Downsample to 250 Hz to accelerate things
     try
-        EEG = pop_resample(EEG, 125);
+        EEG = pop_resample(EEG, 250);
     catch
         warning('This file has a strange sampling rate and fails. Skipping it.');
-        continue
     end
     
     % Add filename and filepath if not already present
@@ -75,16 +82,18 @@ for iFile = 1:nSub
 
     % Process and extract features for feature-based analysis
     EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-        'heart_channels',{'ECG'},'clean_eeg',0,'norm',1, ...
+        'heart_channels',{'ECG'},'clean_eeg',false,'norm',true, ...
         'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
         'eeg_features', {'time' 'frequency' 'nonlinear'}, ...
-        'gpu',0,'parpool',1,'vis_cleaning',0,'vis_outputs',1,'save',0);
+        'gpu',false,'parpool',true,...
+        'vis_cleaning',true,'vis_outputs',true,'save',true);
     
     % Update progressbar
     progressbar(iFile/nSub)
 
 end
 disp('Done processing all files for HEP analysi!'); gong
+fprintf('Time to process all files: %g min \n', round(toc(tstart)/60,1))
 
 
 
@@ -241,7 +250,28 @@ cd(data_dir)
 
 % EEG = pop_biosig(fullfile('sub-001\ses-01\eeg\sub-001_ses-01_task-meditation_eeg.bdf'));
 
-% Import STUDY using pop_importbids
+% Remove unnecessary channels
+EEG = pop_select(EEG, 'rmchannel',{'EXG1','EXG2','EXG3','EXG4','EXG6','EXG7','EXG8','GSR1','GSR2','Erg1','Erg2','Resp','Plet','Temp'});
+
+% Import electrode labels, type, and locations
+labels = readtable(fullfile(data_dir, 'task-meditation_channels.tsv'),"FileType","text",'Delimiter','\t');
+% EEG.chanlocs = [];
+% EEG.chanlocs.labels = labels.name;
+for i = 1:size(labels,1)
+    EEG.chanlocs(i).labels = labels.name{i};
+    EEG.chanlocs(i).type = labels.type{i};
+end
+EEG = pop_chanedit(EEG,'lookup',fullfile(locPath,'standard_BEM','elec','standard_1005.elc'));
+
+% Downsample to 128 Hz to accelerate things
+EEG = pop_resample(EEG, 128);
+
+
+
+
+
+
+%% Import STUDY using pop_importbids
 [STUDY, ALLEEG] = pop_importbids( data_dir, 'eventtype','value', ...
     'bidsevent','on','bidschanloc','on', ...
     'outputdir',fullfile(data_dir,'derivatives') );

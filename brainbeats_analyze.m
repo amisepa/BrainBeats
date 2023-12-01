@@ -11,12 +11,65 @@
 %
 % Copyright (C) - BrainBeats - Cedric Cannard - 2023
 
-function brainbeats_analyze(Features)
+function brainbeats_analyze(params)
 
 % error('Sorry, group level statistics are not available yet. Work in progress!Coming soon!')
 
-norm = false;
+% norm = false;
 
+% Go to data directory
+% params.data_path = uigetdir(pwd, 'Select a folder');
+cd(params.data_path)
+
+% Extract file paths and names
+disp('Searching for files...')
+filenames = dir;
+if any(contains({filenames.name},'HEP.set'))
+    % error('add code: files are at the root')
+    filenames = contains({filenames.name}, 'HEP.set');
+
+elseif any(contains({filenames.name},'participants.tsv'))
+
+    % Extract participants information from tsv file
+    disp("Extracting files from a BIDS folder...")
+    tmp = readtable("participants.tsv","FileType","text",'Delimiter','\t');
+    if any(contains(tmp.Properties.VariableNames,"id"))
+        ids = tmp.participant_id;
+    else
+        error('could not extract participants IDs from TSV file')
+    end
+    if any(contains(tmp.Properties.VariableNames,"age"))
+        age = round(tmp.age);
+    end
+    if any(contains(tmp.Properties.VariableNames,"gender"))
+        gender = tmp.gender;
+    end
+    if any(contains(tmp.Properties.VariableNames,"grp"))
+        grp = tmp.type;
+    end
+
+    % File paths and names
+    filepaths = fullfile(params.data_path, ids, 'eeg');
+    filenames = {};
+    for i =  1:length(filepaths)
+        try
+            cd(filepaths{i})
+            tmp2 = dir; tmp2 = {tmp2.name};
+            filename = tmp2(contains(tmp2,'_HEP.set'));
+            if ~isempty(filename)
+                filenames(i) = filename;
+            end
+            cd(params.data_path)
+        catch
+            warning("Failed to access this participant's folder: %s", ids{i})
+        end
+    end
+end
+
+% Load data
+for iFile = 1:length(filenames)
+    
+end
 HRV = table.empty;
 EEG = table.empty;
 

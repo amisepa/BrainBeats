@@ -25,10 +25,10 @@
 %
 % Copyright (C) - Cedric Cannard, 2023
 
-function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs, winlength)
+function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs,winlength)
 
-% Params
-winlength = winlength*fs; % default = 30-s window
+% Window length
+winlength = winlength*fs; % default winlength = 30 sec
 
 % Initialize
 template = [];
@@ -42,7 +42,9 @@ sqimatrix_all = zeros(length(beats),3);
 sqi_mu = zeros(1,ceil(length(signal)/fs/30));
 
 % loop every 30-sec
-for j = 1:ceil(length(signal)/winlength)
+nWind = ceil(length(signal)/winlength);
+progressbar('Calculating signal quality index (SQI) from PPG signal')
+for j = 1:nWind
     databegin = (j-1)*winlength+1;
     dataend = min(length(signal),j*winlength);
     annf = find(beats<=dataend);
@@ -64,14 +66,16 @@ for j = 1:ceil(length(signal)/winlength)
     % PPG SQI analysis
     [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,30*fs,fs);
     for k=1:length(annot)
-        annot(annf(k))=annot{k};
+        annot(annf(k))=annot(k);
         sqimatrix_all(annf(k),:)=sqimatrix(k,1:3); % 1:4
         beat_i=beat_i+1;
     end
-    sqi_mu(j) = mean(mean(sqimatrix(:,1:3)'));
+    sqi_mu(j) = mean(mean(sqimatrix(:,1:3),2));
 
+    progressbar(j/nWind)
 end
 sqi = round(mean(sqimatrix_all(:,1:3),2)');
+sqi = sqi./100;
 
 
 

@@ -90,7 +90,6 @@ end
 
 % % Multiscale fuzzy entropy (MFE) - HRV
 % if params.hrv && params.hrv_nonlinear
-% %     subplot(2,2,3); 
 %   nexttile      
 %   hold on
 %     mfe = HRV.nonlinear.MFE;
@@ -188,7 +187,7 @@ if params.eeg && params.eeg_frequency
 
     % Create figure
     figure('color','w')
-    % set(gcf, 'Units', 'Normalized', 'OuterPosition', [0 0 1 1]);    % enlarge
+    set(gcf, 'Units', 'Normalized', 'OuterPosition', [0 0 1 1]);    % enlarge
     set(gcf, 'Toolbar', 'none', 'Menu', 'none');                    % remove toolbobar and menu
     set(gcf, 'Name', 'EEG features', 'NumberTitle', 'Off')  % name
 
@@ -196,31 +195,31 @@ if params.eeg && params.eeg_frequency
     warning('off','all')
     nexttile
     plot_topo(gather(mean(EEG.frequency.delta,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (decibels)','Rotation',270,'fontSize',12,'fontweight','bold')
+    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1) pos(2)+0.2 0.01 0.4],'fontSize',12,'fontweight','bold');
     title('Delta power'); %colorbar off;
     nexttile
     plot_topo(gather(mean(EEG.frequency.theta,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (decibels)','Rotation',270,'fontSize',12,'fontweight','bold')
+    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
     title('Theta power');
     nexttile
     plot_topo(gather(mean(EEG.frequency.alpha,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (decibels)','Rotation',270,'fontSize',12,'fontweight','bold')
+    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
     title('Alpha power');
     nexttile
     plot_topo(gather(mean(EEG.frequency.beta,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (decibels)','Rotation',270,'fontSize',12,'fontweight','bold')
+    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
     title('Beta power');
     % nexttile
     % plot_topo(gather(mean(EEG.frequency.low_gamma,2)),params.chanlocs,mode,'psd');
-    % cb = colorbar; ylabel(cb,'Power (decibels)','Rotation',270,'fontSize',12,'fontweight','bold')
+    % cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
     % title('Mean gamma power');
@@ -231,7 +230,7 @@ if params.eeg && params.eeg_frequency
         % subplot(3,3,5)
         nexttile
         plot_topo(gather(EEG.frequency.IAF),params.chanlocs,mode,'psd');
-        cb = colorbar; ylabel(cb,'Power (decibels)','Rotation',270,'fontSize',12,'fontweight','bold')
+        cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
         % pos = get(cb,'position');  % move left & shrink to match head size
         % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
         title('Individual alpha frequency (IAF)');
@@ -241,30 +240,6 @@ if params.eeg && params.eeg_frequency
 
     set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 
-    % Asymmetry
-    try
-        warning('off','all')
-        nexttile
-        view = [-85 20];  % 'left'
-        asy = EEG.frequency.asymmetry;
-        pairNums = EEG.frequency.asymmetry_pairs_num;
-        headplotparams = { 'meshfile','mheadnew.mat','transform',[0.664455 -3.39403 -14.2521 -0.00241453 0.015519 -1.55584 11 10.1455 12],...
-            'colormap',parula,'electrodes','off','material','metal','verbose','off'};
-        brainbeats_headplot('setup',params.chanlocs(pairNums(:,1)),'tmp.spl',headplotparams{:}); % Generate temporary spline file
-        brainbeats_headplot(asy,'tmp.spl','view',view,headplotparams{:});  % 3D headplot of asymmetry
-        title('Alpha asymmetry')
-        cb = colorbar; ylabel(cb,'Asymmetry score','Rotation',270,'fontSize',12,'fontweight','bold')
-        nticks = length(cb.Ticks); % number of ticks for colorbar
-        increment = ceil(length(asy)/nticks);
-        ticks = round(sort(asy),2);
-        cb.TickLabels = cellstr(string(ticks(1:increment:end))');
-        set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
-        warning on
-
-    catch
-        warning('Failed to plot the 3D headplot of alpha asymmetry. This may happen if your EEG data are low-density (i.e., few EEG channels only)')
-    end
-
 end
 
 if params.eeg && params.eeg_nonlinear
@@ -272,6 +247,11 @@ if params.eeg && params.eeg_nonlinear
     plot_topo(gather(EEG.nonlinear.SE),params.chanlocs,mode,'entropy');
     cb = colorbar; ylabel(cb,'Sample entropy','Rotation',270,'fontSize',12,'fontweight','bold')
     title('Sample entropy');
+
+    % nexttile
+    % plot_topo(gather(EEG.nonlinear.FE),params.chanlocs,mode,'entropy');
+    % cb = colorbar; ylabel(cb,'Fuzzy entropy','Rotation',270,'fontSize',12,'fontweight','bold')
+    % title('Fuzzy entropy');
 
     nexttile
     plot_topo(gather(EEG.nonlinear.FD),params.chanlocs,mode,'entropy');
@@ -282,6 +262,35 @@ end
 set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 % set(findall(gca,'type','axes'),'fontSize',12,'fontweight','bold');
 
+% Asymmetry (has to be after ecause of colorbar issues
+if params.eeg_frequency
+    try
+        warning('off','all')
+        nexttile
+        view = [-85 20];  % 'left'
+        asy = EEG.frequency.asymmetry;
+        pairNums = EEG.frequency.asymmetry_pairs_num;
+        headplotparams = { 'meshfile','mheadnew.mat','transform',...
+            [0.664455 -3.39403 -14.2521 -0.00241453 0.015519 -1.55584 11 10.1455 12],...
+            'colormap',parula,'maplimits','absmax','cbar',1,...
+            'electrodes','off','material','metal','verbose','off'};
+        brainbeats_headplot('setup',params.chanlocs(pairNums(:,1)),...
+            'tmp.spl',headplotparams{:}); % Generate temporary spline file
+        brainbeats_headplot(asy,'tmp.spl','view',view,headplotparams{:});  % 3D headplot of asymmetry
+        title('Alpha asymmetry')
+        % cb = colorbar; ylabel(cb,'Asymmetry score','Rotation',270,'fontSize',12,'fontweight','bold')
+        % nticks = length(cb.Ticks); % number of ticks for colorbar
+        % increment = ceil(length(asy)/nticks);
+        % increment = 1;
+        % ticks = round(sort(asy),2);
+        % cb.TickLabels = cellstr(string(ticks(1:increment:end))');
+        set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
+        warning on
+
+    catch
+        warning('Failed to plot the 3D headplot of alpha asymmetry. This may happen if your EEG data are low-density (i.e., few EEG channels only)')
+    end
+end
 
 %% Partial EEG coherence
 

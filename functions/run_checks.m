@@ -80,6 +80,14 @@ if ~contains(params.heart_signal, {'ecg' 'ppg'})
     return
 end
 
+% Includes EEG or not (for plotting only)
+if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency
+    params.eeg = true;
+else
+    params.eeg = false;
+    params.clean_eeg = false;
+end
+
 % Check for channel locations
 if params.eeg
     if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
@@ -100,6 +108,9 @@ if params.clean_eeg
     if ~exist('iclabel','file')
         plugin_askinstall('iclabel', 'iclabel', 0);
     end
+    if ~exist('ref_infinity','file')
+        plugin_askinstall('REST_cmd', 'REST_cmd', 0);
+    end
 end
 if strcmp(params.analysis,'rm_heart')
     if ~exist('iclabel','file')
@@ -107,13 +118,6 @@ if strcmp(params.analysis,'rm_heart')
     end
 end
 
-% Includes EEG or not (for plotting only)
-if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency
-    params.eeg = true;
-else
-    params.eeg = false;
-    params.clean_eeg = false;
-end
 
 % Ensure data double precision
 EEG.data = double(EEG.data);  % ensure double precision

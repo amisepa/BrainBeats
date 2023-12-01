@@ -103,8 +103,8 @@ if contains(params.analysis, {'features' 'hep'})
     EEG = pop_select(EEG,'nochannel',params.heart_channels); 
 
     % basic check for missed auxiliary channels that could cause issues 
-    % (very limited by dataset's electrode labels)
-    idx = contains({EEG.chanlocs.labels}, {'ecg' 'ECG' 'aux' 'AUX'});
+    % (very simplistic and limited by dataset's electrode labels)
+    idx = contains(lower({EEG.chanlocs.labels}), {'ecg' 'ppg' 'aux'});
     if any(idx)
         auxChan = strjoin({EEG.chanlocs(idx).labels});
         opts.Interpreter = 'tex';
@@ -124,20 +124,35 @@ if contains(params.analysis, {'features' 'hep'})
     % quality for subsequent analysis. Structures to avoid issues when 
     % intervals have different across electrodes.
     signal = CARDIO.data;
+    sqi = [];
     nElec = size(signal,1);
     for iElec = 1:nElec
         elec = sprintf('elec%g',iElec);
-        fprintf('Detecting R peaks from ECG time series: electrode %g...\n', iElec)
+        fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
         [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params.fs, params.heart_signal);
 
         % SQI
         SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
+        maxThresh = 20; % max portion of artifacts (20% default from Vest et al. 2019)
         if strcmpi(params.heart_signal, 'ecg')
-            [sqi(iElec,:), sqi_times(iElec,:)] = get_sqi(Rpeaks.(elec), signal(iElec,:), params.fs);
-            SQI(iElec,:) = sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:));  
-        % else      
-        %     [sqi, ~, annot]= get_sqi_ppg(beats,ppg',params.fs,30); %FIXME: doesn't work
-        %     sqi = [beats'./params.fs, sqi'./100];
+            sqi(iElec,:) = get_sqi_ecg(Rpeaks.(elec), signal(iElec,:), params.fs);
+        elseif strcmpi(params.heart_signal, 'ppg')
+            sqi(iElec,:) = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs,30);
+        else
+            errdlg("Heart channel should be either 'ECG' or 'PPG' ")
+        end
+        SQI_mu(iElec,:) = round(mean(sqi(iElec,:), 'omitnan'),2);
+        SQI_badRatio(iElec,:) = round(sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:))*100,1);
+        if SQI_mu(iElec,:) < .9
+            warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
+        else
+            fprintf("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
+        end
+        if SQI_badRatio(iElec,:) > 20
+            warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Minimum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh)
+            warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh),'Signal quality warning')
+        else
+            fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts.. Minimum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio)
         end
 
         % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
@@ -158,7 +173,6 @@ if contains(params.analysis, {'features' 'hep'})
     % SQI = SQI(best_elec);
     [~,best_elec] = min(struct2array(flaggedRatio));
     elec = sprintf('elec%g',best_elec);
-    maxThresh = .2;         % max portion of artifacts (.2 default from Vest et al. 2019)
     % if SQI > maxThresh    % more than 20% of RR series is bad
     %      warning on
     %     warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",round(SQI,2));
@@ -200,7 +214,8 @@ if contains(params.analysis, {'features' 'hep'})
     Features.HRV.ECG_filtered = sig;
     Features.HRV.ECG_times = sig_t;
     if exist('SQI','var')
-        Features.HRV.SQI = SQI;
+        Features.HRV.SQI_mean = SQI_mu;
+        Features.HRV.SQI_bad_ratio = SQI_badRatio;
     end
     Features.HRV.RR = RR;
     Features.HRV.RR_times = RR_t;

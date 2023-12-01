@@ -7,7 +7,7 @@
 % 3) bad EEG channels are identified and reomved using the clean_flatlines, 
 %   and clean_channels algorithms from K. Kothe (clean_artifacts). 
 %   Default parameters: 
-%       - correlation threshold = 85; 
+%       - correlation threshold = 75; 
 %       - window length = 5 to capture low-frequency artifacts; 
 %       - line noise threshold = 5; 
 %       - maximum portion of channel to be considred a bad channel = 15%; 
@@ -37,11 +37,30 @@
 
 function [EEG, params] = clean_eeg(EEG, params)
 
+% Filtering parameters
+highpass = 1;
+lowpass = 45;
+causalfilt = false; % causal minimum-phase filter should be used for pre-heartbeat analysis
+
+% Parameters for removing bad channels
+corrThresh = .6;   % correlation threshold to be considered bad (default = .6)
+win_length = 5;     % window length (deafult = 5 s)
+line_thresh = 5;    % line noise threshold (default = 5)
+maxBad = .25;       % max tolerated portion of channel to be bad before removal (default = .25)
+nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
+
+% HEP parameters to remove bad epochs
+detectMethod = 'grubbs';   % 'grubbs' (more aggressive), 'mean' (conservative)
+
+% ASR parameters
+cutoff = 30;        % main ASR cutoff (lower = more aggressive, higher = more lax)
+maxmemory = .8;     % available RAM to use for ASR (.8 = 80% of available RAM)
+
 % Filter, re-reference, and remove bad channels
 if params.clean_eeg_step == 0
     
-    EEG = pop_eegfiltnew(EEG,'locutoff',1,'minphase',false);    % use causal minimum-phase filter for pre-event analysis
-    EEG = pop_eegfiltnew(EEG,'hicutoff',45,'minphase',false);   % causal minimum-phase filter should be used for pre-event analysis
+    EEG = pop_eegfiltnew(EEG,'locutoff',highpass,'minphase',causalfilt);    
+    EEG = pop_eegfiltnew(EEG,'hicutoff',lowpass,'minphase',causalfilt);   % causal minimum-phase filter should be used for pre-event analysis
     
     % Reference to average or infinity/REST
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
@@ -49,7 +68,7 @@ if params.clean_eeg_step == 0
     % methodology to user guidelines. Journal of Neuroscience Methods.
     if isempty(EEG.ref) || strcmp(EEG.ref,'') || strcmp(EEG.ref,'unknown')
         if EEG.nbchan >= 30
-            EEG = reref_inf(EEG); % my function
+            EEG = ref_infinity(EEG);
         else
             warning('Cannot reference these EEG data to infinity as low-density montages. Low-density montages require alternative referencing (e.g., linked mastoids).')
         end
@@ -63,11 +82,6 @@ if params.clean_eeg_step == 0
     %     'WindowCriterion','off','BurstRejection','off','Distance','off');    
     disp('Detecting bad EEG channels...')
     EEG = clean_flatlines(EEG,5);   % remove channels that have flat lines
-    corrThresh = .75;   % correlation threshold to be considered bad (default = .85)
-    win_length = 5;     % window length (deafult = 5 s)
-    line_thresh = 5;    % line noise threshold (default = 5)
-    maxBad = .25;       % max tolerated portion of channel to be bad before removal (original default = .4)
-    nSamp = 500;        % number of ransac samples (original = 50; higher is longer but more accurate and replicable)
     try 
         EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
     catch
@@ -100,13 +114,13 @@ if params.clean_eeg_step == 0
     end
 
     % % Add ECG channels back?
-    % EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
-    % EEG.nbchan = EEG.nbchan + ECG.nbchan;
-    % for iChan = 1:ECG.nbchan
+    % EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
+    % EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
+    % for iChan = 1:CARDIO.nbchan
     %     EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
     % end
     % EEG = eeg_checkset(EEG);
-    
+
     % update tracker
     params.clean_eeg_step = 1;
 
@@ -121,7 +135,7 @@ elseif params.clean_eeg_step == 1
     if strcmp(params.analysis, 'hep')
         
         % Detect and remove bad epochs
-        badTrials = find_badTrials(EEG,'grubbs', params.vis_cleaning);
+        badTrials = find_badTrials(EEG,detectMethod, params.vis_cleaning);
         EEG = pop_rejepoch(EEG, badTrials, 0); 
 
         % Run RMS a 2nd time more conservative in case some were missed
@@ -133,11 +147,8 @@ elseif params.clean_eeg_step == 1
 
         % Identify artifacts using ASR
         oriEEG = EEG;
-        cutoff = 40;
-        useriemannian = false;
-        m = memory;
-        maxmem = round(.85*(m.MemAvailableAllArrays/1000000),1);  % use 85% of available memory (in MB)
-        cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],params.gpu,useriemannian,maxmem);
+        m = memory; maxmem = round(maxmemory*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
+        cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],params.gpu,false,maxmem);
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
         EEG.etc.clean_sample_mask = ~mask;
         badData = reshape(find(diff([false mask false])),2,[])';
@@ -152,7 +163,7 @@ elseif params.clean_eeg_step == 1
         % Remove them
         EEG = pop_select(EEG,'nopoint',badData);
         % if strcmp(params.analysis,'hep')
-        %     ECG = pop_select(ECG,'nopoint',badData);
+        %     CARDIO = pop_select(CARDIO,'nopoint',badData);
         % end
         fprintf('%g %% of data were considered to be artifacts and were removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
         
@@ -180,6 +191,7 @@ elseif params.clean_eeg_step == 1
         % Do not remove heart components for HEP
         EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
+        % Remove components: muscle, eye, heart, line noise, channel noise
         EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; .99 1; .99 1; NaN NaN]);
     end
     badComp = find(EEG.reject.gcompreject);
@@ -188,8 +200,8 @@ elseif params.clean_eeg_step == 1
     % Visualize indepent components tagged as bad
     if params.vis_cleaning
         nComps = size(EEG.icaact,1);
-        if nComps >= 20
-            pop_selectcomps(EEG,1:20); 
+        if nComps >= 24
+            pop_selectcomps(EEG,1:24); 
         else
             pop_selectcomps(EEG,1:nComps)
         end

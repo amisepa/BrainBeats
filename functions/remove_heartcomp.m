@@ -5,20 +5,25 @@
 function EEG = remove_heartcomp(EEG, params)
 
 if params.clean_eeg
-    ECG = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
-    EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
+    CARDIO = pop_select(EEG,'channel',params.heart_channels); % export CARDIO data in separate structure
+    EEG = pop_select(EEG,'nochannel',params.heart_channels);
 
     % Filter, re-reference, remove bad channels
     params.clean_eeg_step = 0;
     [EEG, params] = clean_eeg(EEG, params);
 
-    % Add ECG channels back
-    EEG.data(end+1:end+ECG.nbchan,:) = ECG.data;
-    EEG.nbchan = EEG.nbchan + ECG.nbchan;
-    for iChan = 1:ECG.nbchan
+    % Add CARDIO channels back
+    EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
+    EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
+    for iChan = 1:CARDIO.nbchan
         EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
     end
     EEG = eeg_checkset(EEG);
+
+    % % update mask
+    % if isfield(EEG.etc, 'clean_channel_mask')
+    %     EEG.etc.clean_channel_mask(end+1:end+CARDIO.nbchan) = true;
+    % end
 
 end
 
@@ -30,11 +35,13 @@ else
 end
 
 EEG = pop_iclabel(EEG,'default');
-EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.9 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
+EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.85 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
 % pop_selectcomps(EEG,1:EEG.nbchan); colormap('parula');
 heart_comp = find(EEG.reject.gcompreject);
 
 if ~isempty(heart_comp)
+
+    fprintf('Number of heart components detected: %g. \n', length(heart_comp));
 
     % Visualize heart component
     if params.vis_outputs
@@ -42,22 +49,27 @@ if ~isempty(heart_comp)
     end
     
     % Substract heart component from signal
-    fprintf('Removing %g heart component(s). \n', length(heart_comp));
     oriEEG = EEG;
     EEG = pop_subcomp(EEG, heart_comp, 0);
-    % ADD: option to keep ECG channels by adding them back?
 
-    % visualize with ECG signal to see heartbeats and corresponding
+    % visualize with CARDIO signal to see heartbeats and the corresponding
     % contamination in EEG
     if params.vis_outputs
+        if isfield(EEG.etc, 'clean_channel_mask') %&& length(EEG.etc.clean_channel_mask)<length(oriEEG.etc.clean_channel_mask)
+            EEG.etc = rmfield(EEG.etc, 'clean_channel_mask');
+            % EEG.etc.clean_channel_mask(end+1:end+CARDIO.nbchan) = true;
+        end
+        if isfield(oriEEG.etc, 'clean_channel_mask')
+            oriEEG.etc = rmfield(oriEEG.etc, 'clean_channel_mask');
+        end
         vis_artifacts(EEG,oriEEG);
     end
 
-    % Remove ECG channel
+    % Remove CARDIO channel (ADD option to keep them)
     EEG = pop_select(EEG,'nochannel', params.heart_channels);
 
 else
-    fprintf('Sorry, no heart component was detected. Make sure the ECG channel you selected is correct. \nYou may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended). \n')
+    fprintf('Sorry, no heart component was detected. Make sure the CARDIO channel you selected is correct. \nYou may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended). \n')
 end
 
 % Save
