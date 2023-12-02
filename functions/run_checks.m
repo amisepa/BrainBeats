@@ -81,11 +81,13 @@ if ~contains(params.heart_signal, {'ecg' 'ppg'})
 end
 
 % Includes EEG or not (for plotting only)
-if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency
-    params.eeg = true;
-else
-    params.eeg = false;
-    params.clean_eeg = false;
+if ~isfield(params,'eeg')
+    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency
+        params.eeg = true;
+    else
+        params.eeg = false;
+        params.clean_eeg = false;
+    end
 end
 
 % Check for channel locations

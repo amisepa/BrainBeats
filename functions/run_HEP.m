@@ -34,7 +34,7 @@ IBI(1) = []; % remove first NaN value
 % figure('color','w'); histogram(IBI); hold on;
 % histogram(diff(Rpeaks)/EEG.srate *1000); legend('from EEG events','from R peaks');
 
-% Remove trials with IBI<550 ms (see Candia-Rivera et al. 2021; Park & Blanke 2019)
+% Remove epochs with IBI<550 ms (see Candia-Rivera et al. 2021; Park & Blanke 2019)
 shortTrials = find(IBI<550);
 if ~isempty(shortTrials)
     warning('Removing %g trials with interbeat intervals (IBI) < 550 ms', length(shortTrials))
@@ -44,7 +44,7 @@ else
     fprintf('All trial have an interbeat interval (IBI) above 550 ms (minimum recommended). \n')
 end
 
-% Remove remaining outlier trials
+% Remove remaining outlier epochs
 outliers = find(isoutlier(IBI,'grubbs'));
 if ~isempty(outliers)
     warning('Removing %g outlier trials with the following interbeat intervals (IBI): ', length(outliers))
@@ -76,6 +76,11 @@ HEP = pop_epoch(EEG,{},[-.3 prctile(IBI,5)/1000],'epochinfo','yes');
 % Remove bad epochs, run ICA, and remove bad components
 if params.clean_eeg
     [HEP, params] = clean_eeg(HEP,params);
+
+    % Preprocessing outputs
+    EEG.brainbeats.preprocessing.removed_eeg_trials = params.removed_eeg_trials;
+    EEG.brainbeats.preprocessing.removed_eeg_components = params.removed_eeg_components;
+
 end
 
 % Remove epochs containing more than 1 R-peak

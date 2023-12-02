@@ -20,6 +20,7 @@ cd(mainDir);
 % https://nemar.org/dataexplorer/detail?dataset_id=ds003838
 % note: sub-032_task-rest_ecg.set contains both ECg and PPG channels
 EEG = pop_loadset('filename','dataset1.set','filepath',fullfile(mainDir,'sample_data'));
+EEG.ref = [];
 
 % Process file for HEP analysis using default parameters except for:
 %   - selecting the type of analysis: 'hep'
@@ -33,8 +34,11 @@ EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
 % pop_eegplot(EEG,1,1,1);  % to visualize the final output
 
 % Same with PPG
-EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',false);
+EEG = pop_loadset('filename','dataset1.set','filepath',fullfile(mainDir,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'ECG'}); 
+EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'eeg',false,'hrv_features',{'time' 'frequency'},...
+    'vis_cleaning',true,'vis_outputs',false);
 
 % Same but adjusting some parameters this time
 %   - 'clean_rr' set to 'spline' to interpolate the RR artifacts (default = 'pchip')

@@ -7,33 +7,34 @@
 % 3) bad EEG channels are identified and reomved using the clean_flatlines, 
 %   and clean_channels algorithms from K. Kothe (clean_artifacts). 
 %   Default parameters: 
-%       - correlation threshold = 75; 
-%       - window length = 5 to capture low-frequency artifacts; 
+%       - correlation threshold = .65; 
+%       - window length = 5 s to capture low-frequency artifacts; 
 %       - line noise threshold = 5; 
-%       - maximum portion of channel to be considred a bad channel = 15%; 
+%       - maximum portion of channel to be considred a bad channel = 33%; 
 %       - 85% of available RAM to increase speed.
 %       - # of ransac samples = 500 (more computation but more accurate and 
 %       replicable)
 % 4) Bad channels are interpolated using spherical splines. 
 % 5a) For continuous data, large artifacts are removed using Artifact 
-%   subspace reconstruction (ASR). 
+%   subspace reconstruction (ASR). SD threshold = 30 by default.
 % 5b) For epoched data (HEP), bad epochs are detected and removed using
-%   custom amplitude and SNR metrics. 
+%   custom amplitude and SNR metrics. Default method = 'grubbs'.
 % 6) The preconditioned ICA algorithm is used to to perform fast but reliable 
 %   blind source spearation, implementing PCA-dimension reduction to control 
-%   for effective data rank and avoid gohst IC aritfacts (see Kim et al. 2023). 
-%   If users do not wish to use PICARD, the infomax algorithm is used, with 
-%   'lrate' = 1e-5 and 'maxsteps' = 2000 to allow replication. 
-% 7) ICLabel classifies bad independent components: 
+%   for effective data rank and avoid ghost IC artifacts (see Kim et al. 2023). 
+%   If users do not wish to use PICARD, the infomax algorithm is used with 
+%   'lrate' = 1e-5 and 'maxsteps' = 2000. It takes much longer, but allows
+%   replication (and the order of the IC maps is always the same). 
+% 7) ICLabel tags artifactual ICs with: 
 %       - muscle (95% confidence);
 %       - eye (90% confidence)
-%       - heart (99% confidence) --> NOT removed for HEP since we want that
-%           activity to see how the brain processes heartbeats.
+%       - heart (99% confidence) --> NOT removed for 'hep' and 'rm_heart' 
+%           modes since we want to preserve that activity.
 %       - line noise (99% confidence)
 %       - channel noise (99% confidence)
-%   Tagged components are extracted automatically from EEG signals. 
+%   Flagged components are automatically extracted from the EEG signals. 
 % 
-% Cedric Cannard (C), BrainBeats 2023
+% Copyright (C), BrainBeats 2023, Cedric Cannard
 
 function [EEG, params] = clean_eeg(EEG, params)
 
@@ -43,10 +44,10 @@ lowpass = 45;
 causalfilt = false; % causal minimum-phase filter should be used for pre-heartbeat analysis
 
 % Parameters for removing bad channels
-corrThresh = .6;   % correlation threshold to be considered bad (default = .6)
+corrThresh = .65;   % correlation threshold to be considered bad (default = .65)
 win_length = 5;     % window length (deafult = 5 s)
 line_thresh = 5;    % line noise threshold (default = 5)
-maxBad = .25;       % max tolerated portion of channel to be bad before removal (default = .25)
+maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
 nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
@@ -97,6 +98,9 @@ if params.clean_eeg_step == 0
     badChan = { oriEEG.chanlocs(badChan).labels };
     EEG = pop_select(EEG,'nochannel', badChan);
     
+    % Store in params if users want that information
+    params.removed_eeg_channels = badChan;
+
     % Visualize removed channels
     if params.vis_cleaning
         % EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
@@ -135,14 +139,17 @@ elseif params.clean_eeg_step == 1
     if strcmp(params.analysis, 'hep')
         
         % Detect and remove bad epochs
-        badTrials = find_badTrials(EEG,detectMethod, params.vis_cleaning);
+        badTrials = find_badTrials(EEG, detectMethod, params.vis_cleaning);
         EEG = pop_rejepoch(EEG, badTrials, 0); 
 
         % Run RMS a 2nd time more conservative in case some were missed
         % badTrials = find_badTrials(EEG,'mean', params.vis_cleaning);
         % EEG = pop_rejepoch(EEG, badTrials, 0);
 
-    % Features
+        % Store in params if users want that information
+        params.removed_eeg_trials = badTrials;
+
+        % Features
     elseif strcmp(params.analysis, 'features')
 
         % Identify artifacts using ASR
@@ -167,6 +174,10 @@ elseif params.clean_eeg_step == 1
         % end
         fprintf('%g %% of data were considered to be artifacts and were removed. \n', (1-EEG.xmax/oriEEG.xmax)*100)
         
+        % Store in params if users want that information
+        params.removed_eeg_segments = badData;
+
+        % Plot what has been removed
         if params.vis_cleaning
             vis_artifacts(EEG,oriEEG); 
         end
@@ -187,16 +198,19 @@ elseif params.clean_eeg_step == 1
 
     % Classify and remove bad components with IClabel
     EEG = pop_iclabel(EEG,'default');
-    if strcmp(params.analysis, 'hep') 
+    if strcmp(params.analysis, {'hep' 'rm_heart'}) 
         % Do not remove heart components for HEP
         EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
         % Remove components: muscle, eye, heart, line noise, channel noise
-        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .95 1; .99 1; .99 1; NaN NaN]);
+        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
     end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
-    
+
+    % Store in params if users want that information
+    params.removed_eeg_components = badComp;
+
     % Visualize indepent components tagged as bad
     if params.vis_cleaning
         nComps = size(EEG.icaact,1);

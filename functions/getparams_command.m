@@ -46,6 +46,12 @@ elseif isempty(idx) && contains(params.analysis, {'features' 'hep'})
     params.rr_correct = 'pchip';  % pchip or spline should be default
 end
 
+% Exclude all EEG operations?
+idx = find(strcmpi(varargin,'eeg'));
+if ~isempty(idx)
+    params.eeg = varargin{idx+1};
+end
+
 % Clean EEG
 idx = find(strcmpi(varargin,'clean_eeg'));
 if ~isempty(idx)
@@ -60,7 +66,9 @@ end
 if strcmp(params.analysis,'features')
     idx = find(strcmpi(varargin,'eeg_features'));
     if ~isempty(idx)
-        params.eeg = true;
+        if ~isfield(params,'eeg')
+            params.eeg = true;
+        end
         eeg_features = varargin{idx+1};
         if sum(contains(eeg_features,{'time'})) > 0
             params.eeg_time = true;

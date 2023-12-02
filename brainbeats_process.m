@@ -119,10 +119,17 @@ if contains(params.analysis, {'features' 'hep'})
         end
     end
 
+    % If PPG, resample to 125 Hz for best performance
+    if strcmpi(params.heart_signal, 'ppg')
+        disp('Resampling and filtering PPG signal for best estimation of RR intervals')
+        CARDIO = pop_resample(CARDIO,125);
+        params.fs = CARDIO.srate;
+    end
+
     % Get RR and NN intervals from ECG/PPG signals
     % note: when several electrodes are provided, use the elec with best 
-    % quality for subsequent analysis. Structures to avoid issues when 
-    % intervals have different across electrodes.
+    % quality for subsequent analysis. Structures are used to avoid issues 
+    % when outputs have different lengths across electrodes.
     signal = CARDIO.data;
     sqi = [];
     nElec = size(signal,1);
@@ -137,7 +144,8 @@ if contains(params.analysis, {'features' 'hep'})
         if strcmpi(params.heart_signal, 'ecg')
             sqi(iElec,:) = get_sqi_ecg(Rpeaks.(elec), signal(iElec,:), params.fs);
         elseif strcmpi(params.heart_signal, 'ppg')
-            sqi(iElec,:) = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs,30);
+            win_length = 30; % window length (default = 30 s)
+            [sqi(iElec,:),~,annot] = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs,win_length);
         else
             errdlg("Heart channel should be either 'ECG' or 'PPG' ")
         end
@@ -150,47 +158,36 @@ if contains(params.analysis, {'features' 'hep'})
         end
         if SQI_badRatio(iElec,:) > 20
             warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Minimum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh)
-            warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh),'Signal quality warning')
+            warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh),'Signal quality warning 1')
         else
-            fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts.. Minimum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio)
+            fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Minimum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh)
         end
 
         % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
-        % FIXME: does not take SQI into account
-        % tmp_t = RR_t.(elec); 
-        % if strcmpi(params.heart_signal, 'ecg')
-        % rr_t(1) = [];   % remove 1st heartbeat
-        % end
+        disp("Correcting RR artifacts...")
+        warning off
         [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
-        flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec));
+        flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec)) *100;
+        warning on
 
     end
 
     % Keep only ECG data of electrode with the lowest number of RR
-    % artifacts (FIXME: add SQI)
-    % [~, best_elec] = min(SQI);
-    % sqi = [sqi_times(best_elec,:); sqi(best_elec,:)];
-    % SQI = SQI(best_elec);
+    % artifacts
     [~,best_elec] = min(struct2array(flaggedRatio));
     elec = sprintf('elec%g',best_elec);
-    % if SQI > maxThresh    % more than 20% of RR series is bad
-    %      warning on
-    %     warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",round(SQI,2));
-    %     errordlg("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
-    % else
-    %     fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", SQI )
-    % end
     flaggedRatio = flaggedRatio.(elec);
     flagged = flagged.(elec);
     if sum(flagged) > 0
         if contains(params.rr_correct,'remove')
-            fprintf('%g heart beats were flagged as artifacts and removed. \n', sum(flagged));
+            fprintf('%g/%g heart beats were flagged as artifacts and removed. \n', sum(flagged),length(flagged));
         else
-            fprintf('%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged));
+            fprintf('%g/%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged),length(flagged));
         end
     end
     if flaggedRatio > maxThresh % more than 20% of RR series is bad
-        warning("%g%% of the RR series on your best electrode are artifacts. Maximum recommendations 20%%! Aborting...", round(flaggedRatio*100,2));
+        warning("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%.", round(flaggedRatio,2));
+        warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%.", round(flaggedRatio,2)),'Signal quality warning 2');
     else
         fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", round(flaggedRatio,2) )
     end
@@ -211,28 +208,35 @@ if contains(params.analysis, {'features' 'hep'})
     end
     
     % Preprocessing outputs
-    Features.HRV.ECG_filtered = sig;
-    Features.HRV.ECG_times = sig_t;
-    if exist('SQI','var')
-        Features.HRV.SQI_mean = SQI_mu;
-        Features.HRV.SQI_bad_ratio = SQI_badRatio;
+    % EEG.brainbeats.preprocessing.RR_times = RR_t;
+    % EEG.brainbeats.preprocessing.RR = RR;
+    EEG.brainbeats.preprocessings.interpolated_heartbeats = sum(flagged);
+    if exist('sqi','var')
+        EEG.brainbeats.preprocessings.heart_SQI_mean = SQI_mu;
+        EEG.brainbeats.preprocessings.heart_SQI_badportion = SQI_badRatio;
     end
-    Features.HRV.RR = RR;
-    Features.HRV.RR_times = RR_t;
-    Features.HRV.HR = HR;
-    Features.HRV.NN = NN;
-    Features.HRV.NN_times = NN_t;
-    Features.HRV.flagged_heartbeats = flagged;
+    EEG.brainbeats.preprocessings.NN = NN;
+    EEG.brainbeats.preprocessings.NN_times = NN_t;
 
     % Remove ECG data from EEG data
-    EEG = pop_select(EEG,'nochannel',params.heart_channels); % FIXME: remove all non-EEG channels instead
+    EEG = pop_select(EEG,'nochannel',params.heart_channels);
+
+    % Exit BrainBeats if user only wants to work with cardiovascular data
+    if ~params.eeg && ~strcmp(params.analysis,'features')
+        disp('Done processing cardiovascular signals'); gong
+        return
+    end
 
     % Filter, re-reference, remove bad channels
     if params.clean_eeg    
         params.clean_eeg_step = 0;
         [EEG, params] = clean_eeg(EEG, params);
-    end
 
+        % Preprocessing outputs
+        EEG.brainbeats.preprocessings.removed_eeg_channels = params.removed_eeg_channels;
+        
+    end
+    
     %%%%% MODE 1: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
         EEG = run_HEP(EEG, params, Rpeaks);
@@ -253,14 +257,20 @@ if contains(params.analysis, {'features' 'hep'})
 
             % Final output with everything
             Features.HRV = features_hrv;
+            Features.HRV.HR = HR;
+
     end
     
     %%%%% MODE 2: EEG features %%%%%
     if strcmp(params.analysis,'features') && params.eeg
 
-        % Clean EEG artifacts with ASR
+        % Remove EEG artifacts with ASR and bad components with ICLabel
         if params.clean_eeg
             [EEG, params] = clean_eeg(EEG, params);
+
+            % Preprocessing outputs
+            EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
+            EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
         end
 
         % Extract EEG features and store in EEGLAB structure
@@ -277,7 +287,7 @@ if contains(params.analysis, {'features' 'hep'})
     % Store in EEGLAB structure (independent of saving choice in case user 
     % wants to save .set file on their own in a script)
     if strcmp(params.analysis,'features')
-        EEG.features = Features;
+        EEG.brainbeats.features = Features;
         disp("Features are stored in the EEG.features field")
     end
 
@@ -297,10 +307,8 @@ if contains(params.analysis, {'features' 'hep'})
         end
     end
 
-end
-
 %%%%% MODE 3: remove heart components from EEG signals %%%%%
-if strcmp(params.analysis,'rm_heart')
+elseif strcmp(params.analysis,'rm_heart')
     EEG = remove_heartcomp(EEG, params);
 end
 

@@ -32,9 +32,9 @@ disp("Calculating signal quality index (SQI) for a ECG time series...")
 
 qrs2 = get_rwave3(raw_ecg,fs);
 
-windowlength = 10;   % default = 10
+windowlength = 10;  % default = 10
 increment = 1;      % default = 1
-threshold = 0.1;  % default = 0.1;
+threshold = 0.1;    % default = 0.1;
 margin = 2;
 
 qrs1 = qrs1(:)./fs;
@@ -70,6 +70,11 @@ for iSeg = 1:length(t_sqi)
 end
 
 % fprintf('Mean signal quality index (SQI): %g \n', round(mean(sqi,'omitnan'),2))
+
+
+
+
+
 
 %% Subfunction
 

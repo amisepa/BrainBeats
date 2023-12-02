@@ -45,14 +45,13 @@ function [RR, RR_t, Rpeaks, sig, tm, HR] = get_RR(signal, fs, sig_type)
 nSamp = size(signal,1);
 tm = 1/fs:1/fs:nSamp/fs;   % tm = 1/fs:1/fs:ceil(nSamp/fs);
 
-%%%%%%%%%%%%%%%%%%%%%% ECG %%%%%%%%%%%%%%%%%%%%%%
+%% ECG
 if strcmpi(sig_type, 'ecg')
 
     % params
     peakThresh = .6;
     search_back = true;     % perform search back
     ref_period = 0.25;      % refractory period
-    
     
     % Constants
     med_smooth_nb_coef = round(fs/100);
@@ -221,23 +220,22 @@ if strcmpi(sig_type, 'ecg')
     %     set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
     % end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PPG %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  PPG
 elseif strcmpi(sig_type, 'ppg')
 
-    
     if ~exist('fs','var')
         error("You must provide your signal' sampling rate as 2nd input")
     end
 
-    BUFLN = 4096;                       % must be a power of 2
-    LPERIOD  = fs*20;                    % learning period in samples (default = 8 s)
-    thresh = 5;                         % minimum threshold value (default = 5)
-    EyeClosing = round(fs* .3);        % eye-closing period is set to 0.3 sec (300 ms)
-    ExpectPeriod = round(fs* 2.5);	    % threshold in s (default = 2.5) -> adjust if no pulse found
-    SLPwindow = round(fs* .17);        % Slope window size (default = 170 ms)
+    BUFLN = 4096;                   % must be a power of 2 (default = 4096)
+    LPERIOD  = fs*8;                % learning period in samples (default = 8 s)
+    thresh = 5;                     % minimum threshold value (default = 5)
+    EyeClosing = round(fs*0.65);     % eye-closing period (default = 0.65 s; range: .4-.8) --> DRASTIC CHANGES
+    ExpectPeriod = round(fs*5);    % threshold in s (default = 5 s)
+    SLPwindow = round(fs*0.5);     % Slope window size (default = 0.1 s; range: .05-.3)
     timer = 0;
     
-    Rpeaks = [];  % these are actually onsets of heartbeats (or pulse wave) 
+    Rpeaks = [];  % onsets of heartbeats (or pulse wave) 
     % but this makes it easier with outputs of the function
     beat_n = 1;
 
@@ -298,8 +296,8 @@ elseif strcmpi(sig_type, 'ppg')
     t = from;
     while t <= to
     
-        if (learning)
-            if (t > from + LPERIOD)
+        if learning
+            if t > from + LPERIOD
                 learning = 0;
                 T1 = T0;
                 t = from;	% start over
@@ -353,7 +351,7 @@ elseif strcmpi(sig_type, 'ppg')
                     end
                 end
     
-                % find valley from the original signal around 0.25s of tpq
+                % find valley from the original signal around 0.25 s of tpq
                 valley_v = round(tpq);
                 for valley_i = round(max(2,tpq-round(0.20*fs))):round(min(tpq+round(0.05*fs),length(signal)-1))
     

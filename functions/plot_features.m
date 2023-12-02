@@ -263,7 +263,7 @@ set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 % set(findall(gca,'type','axes'),'fontSize',12,'fontweight','bold');
 
 % Asymmetry (has to be after ecause of colorbar issues
-if params.eeg_frequency
+if params.eeg && params.eeg_frequency
     try
         warning('off','all')
         nexttile

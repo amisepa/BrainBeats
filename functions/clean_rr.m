@@ -35,6 +35,16 @@ function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params)
 
 fs = params.fs;
 
+% Physiological thresholds based on healthy adults to flag 
+% non-physiological heartbeats
+% if strcmp(params.heart_signal,'ecg')
+    lowerphysiolim = .375;    % default = .375 s for ECG (normal range = .6-1 s)
+% elseif strcmp(params.heart_signal,'ppg')
+    % lowerphysiolim = .3;    % default = .3 s for PPG to reduce false positives due to motion artifacts
+% end
+upperphysiolim = 2;     % default = 2 s (>2 s is very rare in healthy individuals)
+
+% prep
 t_rr(1) = [];  % remove 1st heartbeat
 Rpeaks = repmat('N', [length(rr) 1]);
 
@@ -66,18 +76,19 @@ t_rr(idx_remove) = [];
 Rpeaks(idx_remove) = [];
 clear idx_remove;
 
-% Find non-Rpeaks
-% [~,~,outliers] = AnnotationConversion(Rpeaks);
+% Find non-R peaks
 goodbeats = strcmp(cellstr(Rpeaks),'N');
 badbeats = ~goodbeats;
 outliers = false(length(badbeats),1);
-% removing beats after non-N beats
+
+% remove beats after non-R beats
 for i = 1:length(badbeats)
     if badbeats(i)
         outliers(i) = 1;
         outliers(i+1) = 1;
     end
 end
+
 % remove extra points that may have been introduced at the end of the file
 if (length(outliers) > length(badbeats))
     z = length(outliers);
@@ -118,8 +129,6 @@ else
 end
 
 % Identify non-physiologic beats
-lowerphysiolim = .375;      % equivalent to RR = .375
-upperphysiolim = 2;         % equivalent to RR = 2
 toohigh = NN_Outliers > upperphysiolim;
 toolow = NN_Outliers < lowerphysiolim;
 idx_toolow = find(toolow == 1);
