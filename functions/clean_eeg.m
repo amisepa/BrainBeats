@@ -40,12 +40,17 @@ function [EEG, params] = clean_eeg(EEG, params)
 
 % Filtering parameters
 highpass = 1;
-lowpass = 45;
-causalfilt = false; % causal minimum-phase filter should be used for pre-heartbeat analysis
+lowpass = 40;
+if strcmp(params.analysis,'hep')
+    causalfilt = true; % causal minimum-phase filter should be used for HEP to avoid group delays or other filter artifacts
+else
+    causalfilt = false; % zero-phase noncausal filter for continuous data
+end
+reref = true;
 
 % Parameters for removing bad channels
 corrThresh = .65;   % correlation threshold to be considered bad (default = .65)
-win_length = 5;     % window length (deafult = 5 s)
+win_length = 5;     % window length (default = 5 s)
 line_thresh = 5;    % line noise threshold (default = 5)
 maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
 nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
@@ -60,15 +65,19 @@ maxmemory = .8;     % available RAM to use for ASR (.8 = 80% of available RAM)
 % Filter, re-reference, and remove bad channels
 if params.clean_eeg_step == 0
     
+    % Highpass filter to remove slow frequency drifts set by user
     EEG = pop_eegfiltnew(EEG,'locutoff',highpass,'minphase',causalfilt);    
-    EEG = pop_eegfiltnew(EEG,'hicutoff',lowpass,'minphase',causalfilt);   % causal minimum-phase filter should be used for pre-event analysis
+
+    % Lowpass filter to remove very high-frequency artifacts (for ASR, lowpass set by user is later below)
+    EEG = pop_eegfiltnew(EEG,'hicutoff',100,'minphase',causalfilt);  
     
     % Reference to average or infinity/REST
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
     % in the assessment of functional brain–heart interplay: From 
     % methodology to user guidelines. Journal of Neuroscience Methods.
-    if isempty(EEG.ref) || strcmp(EEG.ref,'') || strcmp(EEG.ref,'unknown')
+    if reref
         if EEG.nbchan >= 30
+            fprintf('Re-referencing the EEG data to infinity for best results. \n')
             EEG = ref_infinity(EEG);
         else
             warning('Cannot reference these EEG data to infinity as low-density montages. Low-density montages require alternative referencing (e.g., linked mastoids).')
@@ -81,7 +90,7 @@ if params.clean_eeg_step == 0
     % EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
     %     'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
     %     'WindowCriterion','off','BurstRejection','off','Distance','off');    
-    disp('Detecting bad EEG channels...')
+    % disp('Scanning EEG channels for flat lines...')
     EEG = clean_flatlines(EEG,5);   % remove channels that have flat lines
     try 
         EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
@@ -105,9 +114,14 @@ if params.clean_eeg_step == 0
     if params.vis_cleaning
         % EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
         % EEG.etc.clean_channel_mask(badChan) = false;
-        vis_artifacts(EEG,oriEEG);
+        vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+        set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+        set(gcf,'Name','EEG channels removed','NumberTitle', 'Off')  % change figure name
         % vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
     end
+
+    % Lowpass filter set by user
+    EEG = pop_eegfiltnew(EEG,'hicutoff',lowpass,'minphase',causalfilt);  
 
     % Interpolate them
     if EEG.nbchan >30
@@ -117,7 +131,7 @@ if params.clean_eeg_step == 0
         warning('Cannot interpolate bad EEG channels reliably with less than 30 channels')
     end
 
-    % % Add ECG channels back?
+    % % Add CARDIO channels back? (requires adding CARDIO in inputs)
     % EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
     % EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
     % for iChan = 1:CARDIO.nbchan
@@ -179,9 +193,10 @@ elseif params.clean_eeg_step == 1
 
         % Plot what has been removed
         if params.vis_cleaning
-            vis_artifacts(EEG,oriEEG); 
+            vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+            set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+            set(gcf,'Name','EEG artifacts channels removed','NumberTitle', 'Off')  % change figure name
         end
-
     end
     
     % Run ICA at effective data rank to control for ghost ICs (Kim et al. 2023). 
@@ -216,8 +231,12 @@ elseif params.clean_eeg_step == 1
         nComps = size(EEG.icaact,1);
         if nComps >= 24
             pop_selectcomps(EEG,1:24); 
+            set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+            set(gcf,'Name','Independent components','NumberTitle','Off')  % name
         else
             pop_selectcomps(EEG,1:nComps)
+            set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+            set(gcf,'Name','Independent components','NumberTitle','Off')  % name
         end
         colormap("parula")
     end
@@ -232,6 +251,8 @@ elseif params.clean_eeg_step == 1
     if params.vis_cleaning
         if strcmp(params.analysis, 'hep')
             pop_eegplot(EEG,1,1,1);
+            set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+            set(gcf,'Name','Final output after preprocessings','NumberTitle','Off')  % name
         % elseif strcmp(params.analysis, 'features')
         %     eegplot(EEG.data,'winlength',15,'srate',EEG.srate,'events', ...
         %         EEG.event,'spacing',50);

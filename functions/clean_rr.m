@@ -38,7 +38,7 @@ fs = params.fs;
 % Physiological thresholds based on healthy adults to flag 
 % non-physiological heartbeats
 % if strcmp(params.heart_signal,'ecg')
-    lowerphysiolim = .375;    % default = .375 s for ECG (normal range = .6-1 s)
+lowerphysiolim = .375;    % default = .375 s for ECG (normal range = .6-1 s)
 % elseif strcmp(params.heart_signal,'ppg')
     % lowerphysiolim = .3;    % default = .3 s for PPG to reduce false positives due to motion artifacts
 % end

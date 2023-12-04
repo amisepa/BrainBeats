@@ -12,6 +12,12 @@
 
 function HEP = run_HEP(EEG, params, Rpeaks)
 
+% Remove boundary events
+idx = strcmpi({EEG.event.type}, 'boundary');
+if any(idx)
+    EEG.event(idx) = [];
+end
+
 % Add heartbeat markers in the signals, taking into account
 % existing events
 nEv = length(EEG.event);
@@ -22,6 +28,26 @@ types = repmat({'R-peak'},1,length(evt));
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).type] = types{:};        % assign types
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index
 EEG = eeg_checkset(EEG);
+
+% Add back heart channel to check?
+% % if EEG.srate ~= CARDIO.srate
+% %     CARDIO = pop_resample(CARDIO,EEG.srate);
+% % end
+% CARDIO = pop_eegfiltnew(CARDIO,'locutoff',1,'hicutoff',20);    
+% for iChan = 1:CARDIO.nbchan
+%     CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -50, 50);
+% end
+% if EEG.pnts ~= CARDIO.pnts
+%     EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data(:,1:end-1); % for PPG
+% else
+%     EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
+% end
+% EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
+% for iChan = 1:CARDIO.nbchan
+%     EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+% end
+% EEG = eeg_checkset(EEG);
+% pop_eegplot(EEG,1,1,1);
 
 % Calculate inter-beat-intervals (IBI) from EEG markers and R peaks (to
 % compare)
@@ -65,6 +91,8 @@ if params.vis_outputs
     % plot([prctile(IBI,97.5) prctile(IBI,97.5)],ylim,'--r','linewidth',2)
     title('Interbeat intervals (IBI) after removal of outlier trials'); xlabel('time (ms)')
     legend('','','lower 95% percentile (epoch size)')
+    set(gcf,'Toolbar','none','Menu','none');                    % remove toolbobar and menu
+    set(gcf,'Name','Inter-beat intervals (IBI) distribution','NumberTitle','Off')  % name
 end
 
 % Epoch (no baseline removal as it can bias results because of
@@ -104,6 +132,8 @@ HEP = pop_rejepoch(HEP, find(idx), 0);
 
 if params.vis_outputs
 
+    % Show mean HEP for each electrodes and allows clicking on them to see
+    % more closely
     figure
     pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0, 'ydir',1);
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
@@ -139,21 +169,21 @@ if params.vis_outputs
     %     'meshfile','mheadnew.mat','transform',[-1.136 7.7523 11.4527 -0.027117 0.015531 -1.5455 0.91234 0.93161 0.80698] });
     % colormap("parula")
 
-    % Event-related spectral perturbations (ERSP) and inter-trial coherence (ITC) (non-corrected)
-    figure('color','w');
-    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8], ...
-        'topovec',1,'elocs',HEP.chanlocs,'chaninfo',HEP.chaninfo,'freqs',[7 30], ...
-        'baseline',0,'plotphase','on','padratio',2,'caption', ...
-        sprintf('%s (uncorrected)',elecName));
-    colormap("parula") % "parula" "hot" "bone" "sky" "summer" "winter"
+    % ERSP and ITC (uncorrected)
+    % figure('color','w');
+    % pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8], ...
+    %     'topovec',1,'elocs',HEP.chanlocs,'chaninfo',HEP.chaninfo,'freqs',[7 25], ...
+    %     'baseline',0,'plotphase','on','padratio',2,'caption', ...
+    %     sprintf('%s (uncorrected)',elecName));
+    % colormap("parula") % "parula" "hot" "bone" "sky" "summer" "winter"
     
     % ERSP and ITC (bootstrap + FDR-corrected)
     figure('color','w');
-    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8],'topovec',1,'elocs', ...
-        HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[8 30], ...
+    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8],'topovec',1,...
+        'elocs', HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[7 25], ...
         'baseline',0,'plotphase','on','padratio',2, ...
         'alpha',0.05,'mcorrect','fdr','naccu',1000,'caption', ...
-        sprintf('%s (FDR-corrected)',elecName));
+        sprintf('Channel %s (p=0.05; FDR-corrected)',elecName));
     colormap("parula") % parula hot bone sky summer winter
 
 end

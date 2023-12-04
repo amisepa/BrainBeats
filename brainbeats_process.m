@@ -102,7 +102,13 @@ if contains(params.analysis, {'features' 'hep'})
     CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
     EEG = pop_select(EEG,'nochannel',params.heart_channels); 
 
-    % basic check for missed auxiliary channels that could cause issues 
+    % Resample CARDIO data to match EEG for HEP, when different
+    if strcmp(params.analysis, 'hep') && EEG.srate~=CARDIO.srate
+        fprintf('Resampling cardiovascular data to match EEG sampling rate to ensure time synchrony. \n')
+        CARDIO = pop_resample(CARDIO,EEG.srate);
+    end
+
+    % Basic check for missed auxiliary channels that could cause issues 
     % (very simplistic and limited by dataset's electrode labels)
     idx = contains(lower({EEG.chanlocs.labels}), {'ecg' 'ppg' 'aux'});
     if any(idx)
@@ -119,13 +125,6 @@ if contains(params.analysis, {'features' 'hep'})
         end
     end
 
-    % If PPG, resample to 125 Hz for best performance
-    if strcmpi(params.heart_signal, 'ppg')
-        disp('Resampling and filtering PPG signal for best estimation of RR intervals')
-        CARDIO = pop_resample(CARDIO,125);
-        params.fs = CARDIO.srate;
-    end
-
     % Get RR and NN intervals from ECG/PPG signals
     % note: when several electrodes are provided, use the elec with best 
     % quality for subsequent analysis. Structures are used to avoid issues 
@@ -137,6 +136,19 @@ if contains(params.analysis, {'features' 'hep'})
         elec = sprintf('elec%g',iElec);
         fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
         [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params.fs, params.heart_signal);
+
+        % % Fix values if PPG had a different sampling rate than EEG (this
+        % should now be avoided by resampling above)
+        % factor = EEG.srate / CARDIO.srate;
+        % if factor ~= 1
+        %     RR.(elec) = RR.(elec) .* factor;
+        %     RR_t.(elec) = (Rpeaks.(elec) .* factor) / EEG.srate;
+        %     % RR_t.(elec) = (Rpeaks(1:end-1) .* factor) / EEG.srate;  
+        %     CARDIO = pop_resample(CARDIO,EEG.srate);
+        %     % sig = CARDIO.data(iElec,:);
+        %     sig_t(iElec,:) = sig_t(iElec,:) .* factor;
+        %     params.fs = CARDIO.srate;
+        % end
 
         % SQI
         SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
@@ -151,17 +163,17 @@ if contains(params.analysis, {'features' 'hep'})
         end
         SQI_mu(iElec,:) = round(mean(sqi(iElec,:), 'omitnan'),2);
         SQI_badRatio(iElec,:) = round(sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:))*100,1);
-        if SQI_mu(iElec,:) < .9
-            warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
-        else
-            fprintf("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
-        end
-        if SQI_badRatio(iElec,:) > 20
-            warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Minimum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh)
-            warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh),'Signal quality warning 1')
-        else
-            fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Minimum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio, maxThresh)
-        end
+        % if SQI_mu(iElec,:) < .9
+        %     warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
+        % else
+        % fprintf("Overall signal quality index (SQI): %g. Note: SQI > 0.9 is considered good.\n", SQI_mu)
+        % end
+        % if SQI_badRatio(iElec,:) > 20
+        %     warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+        %     warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh),'Signal quality warning 1')
+        % else
+        %     fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+        % end
 
         % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
         disp("Correcting RR artifacts...")
@@ -240,6 +252,7 @@ if contains(params.analysis, {'features' 'hep'})
     %%%%% MODE 1: Heartbeat-evoked potentials (HEP) %%%%%
     if strcmp(params.analysis,'hep')
         EEG = run_HEP(EEG, params, Rpeaks);
+        % EEG = run_HEP(EEG, CARDIO, params, Rpeaks); % for adding cardio channel back in final output
     end 
     
     %%%%% MODE 2: HRV features %%%%%
@@ -257,7 +270,7 @@ if contains(params.analysis, {'features' 'hep'})
 
             % Final output with everything
             Features.HRV = features_hrv;
-            Features.HRV.HR = HR;
+            Features.HRV.time.heart_rate = round(mean(HR,'omitnan'),1);
 
     end
     
@@ -357,8 +370,8 @@ com = char(com);
 %     fprintf("   - Candia-Rivera et al. (2021). The role of electroencephalography electrical reference in the assessment of functional brain–heart interplay: From methodology to user guidelines. Neuroscience Methods. \n");
 %     fprintf("   - Park & Blanke (2019). Heartbeat-evoked cortical responses: Underlying mechanisms, functional roles, and methodological considerations. NeuroImage. \n");
 % end
-fprintf('\n\n')
-fprintf("Done! Thank you for using the BrainBeats toolbox! \n");
-fprintf("Please cite: Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06 \n")
+fprintf('\n')
+fprintf("Done! Thank you for using the BrainBeats toolbox! Please cite: \n");
+fprintf("Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06 \n")
 
  gong

@@ -17,9 +17,9 @@
 %   Algorithms designed for adult human signals sampled at 125 Hz, but works
 %   with any sampling rate (using on-the-fly resampling). Signals shorter
 %   than 5 min long are rescaled. 
-% Original code from qppg from the Physionet Cardiovascular Signal Processing 
-% Toolbox. Original authors: W. Zong (1998), revised by G. Moody (2010), Qiao Li
-% (2010-2011), Adriana Vest (2011), and Giulia Da Poian (2018).
+%   Original code from qppg from the Physionet Cardiovascular Signal Processing 
+%   Toolbox. Original authors: W. Zong (1998), revised by G. Moody (2010), Qiao Li
+%   (2010-2011), Adriana Vest (2011), and Giulia Da Poian (2018).
 % 
 % INPUTS:
 %   signal      - raw ECG or PPG signal
@@ -28,7 +28,7 @@
 %
 % OUTPUTS:
 %   RR          - RR intervals
-%   RR_t           - time vector
+%   RR_t        - time vector
 %   Rpeaks      - R peaks
 %   sig         - ECG signal filtered
 %
@@ -232,7 +232,7 @@ elseif strcmpi(sig_type, 'ppg')
     thresh = 5;                     % minimum threshold value (default = 5)
     EyeClosing = round(fs*0.65);     % eye-closing period (default = 0.65 s; range: .4-.8) --> DRASTIC CHANGES
     ExpectPeriod = round(fs*5);    % threshold in s (default = 5 s)
-    SLPwindow = round(fs*0.5);     % Slope window size (default = 0.1 s; range: .05-.3)
+    SLPwindow = round(fs*0.1);     % Slope window size (default = 0.1 s; range: .05-.3)
     timer = 0;
     
     Rpeaks = [];  % onsets of heartbeats (or pulse wave) 
@@ -323,7 +323,7 @@ elseif strcmpi(sig_type, 'ppg')
             end
             if maxd == temp
                 t = t+1;
-                continue;
+                continue
             end
     
             for tt = tmax :-1: t-EyeClosing/2+1
@@ -410,12 +410,14 @@ elseif strcmpi(sig_type, 'ppg')
     % Discard first beat because algorithm always finds first minimum value, so trace-back logic
     % will find a fir
     % Rpeaks(1) = [];
-
+    
+    sig = signal; % for plotting
     RR = diff(Rpeaks) ./ fs;
     RR_t = Rpeaks ./ fs;
     HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
+
+    % error('Adjust back time stamps to EEG sample rate')
     
-    sig = signal; % for output
 else
     error('Signal type must be ECG or PPG')
 end

@@ -31,11 +31,13 @@ dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
 if exist('picard.m','file')
     EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
 else
-    EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
+    % EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
+    EEG = pop_runica(EEG,'icatype','runica','extended',1, ...
+        'pca',dataRank,'lrate',1e-5,'maxsteps',2000);
 end
 
 EEG = pop_iclabel(EEG,'default');
-EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.85 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 95% confidence
+EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.85 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 85% confidence
 % pop_selectcomps(EEG,1:EEG.nbchan); colormap('parula');
 heart_comp = find(EEG.reject.gcompreject);
 
@@ -45,7 +47,11 @@ if ~isempty(heart_comp)
 
     % Visualize heart component
     if params.vis_outputs
-        pop_selectcomps(EEG,heart_comp); colormap("parula")
+        if length(heart_comp)==1
+            pop_selectcomps(EEG,heart_comp); colormap("parula")
+        else
+            pop_selectcomps(EEG,1:max(heart_comp)); colormap("parula")
+        end
     end
     
     % Substract heart component from signal
@@ -62,7 +68,10 @@ if ~isempty(heart_comp)
         if isfield(oriEEG.etc, 'clean_channel_mask')
             oriEEG.etc = rmfield(oriEEG.etc, 'clean_channel_mask');
         end
-        vis_artifacts(EEG,oriEEG);
+        vis_artifacts(EEG,oriEEG,'ShowSetname',false); 
+        set(gcf, 'Toolbar', 'none', 'Menu', 'none');                    % remove toolbobar and menu
+        set(gcf, 'Name', 'Heart components removed', 'NumberTitle', 'Off')  % name
+
     end
 
     % Remove CARDIO channel (ADD option to keep them)

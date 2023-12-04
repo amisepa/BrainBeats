@@ -1,5 +1,5 @@
 <!-- <p align="center"> -->
-# BrainBeats
+# BrainBeats (Beta)
 <!-- </p> -->
 
 <p align="center" width="100%">
