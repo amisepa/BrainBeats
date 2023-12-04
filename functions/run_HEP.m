@@ -137,6 +137,8 @@ if params.vis_outputs
     figure
     pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0, 'ydir',1);
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    % set(gcf,'Name','Mean HEP for EEG each channel','NumberTitle','Off')  % name
 
     % HEP all elecs + scalp topographies of window of interest
     figure
@@ -162,12 +164,16 @@ if params.vis_outputs
         10,1,{'R-peak'},[],'','yerplabel','\muV','erp','on','cbar','on' );
     colormap("parula") % parula hot bone sky  summer winter
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Name','HEP','NumberTitle','Off')  % name
 
     % % Headplot
     % pop_headplot(HEP, 1, 0, 'HEP', [1  1], 'setup', ...
     %     { fullfile(HEP.filepath,'sample_data', sprintf('%s_HEP.spl', HEP.filename(1:end-4))), ...
     %     'meshfile','mheadnew.mat','transform',[-1.136 7.7523 11.4527 -0.027117 0.015531 -1.5455 0.91234 0.93161 0.80698] });
     % colormap("parula")
+    % set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    % set(gcf,'Name','HEP','NumberTitle','Off')  % name
 
     % ERSP and ITC (uncorrected)
     % figure('color','w');
@@ -176,15 +182,19 @@ if params.vis_outputs
     %     'baseline',0,'plotphase','on','padratio',2,'caption', ...
     %     sprintf('%s (uncorrected)',elecName));
     % colormap("parula") % "parula" "hot" "bone" "sky" "summer" "winter"
-    
+    % set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    % set(gcf,'Name','Heartbeat-evoked oscillations (HEO) and ITC','NumberTitle','Off')  % name
+
     % ERSP and ITC (bootstrap + FDR-corrected)
     figure('color','w');
-    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8],'topovec',1,...
-        'elocs', HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[7 25], ...
+    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8],...
+        'topovec',1,'elocs', HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[7 25], ...
         'baseline',0,'plotphase','on','padratio',2, ...
-        'alpha',0.05,'mcorrect','fdr','naccu',1000,'caption', ...
-        sprintf('Channel %s (p=0.05; FDR-corrected)',elecName));
+        'alpha',0.05,'mcorrect','fdr','naccu',1000,...
+        'caption',sprintf('Channel %s (p=0.05; FDR-corrected)',elecName));
     colormap("parula") % parula hot bone sky summer winter
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Name','Heartbeat-evoked oscillations (HEO) and ITC','NumberTitle','Off')  % name
 
 end
 

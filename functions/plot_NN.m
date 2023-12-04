@@ -47,4 +47,6 @@ axis tight; box on
 % area(sqi(1,:), sqi(2,:)); hold on; plot(xlim,[.9 .9],'r--','linewidth',2)
 % title(sprintf('Signal quality index (%g%% of RR series are artifacts)', round(SQI,1)) ); legend('','minimum threshold'); axis tight
 
+set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+set(gcf,'Name','RR intervals and artifacts','NumberTitle','Off')  % name
 set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');

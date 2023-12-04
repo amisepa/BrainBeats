@@ -40,8 +40,9 @@
 %
 % Copyright (C) - Cedric Cannard, 2023, BrainBeats toolbox
 
-function [RR, RR_t, Rpeaks, sig, tm, HR] = get_RR(signal, fs, sig_type)
+function [RR, RR_t, Rpeaks, sig, tm, sign, HR] = get_RR(signal, fs, sig_type)
 
+sign = [];
 nSamp = size(signal,1);
 tm = 1/fs:1/fs:nSamp/fs;   % tm = 1/fs:1/fs:ceil(nSamp/fs);
 
@@ -415,7 +416,7 @@ elseif strcmpi(sig_type, 'ppg')
     RR = diff(Rpeaks) ./ fs;
     RR_t = Rpeaks ./ fs;
     HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
-
+    
     % error('Adjust back time stamps to EEG sample rate')
     
 else

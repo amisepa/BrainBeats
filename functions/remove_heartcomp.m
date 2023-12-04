@@ -83,6 +83,6 @@ end
 
 % Save
 if params.save
-    newname = sprintf('%s_heart-clean.set', EEG.filename(1:end-4));
+    newname = sprintf('%s_no-heart.set', EEG.filename(1:end-4));
     pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);
 end

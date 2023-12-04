@@ -38,7 +38,8 @@ EEG = pop_loadset('filename','dataset1.set','filepath',fullfile(mainDir,'sample_
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',true);
 
-% Same but adjusting some parameters and using the PPG signal this time:
+%% Same as above but adjusting some parameters and using the PPG signal this time
+
 %   - 'heart_signal' set to 'PPG' (signal type)
 %   - 'heart_channels' set to 'PPG' (electrode name)
 %   - 'clean_rr' set to 'pchip' to interpolate the RR artifacts (default method)
@@ -58,24 +59,6 @@ EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_rr','pchip','clean_eeg',true, ...
     'parpool',false,'gpu',false,'save',true,'vis_cleaning',true,'vis_outputs',true);
 
-
-
-%% new sample data
-
-EEG = pop_loadset('filename','dataset1.set','filepath',fullfile(mainDir,'sample_data'));
-EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true, ...
-    'parpool',false,'gpu',false,'save',true,'vis_cleaning',true,'vis_outputs',true);
-
-EEG = pop_loadset('filename','dataset3_rest.set','filepath',fullfile(mainDir,'sample_data'));
-EEG = pop_select(EEG,'nochannel',{'PPG'}); 
-EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',false,'norm',true,...
-    'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
-    'eeg_features', {'time' 'frequency' 'nonlinear'}, ...
-    'gpu',false,'parpool',true, 'vis_cleaning',true,'vis_outputs',true,...
-    'save_plots',true,'save_outputs');
-
 %% METHOD 2: Extract EEG and HRV features
 
 % Load the same raw dataset again
@@ -92,11 +75,16 @@ EEG = pop_loadset('filename','dataset1.set','filepath',fullfile(mainDir,'sample_
 %   - 'vis_cleaning' to 'true' to see preprocessing steps (slightly different
 %       than for HEP). 
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'ECG1' 'ECG2'},'clean_eeg',true,'norm',true,...
+    'heart_channels',{'ECG'},'clean_eeg',true,'norm',true,...
     'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
     'eeg_features', {'time' 'frequency' 'nonlinear'}, ...
     'gpu',false,'parpool',true,'save',false,...
     'vis_cleaning',false,'vis_outputs',true);
+
+% You can find all features in EEG.brainbeats.features
+% You can plot them again using:
+params.chanlocs = EEG.chanlocs;
+plot_features(EEG.brainbeats.features,params)
 
 %% METHOD 3: Remove heart components from EEG signals
 
@@ -105,21 +93,23 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,...
     'save',true,'vis_outputs',true);
 
-%% To launch the GUI via command line
-
+%% To launch the GUI only
 
 EEG = brainbeats_process(EEG);
 
+% Type 'eegh' at the end of the operations to output the command line with
+% the parameters that were selected manually in the GUI
+eegh
 
 %% To process only cardiovascular signals and extract HRV features (no EEG)
 % To turn OFF all EEG operations, the input 'eeg' is set to 'false'.
 
 % ECG
-EEG = pop_loadset('filename','dataset3.set','filepath',fullfile(mainDir,'sample_data'));
+EEG = pop_loadset('filename','dataset1.set','filepath',fullfile(mainDir,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG'}); 
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'eeg',false,...
-    'hrv_features',{'time' 'frequency' 'nonlinear'},...
+    'hrv_features',{'time' 'frequency' 'nonlinear'},'norm',false, ...
     'vis_cleaning',true,'vis_outputs',true);
 
 % PPG
@@ -142,3 +132,12 @@ EEG.brainbeats.features.HRV
 
 %% Group analysis: Features
 
+
+
+%% Save figures in high definition
+
+cd("figures")
+figName = inputdlg('Figure name for saving:');
+saveas(gcf,sprintf('%s.fig',figName{:}))
+print(gcf, sprintf('%s.png',figName{:}),'-dpng','-r300');   % 300 dpi .png
+print(gcf, sprintf('%s.tiff',figName{:}),'-dtiff','-r300');  % 300 dpi .tiff

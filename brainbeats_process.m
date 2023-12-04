@@ -135,7 +135,7 @@ if contains(params.analysis, {'features' 'hep'})
     for iElec = 1:nElec
         elec = sprintf('elec%g',iElec);
         fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-        [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), HR] = get_RR(signal(iElec,:)', params.fs, params.heart_signal);
+        [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:)', params.fs, params.heart_signal);
 
         % % Fix values if PPG had a different sampling rate than EEG (this
         % should now be avoided by resampling above)
@@ -212,6 +212,7 @@ if contains(params.analysis, {'features' 'hep'})
     Rpeaks(1) = [];     % always ignore 1st hearbeat
     NN_t = NN_t.(elec);
     NN = NN.(elec);
+    pol = pol.(elec); % ECG signal polarity
 
     % Plot filtered ECG and RR series of best electrode and interpolated
     % RR artifacts (if any)
@@ -230,14 +231,18 @@ if contains(params.analysis, {'features' 'hep'})
     EEG.brainbeats.preprocessings.NN = NN;
     EEG.brainbeats.preprocessings.NN_times = NN_t;
 
-    % Remove ECG data from EEG data
-    EEG = pop_select(EEG,'nochannel',params.heart_channels);
-
     % Exit BrainBeats if user only wants to work with cardiovascular data
     if ~params.eeg && ~strcmp(params.analysis,'features')
         disp('Done processing cardiovascular signals'); gong
         return
     end
+    
+   % Take filtered cardio signal
+    if strcmp(params.heart_signal,'ecg') && pol<0 
+        CARDIO.data = -sig; % reverse to positive polarity
+    else
+        CARDIO.data = sig;
+    end        
 
     % Filter, re-reference, remove bad channels
     if params.clean_eeg    

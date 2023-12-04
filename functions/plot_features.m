@@ -2,12 +2,56 @@ function plot_features(Features,params)
 
 disp('Plotting features...')
 
+% set params if not in input (useful when users want to replot things
+% without having to re-enter all the params)
+if nargin==1 || ~isfield(params,'hrv') || ~isfield(params,'eeg') 
+
+% HRV
+    if any(contains(fieldnames(Features), {'HRV'}))
+        params.hrv = true;
+    else
+        params.hrv = false;
+    end
+    if any(contains(fieldnames(Features.HRV), {'frequency'}))
+        params.hrv_frequency = true;
+        params.norm = true;     % use default (just for units)
+    else
+        params.hrv_frequency = false;
+    end
+    
+    % EEG
+    if any(contains(fieldnames(Features), {'EEG'}))
+        params.eeg = true;
+    else
+        params.eeg = false;
+    end
+    if any(contains(fieldnames(Features.EEG), {'frequency'}))
+        params.eeg_frequency = true;
+        params.norm = true;     % use default (just for units)
+    else
+        params.eeg_frequency = false;
+    end
+    if any(contains(fieldnames(Features.EEG), {'nonlinear'}))
+        params.eeg_nonlinear = true;
+    else
+        params.eeg_nonlinear = false;
+    end
+end
+
+% EEG channel locations
+if params.eeg && ~isfield(params,'chanlocs')
+    errordlg('Sorry, you need to load your EEG channel locations into params.chanlocs to plot EEG features (see tutorial).')
+end
+
+% Pull features data
 if params.hrv
     HRV = Features.HRV;
 end
 if params.eeg
     EEG = Features.EEG;
 end
+
+% abort if empty
 if ~params.hrv && ~params.eeg
     fprintf('No features to plot. \n');
     return
@@ -80,11 +124,13 @@ if params.hrv && params.hrv_frequency
     axis tight; box on
     xlabel('Frequency (Hz)');
     if params.norm
-        ylabel('Power (ms^2 normalized)');
+        ylabel('Power (ms^2/Hz normalized)');
     else
-        ylabel('Power (ms^2)');
+        ylabel('Power (ms^2/Hz)');
     end
     title(sprintf('Power spectral density - HRV'))
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
 
 end
 
@@ -148,7 +194,11 @@ if params.eeg && params.eeg_frequency
     warning off
     legend({'delta' 'theta' 'alpha' 'beta' 'gamma'})
     warning on
-    xlabel('Frequency (Hz)'); ylabel('Power (ms^2)'); axis tight;
+    xlabel('Frequency (Hz)'); ylabel('Power (decibels)'); axis tight;
+
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
+
 end
 
 % Multiscale fuzzy entropy (MFE) - EEG
@@ -261,6 +311,8 @@ end
 
 set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 % set(findall(gca,'type','axes'),'fontSize',12,'fontweight','bold');
+set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
 
 % Asymmetry (has to be after ecause of colorbar issues
 if params.eeg && params.eeg_frequency
