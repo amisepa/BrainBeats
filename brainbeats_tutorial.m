@@ -95,6 +95,7 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
 
 %% To launch the GUI only
 
+EEG = pop_loadset('filename','dataset1.set','filepath',fullfile(mainDir,'sample_data'));
 EEG = brainbeats_process(EEG);
 
 % Type 'eegh' at the end of the operations to output the command line with

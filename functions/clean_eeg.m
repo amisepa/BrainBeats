@@ -49,6 +49,7 @@ end
 reref = true;
 
 % Parameters for removing bad channels
+flatline = 5; %     % max flat segment to remove channel (default = 5 s)
 corrThresh = .65;   % correlation threshold to be considered bad (default = .65)
 win_length = 5;     % window length (default = 5 s)
 line_thresh = 5;    % line noise threshold (default = 5)
@@ -59,8 +60,8 @@ nSamp = 500;        % number of ransac samples (default = 500; higher is longer 
 detectMethod = 'grubbs';   % 'grubbs' (more aggressive), 'mean' (conservative)
 
 % ASR parameters
-cutoff = 30;        % main ASR cutoff (lower = more aggressive, higher = more lax)
-maxmemory = .8;     % available RAM to use for ASR (.8 = 80% of available RAM)
+asr_cutoff = 30;  % main ASR cutoff (lower = more aggressive, higher = more lax)
+asr_mem = .8;     % available RAM to use for ASR (.85 = 85% of available RAM)
 
 % Filter, re-reference, and remove bad channels
 if params.clean_eeg_step == 0
@@ -91,7 +92,7 @@ if params.clean_eeg_step == 0
     %     'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
     %     'WindowCriterion','off','BurstRejection','off','Distance','off');    
     % disp('Scanning EEG channels for flat lines...')
-    EEG = clean_flatlines(EEG,5);   % remove channels that have flat lines
+    EEG = clean_flatlines(EEG,flatline);   % remove channels that have flat lines
     try 
         EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
     catch
@@ -168,8 +169,8 @@ elseif params.clean_eeg_step == 1
 
         % Identify artifacts using ASR
         oriEEG = EEG;
-        m = memory; maxmem = round(maxmemory*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
-        cleanEEG = clean_asr(EEG,cutoff,[],[],[],[],[],[],params.gpu,false,maxmem);
+        m = memory; maxmem = round(asr_mem*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
+        cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],params.gpu,false,maxmem);
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
         EEG.etc.clean_sample_mask = ~mask;
         badData = reshape(find(diff([false mask false])),2,[])';

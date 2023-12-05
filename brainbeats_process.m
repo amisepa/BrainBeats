@@ -79,6 +79,16 @@ end
 mainpath = fileparts(which('eegplugin_BrainBeats.m'));
 addpath(fullfile(mainpath, 'functions'));
 
+% basic checks on EEG data
+if isempty(EEG) || isempty(EEG.data)
+    errordlg('Empty EEG dataset.'); 
+    return   
+end
+if isempty(EEG.chanlocs(1).labels)
+    errordlg('No channel labels.'); 
+    return
+end
+
 % Get parameters from GUI or command line
 if nargin == 1
     [params, abort] = getparams_gui(EEG);                % GUI

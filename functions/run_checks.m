@@ -10,15 +10,6 @@ fprintf('Running basic checks... \n')
 
 err = false;
 
-% basic checks on EEG data
-if isempty(EEG) || isempty(EEG.data)
-    errordlg('Empty EEG dataset.'); 
-    err = true; return   
-end
-if isempty(EEG.chanlocs(1).labels)
-    errordlg('No channel labels.'); 
-    err = true; return
-end
 if isempty(EEG.ref)
     warning('EEG data not referenced! Referencing is highly recommended');
 end
