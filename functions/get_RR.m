@@ -40,7 +40,11 @@
 %
 % Copyright (C) - Cedric Cannard, 2023, BrainBeats toolbox
 
-function [RR, RR_t, Rpeaks, sig, tm, sign, HR] = get_RR(signal, fs, sig_type)
+function [RR, RR_t, Rpeaks, sig, tm, sign, HR] = get_RR(signal, params)
+
+% Parameters
+fs = params.fs;
+sig_type = params.heart_signal;
 
 sign = [];
 nSamp = size(signal,1);
@@ -49,10 +53,22 @@ tm = 1/fs:1/fs:nSamp/fs;   % tm = 1/fs:1/fs:ceil(nSamp/fs);
 %% ECG
 if strcmpi(sig_type, 'ecg')
 
-    % params
-    peakThresh = .6;
-    search_back = true;     % perform search back
-    ref_period = 0.25;      % refractory period
+    % Parameters
+    if isfield(params,'ecg_peakthresh')
+        peakThresh = params.ecg_peakthresh;
+    else
+        peakThresh = .6;
+    end
+    if isfield(params,'ecg_searchback')
+        search_back = params.ecg_searchback;
+    else
+        search_back = true;
+    end
+    if isfield(params,'ecg_searchback')
+        ref_period = params.ecg_searchback;
+    else
+        ref_period = 0.25; % refractory period
+    end
     
     % Constants
     med_smooth_nb_coef = round(fs/100);
@@ -228,14 +244,42 @@ elseif strcmpi(sig_type, 'ppg')
         error("You must provide your signal' sampling rate as 2nd input")
     end
 
-    BUFLN = 4096;                   % must be a power of 2 (default = 4096)
-    LPERIOD  = fs*8;                % learning period in samples (default = 8 s)
-    thresh = 5;                     % minimum threshold value (default = 5)
-    EyeClosing = round(fs*0.65);     % eye-closing period (default = 0.65 s; range: .4-.8) --> DRASTIC CHANGES
-    ExpectPeriod = round(fs*5);    % threshold in s (default = 5 s)
-    SLPwindow = round(fs*0.1);     % Slope window size (default = 0.1 s; range: .05-.3)
-    timer = 0;
+    % PARAMETERS
     
+    BUFLN = 4096;                   % must be a power of 2 (default = 4096). specifies the length of the buffer used in the signal processing algorithm. 
+    % It is often set to a power of two, as is the case here, to optimize certain signal processing operations, such as filtering or Fourier transforms.
+    % The buffer is used to store a segment of the PPG signal for processing. 
+    % The length of this buffer (4096 samples in this case) determines how much of the signal is held in memory for analysis at any given time.
+    % A sufficiently large buffer size ensures that the algorithm has enough data to accurately detect pulse waves, 
+    % but it also must be balanced with computational efficiency. The choice of 4096 as the buffer length is a good compromise between these factors.
+
+    LPERIOD  = fs*8;                % learning period in samples (default = 8 s). allows the algorithm to tailor 
+    % its detection strategy based on the initial segment of the PPG signal, improving the accuracy and reliability of pulse detection, 
+    % especially in the context of varying signal qualities or individual  differences. 
+
+    thresh = 5;                     % minimum threshold value (default = 5). represents a minimum threshold value for the detection algorithm. 
+    % It serves as a baseline or lower limit for the algorithm to identify a pulse wave in the PPG signal.
+    % The presence of a minimum threshold helps in preventing the algorithm from becoming overly sensitive to noise or artifacts in the PPG signal.
+    % This is important for maintaining the reliability of pulse detection, ensuring that the algorithm does not mistake random signal fluctuations for actual heartbeats.
+    
+    EyeClosing = round(fs*0.65);     % eye-closing period (default = 0.65 s; range: .4-.8) --> DRASTIC CHANGES
+    % The "Eye-Closing Period" refers to a specific time duration immediately following the detection of a pulse wave, 
+    % during which the algorithm refrains from detecting another pulse. 
+    % This is essentially a kind of refractory period specific to the PPG signal processing, 
+    % ensuring that the algorithm doesn't incorrectly identify multiple peaks (or pulse waves) 
+    % too close to each other, which could be artifacts or noise rather than actual physiological signals.
+
+    ExpectPeriod = round(fs*5);    % threshold in s (default = 5 s) represents the maximum expected duration between two consecutive pulse waves (or heartbeats) in the PPG signal. 
+    % It is set to five seconds multiplied by the sampling rate. By dynamically adjusting the detection threshold based on the ExpectPeriod, 
+    % the algorithm can adapt to variations in pulse signal strength and quality, increasing the likelihood of detecting valid pulses even when the signal is weak or noisy.
+    
+    SLPwindow = round(fs*0.1);     % Slope window size (default = 0.1 s; range: .05-.3).
+    % defines the size of the window used for calculating the slope of the PPG signal. It is set to 0.1 seconds multiplied by the sampling rate.
+    % The size of the SLPwindow affects how sensitive the algorithm is to changes in the signal. 
+    % A smaller window might make the algorithm more sensitive to rapid changes, whereas a larger window might smooth out short-term fluctuations, 
+    % potentially improving detection stability but potentially missing rapid changes.
+
+    timer = 0;
     Rpeaks = [];  % onsets of heartbeats (or pulse wave) 
     % but this makes it easier with outputs of the function
     beat_n = 1;

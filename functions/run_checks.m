@@ -43,7 +43,7 @@ end
 
 % Make sure Heart channel is a cell
 if ~iscell(params.heart_channels)
-    warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
+    % warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
     params.heart_channels = {params.heart_channels};
 end
 
@@ -73,7 +73,7 @@ end
 
 % Includes EEG or not (for plotting only)
 if ~isfield(params,'eeg')
-    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency
+    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency || params.eeg_nonlinear
         params.eeg = true;
     else
         params.eeg = false;
@@ -111,9 +111,8 @@ if strcmp(params.analysis,'rm_heart')
     end
 end
 
-
-% Ensure data double precision
-EEG.data = double(EEG.data);  % ensure double precision
+% Ensure data have double precision
+EEG.data = double(EEG.data);
 
 % Store sampling frequency
 params.fs = EEG.srate;

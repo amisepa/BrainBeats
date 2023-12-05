@@ -25,24 +25,34 @@
 %   Waveform and Interval Analysis" Physiological Measurement.
 %
 %   ORIGINAL SOURCE AND AUTHORS:
-%       Adriana N. Vest and various authors (Physionet Cardiovasculat
-%       Signal toolbox).
+%       Adriana N. Vest and various authors (Physionet Cardiovascular Signal toolbox).
 %
-% Cedric Cannard, 2022
-
+% Copyright (C), BrainBeats, Cedric Cannard, 2022
 
 function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params)
 
+%% Parameters
 fs = params.fs;
+if isfield(params,'ecg_physlimlow') && ~isempty(params.ecg_physlimlow)
+    lowerphysiolim = params.ecg_physlimlow;
+else
+    lowerphysiolim = .375;    % default = .375 s (normal range = .6-1 s)
+end
+if isfield(params,'ecg_physlimhigh') && ~isempty(params.ecg_physlimhigh)
+    upperphysiolim = params.ecg_physlimhigh;
+else
+    upperphysiolim = 2;    % default = 2 s 
+end
+if isfield(params,'ecg_gaplimit') && ~isempty(params.ecg_physlimhigh)
+    upperphysiolim = params.ecg_physlimhigh;
+else
+    upperphysiolim = 2;    % default = 2 s 
+end
+gaplimit = 2;
+changeLimit = .2;
 
-% Physiological thresholds based on healthy adults to flag 
-% non-physiological heartbeats
-% if strcmp(params.heart_signal,'ecg')
-lowerphysiolim = .375;    % default = .375 s for ECG (normal range = .6-1 s)
-% elseif strcmp(params.heart_signal,'ppg')
-    % lowerphysiolim = .3;    % default = .3 s for PPG to reduce false positives due to motion artifacts
-% end
-upperphysiolim = 2;     % default = 2 s (>2 s is very rare in healthy individuals)
+
+%% Run
 
 % prep
 t_rr(1) = [];  % remove 1st heartbeat
@@ -69,7 +79,6 @@ t_rr(idx_remove2) = [];
 clear idx_remove idx_remove2
 
 % Remove large RR intervals caused by gaps (not counted in total signal removed)
-gaplimit = 2;
 idx_remove = find(rr >= gaplimit);
 rr(idx_remove) = [];
 t_rr(idx_remove) = [];
@@ -99,7 +108,6 @@ if length(Rpeaks) ~= length(rr)
 end
 
 % Find RR over given percentage change
-changeLimit = .2;
 idxRRtoBeRemoved = FindSpikesInRR(rr, changeLimit);
 
 % Combine Rpeaks and percentage outliers
@@ -116,7 +124,7 @@ end
 % Remove or interpolate outliers
 idx_outliers = find(outliers == 1);
 numOutliers = length(idx_outliers);
-rr_original = rr;
+% rr_original = rr;
 rr(idx_outliers) = NaN;
 if strcmp(params.rr_correct, 'remove')
     NN_Outliers = rr;
@@ -157,7 +165,8 @@ if strcmp(params.rr_correct, 'remove')
     t_TooFasyBeats = t_NonPhysBeats;
     t_TooFasyBeats(idx_outliers_2ndPass) = [];
 else
-    NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,'spline','extrap');
+    % NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,'spline','extrap');
+    NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,params.rr_correct,'extrap');
     t_TooFasyBeats = t_NonPhysBeats;
 end
 
