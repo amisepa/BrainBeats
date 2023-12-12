@@ -124,3 +124,15 @@ EEG.data = double(EEG.data);
 % Store sampling frequency
 params.fs = EEG.srate;
 
+% Initiate or block parallel computing 
+ps = parallel.Settings;
+if params.parpool
+    fprintf('Parallel computing set to ON. \n')
+    params.parpool = true;
+    ps.Pool.AutoCreate = true;
+else
+    fprintf('Parallel computing set to OFF. \n')
+    params.parpool = false;
+    ps.Pool.AutoCreate = false;  % prevents parfor loops from launching parpool mode
+end
+

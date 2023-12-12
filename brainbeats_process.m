@@ -199,11 +199,7 @@ if contains(params.analysis, {'features' 'hep'})
     flaggedRatio = flaggedRatio.(elec);
     flagged = flagged.(elec);
     if sum(flagged) > 0
-        if contains(params.rr_correct,'remove')
-            fprintf('%g/%g (%g%%) of heart beats were flagged as artifacts and removed. \n', sum(flagged),length(flagged),round(flaggedRatio,2));
-        else
-            fprintf('%g/%g (%g%%) of heart beats were flagged as artifacts and interpolated. \n', sum(flagged),length(flagged),round(flaggedRatio,2));
-        end
+        fprintf('%g/%g (%g%%) of heart beats were flagged as artifacts and interpolated (or removed if you chose to remove them). \n', sum(flagged),length(flagged),round(flaggedRatio,2));
     end
     if flaggedRatio > maxThresh % more than 20% of RR series is bad file
         warning("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
@@ -229,6 +225,7 @@ if contains(params.analysis, {'features' 'hep'})
     % RR artifacts (if any)
     if params.vis_cleaning
         plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, flagged, params.heart_signal)
+        pause(0.1)  % to avoid waiting for EEG preprocessing to appear
     end
     
     % Preprocessing outputs

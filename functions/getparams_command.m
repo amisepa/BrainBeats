@@ -52,9 +52,33 @@ end
 idx = find(strcmpi(varargin,'rr_correct'));
 if ~isempty(idx)
     params.rr_correct = varargin{idx+1};
-else
-    params.rr_correct = 'pchip';
 end
+
+idx = find(strcmpi(varargin,'ppg_learnperiod'));
+if ~isempty(idx)
+    params.ppg_learnperiod = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'ppg_buffer'));
+if ~isempty(idx)
+    params.ppg_buffer = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'ppg_learnthresh'));
+if ~isempty(idx)
+    params.ppg_learnthresh = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'ppg_eyeclosing'));
+if ~isempty(idx)
+    params.ppg_eyeclosing = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'ppg_expctperiod'));
+if ~isempty(idx)
+    params.ppg_expctperiod = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'ppg_slopewindow'));
+if ~isempty(idx)
+    params.ppg_slopewindow = varargin{idx+1};
+end
+
 
 % HRV parameters
 if strcmp(params.analysis,'features')
@@ -271,24 +295,14 @@ end
 
 % Parallel computing
 idx = find(strcmpi(varargin,'parpool'));
-ps = parallel.Settings;
 if ~isempty(idx)
     params.parpool = varargin{idx+1};
     if ~islogical(params.parpool), error("The 'parpool' input should be logical (true or false)."); end
-    if params.parpool
-        fprintf('Parallel computing set to ON. \n')
-        params.parpool = true;
-        ps.Pool.AutoCreate = true;
-    else
-        fprintf('Parallel computing set to OFF. \n')
-        params.parpool = false;
-        ps.Pool.AutoCreate = false;  % prevents parfor loops from launching parpool mode
-    end
 else
     params.parpool = false;
-    ps.Pool.AutoCreate = false;  % prevents parfor loops from launching parpool mode
     fprintf('Parallel computing not defined: set to OFF by default. \n')
 end
+
 
 % GPU computing 
 idx = find(strcmpi(varargin,'gpu'));

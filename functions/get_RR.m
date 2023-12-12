@@ -263,7 +263,7 @@ elseif strcmpi(sig_type, 'ppg')
     if isfield(params,'ppg_learnperiod')
         LPERIOD = fs*params.ppg_learnperiod;
     else
-        LPERIOD  = fs*8;   % learning period in samples (default = 8 s). 
+        LPERIOD  = fs*5;   % learning period in samples (default = 5 s). 
     end
 
     % Minimum threshold value for the detection algorithm. 

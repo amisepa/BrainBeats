@@ -3,7 +3,7 @@
 datapath = 'C:\Users\Tracy\Downloads\ds003838';
 eeglab;close
 
-subject = 'sub-033';   %32-36, 38-44
+subject = 'sub-034';   %32-36, 38-44
 datapath = fullfile(datapath,subject);
 cd(datapath)
 
@@ -31,9 +31,14 @@ for iChan = 1:CARDIO.nbchan
     EEG.chanlocs(end+1).labels = heart_channels{iChan};
 end
 EEG = eeg_checkset(EEG);
-% pop_eegplot(EEG,1,1,1);
 
+% downsample so that the repo is not too heavy and computations are fast
 EEG = pop_resample(EEG,250);
+
+% artifically create a bad EEG channel
+EEG.data(10,:) = EEG.data(10,end:-1:1).*3;
+
+% pop_eegplot(EEG,1,1,1);
 
 pop_saveset(EEG, 'filename','dataset1.set','filepath','C:\Users\Tracy\Documents\\MATLAB\BrainBeats\sample_data\');
 
