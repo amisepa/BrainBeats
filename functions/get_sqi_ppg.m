@@ -23,12 +23,12 @@
 %
 % Original code by Qiao Li (2011)
 %
-% Copyright (C) - Cedric Cannard, 2023
+% Copyright (C) BrainBeats, Cedric Cannard, 2023
 
-function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs,winlength)
+function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs)
 
 % Window length 
-winlength = winlength*fs; % default = 30 s
+winlength = 30*fs; % default = 30 s
 
 % Initialize
 template = [];

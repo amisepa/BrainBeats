@@ -11,7 +11,8 @@ fprintf('Running basic checks... \n')
 err = false;
 
 if isempty(EEG.ref)
-    warning('EEG data not referenced! Referencing is highly recommended');
+    % warning('EEG data not referenced! Referencing is highly recommended');
+    params.reref = 'infinity';
 end
 
 % Check if data format is compatible with chosen analysis and select analysis
@@ -71,18 +72,25 @@ if ~contains(params.heart_signal, {'ecg' 'ppg'})
     return
 end
 
+% Includes HRV or not (for plotting only)
+if ~isfield(params,'hrv_features')
+    if strcmp(params.analysis,{'features'}) && params.clean_heart
+        params.hrv_features = true;
+    end
+end
+
 % Includes EEG or not (for plotting only)
-if ~isfield(params,'eeg')
+if ~isfield(params,'eeg_features')
     if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency || params.eeg_nonlinear
-        params.eeg = true;
+        params.eeg_features = true;
     else
-        params.eeg = false;
+        params.eeg_features = false;
         params.clean_eeg = false;
     end
 end
 
 % Check for channel locations
-if params.eeg
+if params.eeg_features
     if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(2).X)
         errordlg("Electrode location coordinates must be loaded for visualizing outputs.")
         err = true; return
@@ -91,17 +99,16 @@ end
 
 % Install necessary plugins for preprocessing
 if params.clean_eeg
-    % fprintf('Checking if required EEGLAB plugins are installed... \n')
     if ~exist('clean_asr','file')
         plugin_askinstall('clean_asr','clean_asr', 0);
     end
-    if ~exist('picard','file')
+    if ~exist('picard','file') && params.icamethod == 1
         plugin_askinstall('picard', 'picard', 0);
     end
     if ~exist('iclabel','file')
         plugin_askinstall('iclabel', 'iclabel', 0);
     end
-    if ~exist('ref_infinity','file')
+    if ~exist('ref_infinity','file') && strcmp(params.reref, 'infinity')
         plugin_askinstall('REST_cmd', 'REST_cmd', 0);
     end
 end

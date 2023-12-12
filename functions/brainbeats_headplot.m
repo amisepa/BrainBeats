@@ -517,21 +517,16 @@ else
     P = P + mean(values);
 
     %%%% Get colormap indices %%%%
-    % if size(g.maplimits) == [1,2]
-    %     amin = g.maplimits(1);
-    %     amax = g.maplimits(2);
     if strcmp(g.maplimits,'minmax')
-        % amin = min(min(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
-        % amax = max(max(abs(P)))*1.02;
-        amin = min(values);
-        amax = max(values);
+        amin = min(min(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
+        amax = max(max(abs(P)))*1.02;
+        % amin = min(values);
+        % amax = max(values);
     elseif strcmp(g.maplimits,'absmax')
         amin = min(min(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
         amax = max(max(abs(P)))*1.02;
         amax = max(-amin, amax);
         amin = -amax;
-        %amin = -max(max(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
-        %amax = -amin;
     end
 
     m = size(g.colormap,1);
@@ -555,21 +550,11 @@ else
 
     % Draw colorbar - Note: uses enhanced cbar() function by Colin Humphries
     if g.cbar
-        % BACKCOLOR = get(gcf,'Color');
-        % if g.cbar == 0
-        % ColorbarHandle = cbar(0,3,[amin amax]);
-        % ColorbarHandle = cbar('vert',3,[min(values) max(values)]);
-        % pos = get(ColorbarHandle,'position');  % move left & shrink to match head size
-        % set(ColorbarHandle,'position',[pos(1)-.05 pos(2)+0.13 pos(3)*0.7 pos(4)-0.26]);
-        % else
-        cb = cbar('vert',3,[min(values) max(values)]);
-        % cb = colorbar; clim([min(values) max(values)])
+        cb = cbar('vert',3,[amin amax]);
         pos = get(cb,'position');  
         set(cb,'position',[pos(1)-.06 pos(2) pos(3)*.9 pos(4)]); % slightly move left
         % set(cb,'fontSize',12,'fontweight','bold')
         ylabel(cb,'Asymmetry score (log(uV^2/Hz))','Rotation',270,'fontSize',12,'fontweight','bold')
-        % colorbar;
-        % end
     end
 
     axes(HeadAxes);

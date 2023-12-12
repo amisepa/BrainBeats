@@ -2,32 +2,32 @@ function plot_features(Features,params)
 
 disp('Plotting features...')
 
-% set params if not in input (useful when users want to replot things
-% without having to re-enter all the params)
-if nargin==1 || ~isfield(params,'hrv') || ~isfield(params,'eeg') 
+% If no params in input, set defaults here 
+% (useful when users want to replot things without having to define all the params)
+if nargin==1 || ~isfield(params,'hrv_features') || ~isfield(params,'eeg_features') 
 
-% HRV
+    % HRV
     if any(contains(fieldnames(Features), {'HRV'}))
-        params.hrv = true;
+        params.hrv_features = true;
     else
-        params.hrv = false;
+        params.hrv_features = false;
     end
     if any(contains(fieldnames(Features.HRV), {'frequency'}))
         params.hrv_frequency = true;
-        params.norm = true;     % use default (just for units)
+        params.hrv_norm = true;     % use default (just for units)
     else
         params.hrv_frequency = false;
     end
     
     % EEG
     if any(contains(fieldnames(Features), {'EEG'}))
-        params.eeg = true;
+        params.eeg_features = true;
     else
-        params.eeg = false;
+        params.eeg_features = false;
     end
     if any(contains(fieldnames(Features.EEG), {'frequency'}))
         params.eeg_frequency = true;
-        params.norm = true;     % use default (just for units)
+        params.eeg_norm = true;     % use default (just for units)
     else
         params.eeg_frequency = false;
     end
@@ -36,37 +36,42 @@ if nargin==1 || ~isfield(params,'hrv') || ~isfield(params,'eeg')
     else
         params.eeg_nonlinear = false;
     end
+
+% params in input
+else
+    if ~isfield(params,'hrv_norm')
+        params.hrv_norm = true;  % default in get_hrv_features
+    end
 end
 
 % EEG channel locations
-if params.eeg && ~isfield(params,'chanlocs')
+if params.eeg_features && ~isfield(params,'chanlocs')
     errordlg('Sorry, you need to load your EEG channel locations into params.chanlocs to plot EEG features (see tutorial).')
 end
 
 % Pull features data
-if params.hrv
+if params.hrv_features
     HRV = Features.HRV;
 end
-if params.eeg
+if params.eeg_features
     EEG = Features.EEG;
 end
 
 % abort if empty
-if ~params.hrv && ~params.eeg
+if ~params.hrv_features && ~params.eeg_features
     fprintf('No features to plot. \n');
     return
 end
 
-%% PSD AND MFE PLOT
-
+%% Power spectral density (PSD) 
 
 % PSD - HRV
-if params.hrv && params.hrv_frequency
+if params.hrv_features && params.hrv_frequency
 
     figure('color','w');
 
     % Subplot mode if EEG PSD was also extracted
-    if params.eeg && params.eeg_frequency
+    if params.eeg_features && params.eeg_frequency
         % subplot(2,1,1); 
         nexttile([2 3])
     end
@@ -123,19 +128,16 @@ if params.hrv && params.hrv_frequency
     % xticklabels(unique(reshape(bands,1,[]))); xtickangle(45);
     axis tight; box on
     xlabel('Frequency (Hz)');
-    if params.norm
-        ylabel('Power (ms^2/Hz normalized)');
-    else
-        ylabel('Power (ms^2/Hz)');
-    end
+    ylabel('Power (ms^2/Hz)');
     title(sprintf('Power spectral density - HRV'))
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
+    set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 
 end
 
 % % Multiscale fuzzy entropy (MFE) - HRV
-% if params.hrv && params.hrv_nonlinear
+% if params.hrv_features && params.hrv_nonlinear
 %   nexttile      
 %   hold on
 %     mfe = HRV.nonlinear.MFE;
@@ -146,9 +148,9 @@ end
 % end
 
 % PSD - EEG
-if params.eeg && params.eeg_frequency
+if params.eeg_features && params.eeg_frequency
 
-    if params.hrv && params.hrv_frequency    
+    if params.hrv_features && params.hrv_frequency    
         % subplot(2,1,2); 
         nexttile([2 3])
     else
@@ -156,7 +158,7 @@ if params.eeg && params.eeg_frequency
     end
 
     hold on
-    pwr = trimmean(EEG.frequency.pwr_dB,20,1); % 20% trimmed mean across channels
+    pwr = trimmean(EEG.frequency.pwr,20,1); % 20% trimmed mean across channels
     freqs = EEG.frequency.freqs(1,:);
     bands = [0 3; 3 7; 7 13; 13 30; 30 max(freqs)];
     baseval = min(pwr);
@@ -194,15 +196,26 @@ if params.eeg && params.eeg_frequency
     warning off
     legend({'delta' 'theta' 'alpha' 'beta' 'gamma'})
     warning on
-    xlabel('Frequency (Hz)'); ylabel('Power (decibels)'); axis tight;
+    xlabel('Frequency (Hz)');
+    if isfield(params,'eeg_norm') 
+        if params.eeg_norm == 0
+            ylabel('Power (uV^2/Hz)'); 
+        elseif params.eeg_norm == 1
+             ylabel('Power (db)'); 
+        elseif params.eeg_norm == 2
+             ylabel('Power (normalized)'); 
+        end
+    end
+    axis tight;
 
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
+    set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 
 end
 
 % Multiscale fuzzy entropy (MFE) - EEG
-% if params.eeg && params.eeg_nonlinear
+% if params.eeg_features && params.eeg_nonlinear
 % 
 %     nexttile
 %     hold on
@@ -225,13 +238,13 @@ end
 %     end
 %     title('Multiscale fuzzy entropy - EEG'); ylabel('Entropy')
 % 
-%     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+%     set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 %     % set(gca,'FontSize',11,'layer','top','fontweight','bold');
 % end
 
 %% Scalp topos 2D
 
-if params.eeg && params.eeg_frequency
+if params.eeg_features && params.eeg_frequency
 
     mode = 1;  % 1 for 2D, 2 for 3D
 
@@ -267,12 +280,12 @@ if params.eeg && params.eeg_frequency
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
     title('Beta power');
-    % nexttile
-    % plot_topo(gather(mean(EEG.frequency.low_gamma,2)),params.chanlocs,mode,'psd');
-    % cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
+    nexttile
+    plot_topo(gather(mean(EEG.frequency.gamma,2)),params.chanlocs,mode,'psd');
+    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
-    % title('Mean gamma power');
+    title('Mean gamma power');
     warning on
 
     % IAF
@@ -292,7 +305,7 @@ if params.eeg && params.eeg_frequency
 
 end
 
-if params.eeg && params.eeg_nonlinear
+if params.eeg_features && params.eeg_nonlinear
     nexttile
     plot_topo(gather(EEG.nonlinear.SE),params.chanlocs,mode,'entropy');
     cb = colorbar; ylabel(cb,'Sample entropy','Rotation',270,'fontSize',12,'fontweight','bold')
@@ -315,7 +328,7 @@ set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
 set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
 
 % Asymmetry (has to be after ecause of colorbar issues
-if params.eeg && params.eeg_frequency
+if params.eeg_features && params.eeg_frequency
     try
         warning('off','all')
         nexttile
@@ -330,6 +343,7 @@ if params.eeg && params.eeg_frequency
             'tmp.spl',headplotparams{:}); % Generate temporary spline file
         brainbeats_headplot(asy,'tmp.spl','view',view,headplotparams{:});  % 3D headplot of asymmetry
         title('Alpha asymmetry')
+        delete 'tmp.spl'
         % cb = colorbar; ylabel(cb,'Asymmetry score','Rotation',270,'fontSize',12,'fontweight','bold')
         % nticks = length(cb.Ticks); % number of ticks for colorbar
         % increment = ceil(length(asy)/nticks);
@@ -346,7 +360,7 @@ end
 
 %% Partial EEG coherence
 
-% if params.eeg && params.eeg_frequency
+% if params.eeg_features && params.eeg_frequency
 % 
 %     % f = EEG.frequency.eeg_coh_f;
 %     chanlocs = params.chanlocs;

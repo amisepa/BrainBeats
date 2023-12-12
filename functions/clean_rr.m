@@ -33,23 +33,31 @@ function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params)
 
 %% Parameters
 fs = params.fs;
-if isfield(params,'ecg_physlimlow') && ~isempty(params.ecg_physlimlow)
-    lowerphysiolim = params.ecg_physlimlow;
+if isfield(params,'rr_physlimlow') && ~isempty(params.rr_physlimlow)
+    lowerphysiolim = params.rr_physlimlow;
 else
     lowerphysiolim = .375;    % default = .375 s (normal range = .6-1 s)
 end
-if isfield(params,'ecg_physlimhigh') && ~isempty(params.ecg_physlimhigh)
-    upperphysiolim = params.ecg_physlimhigh;
+if isfield(params,'rr_physlimhigh') && ~isempty(params.rr_physlimhigh)
+    upperphysiolim = params.rr_physlimhigh;
 else
-    upperphysiolim = 2;    % default = 2 s 
+    upperphysiolim = 2;    % default = 2 s
 end
-if isfield(params,'ecg_gaplimit') && ~isempty(params.ecg_physlimhigh)
-    upperphysiolim = params.ecg_physlimhigh;
+if isfield(params,'rr_gaplim') && ~isempty(params.rr_gaplim)
+    gaplimit = params.rr_gaplim;
 else
-    upperphysiolim = 2;    % default = 2 s 
+    gaplimit = 2;    % default = 2 s 
 end
-gaplimit = 2;
-changeLimit = .2;
+if isfield(params,'rr_changelim') && ~isempty(params.rr_changelim)
+    changeLimit = params.rr_changelim;
+else
+    changeLimit = .2;    % default = .2
+end
+if isfield(params,'rr_correct') && ~isempty(params.rr_correct)
+    interpMeth = params.rr_correct;
+else
+    interpMeth = 'pchip';    % default = 'pchip'
+end
 
 
 %% Run
@@ -126,13 +134,13 @@ idx_outliers = find(outliers == 1);
 numOutliers = length(idx_outliers);
 % rr_original = rr;
 rr(idx_outliers) = NaN;
-if strcmp(params.rr_correct, 'remove')
+if strcmp(interpMeth, 'remove')
     NN_Outliers = rr;
     NN_Outliers(idx_outliers) = [];
     t_Outliers = t_rr;
     t_Outliers(idx_outliers) = [];
 else
-    NN_Outliers = interp1(t_rr,rr,t_rr,params.rr_correct);
+    NN_Outliers = interp1(t_rr,rr,t_rr,interpMeth);
     t_Outliers = t_rr;
 end
 
@@ -143,12 +151,12 @@ idx_toolow = find(toolow == 1);
 NN_NonPhysBeats = NN_Outliers;
 NN_NonPhysBeats(idx_toolow) = NaN;
 numOutliers = numOutliers + length(idx_toolow);
-if strcmp(params.rr_correct, 'remove')
+if strcmp(interpMeth, 'remove')
     NN_NonPhysBeats(idx_toolow) = [];
     t_NonPhysBeats = t_Outliers;
     t_NonPhysBeats(idx_toolow) = [];
 else
-    NN_NonPhysBeats = interp1(t_Outliers,NN_NonPhysBeats,t_Outliers,params.rr_correct);
+    NN_NonPhysBeats = interp1(t_Outliers,NN_NonPhysBeats,t_Outliers,interpMeth);
     t_NonPhysBeats = t_Outliers;
     flagged_beats = logical(outliers(:) + toohigh(:) + toolow(:));
 end
@@ -159,14 +167,14 @@ idx_outliers_2ndPass = find(logical(toohigh(:)) ~= 0);
 NN_TooFastBeats = NN_NonPhysBeats;
 NN_TooFastBeats(idx_outliers_2ndPass) = NaN;
 numOutliers = numOutliers + length(idx_outliers_2ndPass);
-if strcmp(params.rr_correct, 'remove')
+if strcmp(interpMeth, 'remove')
     flagged_beats = numOutliers;
     NN_TooFastBeats(idx_outliers_2ndPass) = [];
     t_TooFasyBeats = t_NonPhysBeats;
     t_TooFasyBeats(idx_outliers_2ndPass) = [];
 else
-    % NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,'spline','extrap');
-    NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,params.rr_correct,'extrap');
+    NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,'spline','extrap');
+    % NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,interpMeth,'extrap');
     t_TooFasyBeats = t_NonPhysBeats;
 end
 

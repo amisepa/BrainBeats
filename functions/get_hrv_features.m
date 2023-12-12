@@ -36,9 +36,9 @@
 
 function HRV = get_hrv_features(NN, NN_times, params)
 
-% FIXME: ask user if sliding windows should be averaged (default) or not (e.g. to look at change over time).
 
 %% Time domain
+
 if params.hrv_time
 
     disp('Extracting HRV features in the time domain...')
@@ -48,22 +48,22 @@ if params.hrv_time
     % end
 
     % NN statistics
-    HRV.time.NN_mean = mean(NN.*1000);      % in ms
-    HRV.time.NN_median = median(NN.*1000);  % in ms
-    HRV.time.NN_mode = mode(NN.*1000);      % in ms
-    HRV.time.NN_var = var(NN.*1000);        % in ms
-    HRV.time.NN_skew = skewness(NN);
-    HRV.time.NN_kurt = kurtosis(NN);
-    HRV.time.NN_iqr = iqr(NN.*1000);        % in ms
+    % HRV.time.NN_mean = mean(NN.*1000);      % in ms
+    % HRV.time.NN_median = median(NN.*1000);  % in ms
+    % HRV.time.NN_mode = mode(NN.*1000);      % in ms
+    % HRV.time.NN_var = var(NN.*1000);        % in ms
+    % HRV.time.NN_skew = skewness(NN);
+    % HRV.time.NN_kurt = kurtosis(NN);
+    % HRV.time.NN_iqr = iqr(NN.*1000);        % in ms
 
-    % SDNN
+    % SDNN (standard deviation of the NN intervals)
     HRV.time.SDNN = std(NN.*1000);   % in ms
 
     % RMSSD (sqrt of the mean squared time diff between heartbeats)
     HRV.time.RMSSD = sqrt(mean(diff(NN.*1000).^2));  % in ms
 
     % pNN50 (fraction of differences larger than alpha = 50)
-    % FIXME: add requirement 2 min of data (see Ginsberg and Schaffer 2017)
+    % requires at least 2 min of data (see Ginsberg and Schaffer 2017)
     alpha = 50;
     HRV.time.pNN50 = sum( abs(diff(NN)) >= alpha/1000 )/length(diff(NN));
 
@@ -75,15 +75,32 @@ if params.hrv_frequency
 
     disp('Extracting HRV features in the frequency domain...')
 
+    % Parameters
+    if isfield(params,'hrv_spec') && ~isempty(params.hrv_spec)
+        hrv_spec = params.hrv_spec;
+    else
+        hrv_spec = 'LombScargle_norm';
+    end
+    if isfield(params,'hrv_norm') && ~isempty(params.hrv_norm)
+        norm = params.hrv_norm;
+    else
+        norm = true;
+    end
+    if isfield(params,'hrv_overlap') && ~isempty(params.hrv_overlap)
+        overlap = params.hrv_overlap;
+    else
+        overlap = .25;  % window overlap (default = 25 %)
+    end
+
     % HRV frequency bands (ULF; VLF; LF; HF)
     bands = [ 0 .003; 0.003 .04; .04 .15; 0.15 0.40 ];
     bandNames = {'ULF' 'VLF' 'LF' 'HF'};
 
     % Minimum data length requirements for each band
-    % minULF = 86400;    % 24 hours
-    % minVLF = 5/0.003;    % 5 cycles/0.03 hz  (in s)
-    % minLF = 5/0.04;     % 5 cycles/0.04 hz  (in s)
-    % minHF = 5/0.15;     % 5 cycles/0.15 hz  (in s)
+    % minULF = 86400;       % 24 hours
+    % minVLF = 5/0.003;     % 5 cycles/0.03 hz  (in s)
+    % minLF = 5/0.04;       % 5 cycles/0.04 hz  (in s)
+    % minHF = 5/0.15;       % 5 cycles/0.15 hz  (in s)
     minLength = ceil([ 86400  5/0.003 5/0.04 5/0.15 ]);
     
     for iBand = 1:size(bands,1)
@@ -92,7 +109,7 @@ if params.hrv_frequency
     
             % Determine best sliding window length and indices
             winLength = minLength(iBand);
-            stepSize = winLength * (1 - params.hrv_overlap);
+            stepSize = winLength * (1 - overlap);
             nWindows = floor((NN_times(end) - winLength) / stepSize) + 1;
             
             fprintf('Frequency band: %s \n', bandNames{iBand})
@@ -111,16 +128,14 @@ if params.hrv_frequency
                 fvec = bands(iBand,1):1/nfft:bands(iBand,2);
                                 
                 % Lomb-Scargle Periodogram (no resampling required and best method)
-                if strcmp(params.hrv_spec, 'LombScargle')
-                    if params.norm
+                if strcmp(hrv_spec, 'LombScargle_norm')
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized'); 
                         fprintf('Computing normalized Lomb-Scargle periodogram on the NN series... \n')
-                    else
+                elseif strcmp(hrv_spec, 'LombScargle')
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'psd'); 
                         fprintf('Computing standard Lomb-Scargle periodogram on the NN series... \n')
-                    end 
                 
-                % pwelch or FFT (require resampling)
+                % Welch or FFT (require resampling)
                 else
 
                     % Resample
@@ -128,12 +143,12 @@ if params.hrv_frequency
                     NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR 
             
                     % Pwelch
-                    if strcmp(params.hrv_spec, 'pwelch')
+                    if strcmp(hrv_spec, 'welch')
                         [pwr,freqs] = pwelch(NN_resamp,minLength(iBand),[],[],resamp_freq);
                         fprintf('Computing pwelch on the NN series... \n')
 
                     % FFT
-                    elseif strcmp(params.hrv_spec, 'fft')
+                    elseif strcmp(hrv_spec, 'fft')
                         pwr = fft(NN_resamp).*conj(fft(NN_resamp))/length(NN_resamp);
                         freqs = resamp_freq*(0:floor(length(NN_resamp)/2)+1)/length(NN_resamp);
                         pwr = pwr(1:length(freqs));
@@ -148,16 +163,12 @@ if params.hrv_frequency
                 % Power for each band in ms^2
                 if iBand == 1
                     HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % ULF
-                    % HRV.frequency.ulf(iWin,:) = mean(pwr(freq_idx));      % ULF
                 elseif iBand == 2
                     HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % VLF
-                    % HRV.frequency.vlf(iWin,:) = mean(pwr(freq_idx));      % VLF
                 elseif iBand == 3
                     HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % LF
-                    % HRV.frequency.lf(iWin,:) = mean(pwr(freq_idx));      % LF
                 elseif iBand == 4
                     HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % HF
-                    % HRV.frequency.hf(iWin,:) = mean(pwr(freq_idx));      % HF
                 end
                 
                 % Overal power spectra
@@ -176,30 +187,79 @@ if params.hrv_frequency
     end
     
     % Total power and normalize if all bands are present (average across windows)
-    if isfield(HRV.frequency,'ulf') && isfield(HRV.frequency,'vlf') ...
-            && isfield(HRV.frequency,'lf') && isfield(HRV.frequency,'hf')
-
-        HRV.frequency.ttlpwr = sum([mean(HRV.frequency.ulf) mean(HRV.frequency.vlf) ...
-            mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
+    % if isfield(HRV.frequency,'ulf') && isfield(HRV.frequency,'vlf') ...
+    %         && isfield(HRV.frequency,'lf') && isfield(HRV.frequency,'hf')
+    if norm
+        try
+            HRV.frequency.ttlpwr = sum([mean(HRV.frequency.ulf) mean(HRV.frequency.vlf) ...
+                    mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
+        catch
+            warndlg('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
+            warning('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
+            try
+                HRV.frequency.ttlpwr = sum([mean(HRV.frequency.vlf) mean(HRV.frequency.lf) ...
+                    mean(HRV.frequency.hf)]);
+            catch
+                warndlg('HRV total power does not include VLF power (likely due to the short length of the cardiovascular time series).')
+                warning('HRV total power does not include VLF power (likely due to the short length of the cardiovascular time series).')
+                try
+                    HRV.frequency.ttlpwr = sum([mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
+                catch
+                    warndlg('Sorry, LF-HRV and HF-HRV power could not be normalized to total power.')
+                    warning('Sorry, LF-HRV and HF-HRV power could not be normalized to total power.')
+                end
+            end
+        end
         
         % Normalize 2nd level (capture contribution of each band to overall
         % power)
-        if params.norm
-            disp('Normalizing power')
-            HRV.frequency.ulf = mean(HRV.frequency.ulf) / HRV.frequency.ttlpwr;
-            HRV.frequency.vlf = mean(HRV.frequency.vlf) / HRV.frequency.ttlpwr;
-            HRV.frequency.lf = mean(HRV.frequency.lf) / HRV.frequency.ttlpwr;
-            HRV.frequency.hf = mean(HRV.frequency.hf) / HRV.frequency.ttlpwr;
-            HRV.frequency.lfhf = round(mean(HRV.frequency.lf) / mean(HRV.frequency.hf) * 100)/100;
+        % if norm
+        if isfield(HRV.frequency,'ttlpwr')
+            disp('Normalizing HRV power to overall power')
+            if isfield(HRV.frequency,'ulf')
+                HRV.frequency.ulf = mean(HRV.frequency.ulf) / HRV.frequency.ttlpwr;
+            end
+            if isfield(HRV.frequency,'vlf')
+                HRV.frequency.vlf = mean(HRV.frequency.vlf) / HRV.frequency.ttlpwr;
+            end
+            if isfield(HRV.frequency,'lf')
+                HRV.frequency.lf = mean(HRV.frequency.lf) / HRV.frequency.ttlpwr;
+            end
+            if isfield(HRV.frequency,'hf')
+                HRV.frequency.hf = mean(HRV.frequency.hf) / HRV.frequency.ttlpwr;
+            end
+            if isfield(HRV.frequency,'lfhf')
+                HRV.frequency.lfhf = round(mean(HRV.frequency.lf) / mean(HRV.frequency.hf) * 100)/100;
+            end
         end
+    % else
+    %     warndlg('Sorry, HRV power could not be normalized to total power because ULF and VLF could not be estimated due to the short length of the cardiovascular time series.')
+    %     warning('Sorry, HRV power could not be normalized to total power because ULF and VLF could not be estimated due to the short length of the cardiovascular time series.')
     end
 
+    % remove empty cells
+    PWR(cellfun(@isempty,PWR)) = []; 
+    PWR_freqs(cellfun(@isempty,PWR_freqs)) = []; 
+
     % Merge spectra from each band and export
-    PWR(cellfun(@isempty,PWR)) = []; PWR_freqs(cellfun(@isempty,PWR_freqs)) = []; 
     HRV.frequency.pwr_freqs = [cat(1, PWR_freqs{:})];
     HRV.frequency.pwr = [cat(1, PWR{:})];
     HRV.frequency.bands = bands;
-
+    
+    % Average across time windows
+    if isfield(HRV.frequency,'ulf') 
+        HRV.frequency.ulf = mean(HRV.frequency.ulf,'omitnan');
+    end
+    if isfield(HRV.frequency,'vlf') 
+        HRV.frequency.vlf = mean(HRV.frequency.vlf,'omitnan');
+    end
+    if isfield(HRV.frequency,'lf') 
+        HRV.frequency.lf = mean(HRV.frequency.lf,'omitnan');
+    end
+    if isfield(HRV.frequency,'hf') 
+        HRV.frequency.hf = mean(HRV.frequency.hf,'omitnan');
+    end
+    
     % if params.vis_outputs
     %     subplot(2,2,2+iWin); hold on;
     %     x = find(ulf_idx); y = pwr(ulf_idx);

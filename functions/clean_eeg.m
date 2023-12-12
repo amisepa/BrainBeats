@@ -38,30 +38,87 @@
 
 function [EEG, params] = clean_eeg(EEG, params)
 
-% Filtering parameters
-highpass = 1;
-lowpass = 40;
-if strcmp(params.analysis,'hep')
-    causalfilt = true; % causal minimum-phase filter should be used for HEP to avoid group delays or other filter artifacts
+% General parameters
+if isfield(params,'reref')
+    reref = params.reref;
 else
-    causalfilt = false; % zero-phase noncausal filter for continuous data
+    reref = 'infinity'; % default = 'infinity'
 end
-reref = true;
+if isfield(params,'highpass')
+    highpass = params.highpass;
+else
+    highpass = 1; % default
+end
+if isfield(params,'lowpass')
+    lowpass = params.lowpass;
+else
+    lowpass = 40; % default
+end
+if isfield(params,'filttype')
+    if strcmp(params.filttype,'causal')
+        causalfilt = true;  % causal (nonlinear) minimum-phase filter
+    else 
+        causalfilt = false; % zero-phase (linear) noncausal filter
+    end
+else
+    % default filter depending on analysis
+    if strcmp(params.analysis,'hep')
+        causalfilt = true; % causal minimum-phase filter should be used for HEP to avoid group delays or other filter artifacts
+    else
+        causalfilt = false; % zero-phase noncausal filter for continuous data
+    end
+end
+if isfield(params,'gpu')
+    usegpu = params.gpu;
+else
+    usegpu = false; % default
+end
 
-% Parameters for removing bad channels
-flatline = 5; %     % max flat segment to remove channel (default = 5 s)
-corrThresh = .65;   % correlation threshold to be considered bad (default = .65)
-win_length = 5;     % window length (default = 5 s)
-line_thresh = 5;    % line noise threshold (default = 5)
-maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
+% Channel removal parameters
+if isfield(params,'flatline')
+    flatline = params.flatline;
+else
+    flatline = 5; % max flat segment to remove channel (default = 5 s)
+end
+if isfield(params,'corrThresh')
+    corrThresh = params.corrThresh;
+else
+    corrThresh = .65;   % correlation threshold to be considered bad (default = .65)
+end
+if isfield(params,'maxBad')
+    maxBad = params.maxBad;
+else
+    maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
+end
+win_length = 5;     % window length to scan channels (default = 5 s)
+line_thresh = 5;    % line noise threshold to remove bad channels (default = 5)
 nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
-detectMethod = 'grubbs';   % 'grubbs' (more aggressive), 'mean' (conservative)
+if isfield(params,'detectMethod')
+    detectMethod = params.detectMethod;
+else
+    detectMethod = 'grubbs';   % 'median' (agressive), 'grubbs' (moderate, default), 'mean' (conservative)
+end
 
 % ASR parameters
-asr_cutoff = 30;  % main ASR cutoff (lower = more aggressive, higher = more lax)
-asr_mem = .8;     % available RAM to use for ASR (.85 = 85% of available RAM)
+if isfield(params,'asr_cutoff')
+    asr_cutoff = params.asr_cutoff;
+else
+    asr_cutoff = 30;  % main ASR SD cutoff (lower = more aggressive, higher = more lax)
+end
+if isfield(params,'asr_mem')
+    asr_mem = params.asr_mem;
+else
+    asr_mem = .8;     % available RAM to use for ASR (.85 = 85% of available RAM)
+end
+
+% ICA parameters
+if isfield(params,'icamethod')
+    icamethod = params.icamethod;
+else
+    icamethod = 1;  % 1 = fast ICA (picard), 2 = normal Infomax, 3 replicable Infomax (slowest but replicable)
+end
 
 % Filter, re-reference, and remove bad channels
 if params.clean_eeg_step == 0
@@ -76,12 +133,17 @@ if params.clean_eeg_step == 0
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
     % in the assessment of functional brain–heart interplay: From 
     % methodology to user guidelines. Journal of Neuroscience Methods.
-    if reref
-        if EEG.nbchan >= 30
-            fprintf('Re-referencing the EEG data to infinity for best results. \n')
-            EEG = ref_infinity(EEG);
+    if ~strcmp(reref,'off')
+        if EEG.nbchan < 30
+            warndlg('Cannot reference these EEG data, not recommended with less than 30 channels.')
+            warning('Cannot reference these EEG data, not recommended with less than 30 channels.')
         else
-            warning('Cannot reference these EEG data to infinity as low-density montages. Low-density montages require alternative referencing (e.g., linked mastoids).')
+            if strcmp(reref,'infinity')
+                fprintf('Re-referencing EEG data to infinity... \n')
+                EEG = ref_infinity(EEG);
+            elseif strcmp(reref,'average')
+                EEG = pop_reref(EEG,[]);
+            end
         end
     end
     
@@ -125,7 +187,7 @@ if params.clean_eeg_step == 0
     EEG = pop_eegfiltnew(EEG,'hicutoff',lowpass,'minphase',causalfilt);  
 
     % Interpolate them
-    if EEG.nbchan >30
+    if EEG.nbchan>20
         EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
         EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
     else
@@ -165,12 +227,12 @@ elseif params.clean_eeg_step == 1
         params.removed_eeg_trials = badTrials;
 
         % Features
-    elseif strcmp(params.analysis, 'features')
+    elseif contains(params.analysis, {'features' 'rm_heart'})
 
         % Identify artifacts using ASR
         oriEEG = EEG;
         m = memory; maxmem = round(asr_mem*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
-        cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],params.gpu,false,maxmem);
+        cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,maxmem);
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
         EEG.etc.clean_sample_mask = ~mask;
         badData = reshape(find(diff([false mask false])),2,[])';
@@ -204,18 +266,20 @@ elseif params.clean_eeg_step == 1
     % Use Picard algorithm when possible to increase speed. 
     % use lrate=1e-5 and maxsteps=2000 to obtain reproducible ICA results
     dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
-    if exist('picard.m','file')
+    if icamethod == 1
         EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard', ...
             'pca',dataRank);
-    else
+    elseif icamethod == 2
+        EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
+    elseif icamethod == 3 
         EEG = pop_runica(EEG,'icatype','runica','extended',1, ...
             'pca',dataRank,'lrate',1e-5,'maxsteps',2000);
     end
-
+    
     % Classify and remove bad components with IClabel
     EEG = pop_iclabel(EEG,'default');
-    if strcmp(params.analysis, {'hep' 'rm_heart'}) 
-        % Do not remove heart components for HEP
+    if contains(params.analysis, {'rm_heart' 'hep'}) 
+        % Do not remove heart components
         EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
         % Remove components: muscle, eye, heart, line noise, channel noise

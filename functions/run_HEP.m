@@ -10,7 +10,7 @@
 %
 % Cedric Cannard, 2023
 
-function HEP = run_HEP(EEG, params, Rpeaks)
+function HEP = run_HEP(EEG, CARDIO, params, Rpeaks)
 
 % Remove boundary events
 idx = strcmpi({EEG.event.type}, 'boundary');
@@ -29,25 +29,27 @@ types = repmat({'R-peak'},1,length(evt));
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index
 EEG = eeg_checkset(EEG);
 
-% Add back heart channel to check?
-% % if EEG.srate ~= CARDIO.srate
-% %     CARDIO = pop_resample(CARDIO,EEG.srate);
-% % end
-% CARDIO = pop_eegfiltnew(CARDIO,'locutoff',1,'hicutoff',20);    
-% for iChan = 1:CARDIO.nbchan
-%     CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -50, 50);
-% end
-% if EEG.pnts ~= CARDIO.pnts
-%     EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data(:,1:end-1); % for PPG
-% else
-%     EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
-% end
-% EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
-% for iChan = 1:CARDIO.nbchan
-%     EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
-% end
-% EEG = eeg_checkset(EEG);
-% pop_eegplot(EEG,1,1,1);
+% Add back heart channel (for plotting final output mainly)
+if isfield(params,'keep_heart') && params.keep_heart
+    % if EEG.srate ~= CARDIO.srate
+    %     CARDIO = pop_resample(CARDIO,EEG.srate);
+    % end
+    CARDIO = pop_eegfiltnew(CARDIO,'locutoff',1,'hicutoff',20);    
+    for iChan = 1:CARDIO.nbchan
+        CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -100, 100);
+    end
+    if EEG.pnts ~= CARDIO.pnts
+        EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data(:,1:end-1); % for PPG
+    else
+        EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
+    end
+    EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
+    for iChan = 1:CARDIO.nbchan
+        EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+    end
+    EEG = eeg_checkset(EEG);
+    % pop_eegplot(EEG,1,1,1);
+end
 
 % Calculate inter-beat-intervals (IBI) from EEG markers and R peaks (to
 % compare)
@@ -89,10 +91,12 @@ if params.vis_outputs
     figure('color','w'); histfit(IBI); hold on
     plot([prctile(IBI,5) prctile(IBI,5)],ylim,'--r','linewidth',2)
     % plot([prctile(IBI,97.5) prctile(IBI,97.5)],ylim,'--r','linewidth',2)
-    title('Interbeat intervals (IBI) after removal of outlier trials'); xlabel('time (ms)')
+    title('Interbeat intervals (IBI) after removal of outliers'); 
+    xlabel('Time (ms)'); ylabel('Number of IBIs')
     legend('','','lower 95% percentile (epoch size)')
     set(gcf,'Toolbar','none','Menu','none');                    % remove toolbobar and menu
     set(gcf,'Name','Inter-beat intervals (IBI) distribution','NumberTitle','Off')  % name
+    set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
 end
 
 % Epoch (no baseline removal as it can bias results because of
@@ -200,7 +204,7 @@ end
 
 % Save
 if params.save
-    newname = sprintf('%s_HEP.set', HEP.filename(1:end-5));
+    newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
     pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
 end
 

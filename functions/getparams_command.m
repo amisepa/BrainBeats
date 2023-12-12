@@ -36,23 +36,75 @@ else
     error("Analysis type not defined. Must be set to either 'hep', 'features', or 'rm_heart'. ")
 end
 
-% RR artifact correction method
+% Heart signal preprocessing
+idx = find(strcmpi(varargin,'clean_heart'));
+if ~isempty(idx)
+    params.clean_heart = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'ecg_searchback'));
+if ~isempty(idx)
+    params.ecg_searchback = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'keep_heart'));
+if ~isempty(idx)
+    params.keep_heart = varargin{idx+1};
+end
 idx = find(strcmpi(varargin,'rr_correct'));
 if ~isempty(idx)
     params.rr_correct = varargin{idx+1};
-    fprintf('RR artifact method selected by user: %s \n', params.rr_correct)
-elseif isempty(idx) && contains(params.analysis, {'features' 'hep'})
-    fprintf("RR artifact correction method not defined. Selecting default method: shape-preserving piecewise cubic interpolation ('pchip'). \n")
-    params.rr_correct = 'pchip';  % pchip or spline should be default
+else
+    params.rr_correct = 'pchip';
 end
 
-% Exclude all EEG operations?
+% HRV parameters
+if strcmp(params.analysis,'features')
+    idx = find(strcmpi(varargin,'hrv_features'));
+    if ~isempty(idx)
+        if ~isfield(params,'hrv_features')
+            params.hrv_features = true;
+        end
+        hrv_features = varargin{idx+1};
+        if sum(contains(hrv_features,{'time'})) > 0
+            params.hrv_time = true;
+        else
+            params.hrv_time = false;
+        end
+        if sum(contains(hrv_features,{'frequency'})) > 0
+            params.hrv_frequency = true;
+        else
+            params.hrv_frequency = false;
+        end
+        if sum(contains(hrv_features,'nonlinear')) > 0
+            params.hrv_nonlinear = true;
+        else
+            params.hrv_nonlinear = false;
+        end 
+    else
+        params.hrv_features = true;
+    end
+else
+    params.hrv_features = false;
+end
+idx = find(strcmpi(varargin,'hrv_norm'));
+if ~isempty(idx)
+    params.hrv_norm = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'hrv_spec'));
+if ~isempty(idx)
+    params.hrv_spec = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'hrv_overlap'));
+if ~isempty(idx)
+    params.hrv_overlap = varargin{idx+1};
+end
+
+% Exclude all EEG operations (set to false) 
 idx = find(strcmpi(varargin,'eeg'));
 if ~isempty(idx)
     params.eeg = varargin{idx+1};
 end
 
-% Clean EEG
+% Preprocess EEG
 idx = find(strcmpi(varargin,'clean_eeg'));
 if ~isempty(idx)
     params.clean_eeg = varargin{idx+1};
@@ -62,12 +114,92 @@ else
     params.clean_eeg = false;
 end
 
+% EEG preprocessing parameters
+idx = find(strcmpi(varargin,'highpass'));
+if ~isempty(idx)
+    params.highpass = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'lowpass'));
+if ~isempty(idx)
+    params.lowpass = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'flatline'));
+if ~isempty(idx)
+    params.flatline = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'corrThresh'));
+if ~isempty(idx)
+    params.corrThresh = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'maxBad'));
+if ~isempty(idx)
+    params.maxBad = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'eeg_interp'));
+if ~isempty(idx)
+    params.eeg_interp = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'asr_cutoff'));
+if ~isempty(idx)
+    params.asr_cutoff = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'asr_mem'));
+if ~isempty(idx)
+    params.asr_mem = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'reref'));
+if ~isempty(idx)
+    params.reref = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'linenoise'));
+if ~isempty(idx)
+    params.linenoise = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'filttype'));
+if ~isempty(idx)
+    params.filttype = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'detectMethod'));
+if ~isempty(idx)
+    params.detectMethod = varargin{idx+1};
+end
+
+% EEG features parameters
+idx = find(strcmpi(varargin,'eeg_frange'));
+if ~isempty(idx)
+    params.eeg_frange = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'eeg_wintype'));
+if ~isempty(idx)
+    params.eeg_wintype = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'eeg_winoverlap'));
+if ~isempty(idx)
+    params.eeg_winoverlap = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'eeg_winlen'));
+if ~isempty(idx)
+    params.eeg_winlen = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'eeg_freqbounds'));
+if ~isempty(idx)
+    params.eeg_freqbounds = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'eeg_norm'));
+if ~isempty(idx)
+    params.eeg_norm = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'asy_norm'));
+if ~isempty(idx)
+    params.asy_norm = varargin{idx+1};
+end
+
 % EEG features
 if strcmp(params.analysis,'features')
     idx = find(strcmpi(varargin,'eeg_features'));
     if ~isempty(idx)
-        if ~isfield(params,'eeg')
-            params.eeg = true;
+        if ~isfield(params,'eeg_features')
+            params.eeg_features = true;
         end
         eeg_features = varargin{idx+1};
         if sum(contains(eeg_features,{'time'})) > 0
@@ -91,70 +223,6 @@ if strcmp(params.analysis,'features')
     end
 end
 
-% HRV features
-if strcmp(params.analysis,'features')
-    idx = find(strcmpi(varargin,'hrv_features'));
-    if ~isempty(idx)
-        params.hrv = true;
-        hrv_features = varargin{idx+1};
-        if sum(contains(hrv_features,{'time'})) > 0
-            params.hrv_time = true;
-        else
-            params.hrv_time = false;
-        end
-        if sum(contains(hrv_features,{'frequency'})) > 0
-            params.hrv_frequency = true;
-        else
-            params.hrv_frequency = false;
-        end
-        if sum(contains(hrv_features,'nonlinear')) > 0
-            params.hrv_nonlinear = true;
-        else
-            params.hrv_nonlinear = false;
-        end            
-    else
-        params.hrv = true;
-    end
-else
-    params.hrv = false;
-    fprintf('You chose NOT to extract HRV features on these data. \n')
-end
-
-% Normalize frequency features
-idx = find(strcmpi(varargin,'norm'));
-if ~isempty(idx)
-    params.norm = varargin{idx+1};
-    if ~islogical(params.norm), error("The 'norm' input should be logical (true or false)."); end
-    if params.norm
-        fprintf('Normalization of frequency-domain outputs set to ON. \n')
-    else
-        fprintf('Normalization of frequency-domain outputs set to OFF. \n')
-    end
-else
-    params.norm = true;
-    fprintf('Normalization of frequency-domain outputs not defined: set to ON by default. \n')
-end
-
-
-% hrv_spec
-idx = find(strcmpi(varargin,'hrv_spec'));
-if ~isempty(idx)
-    params.hrv_spec = varargin{idx+1};
-    fprintf('Method to estimate HRV power spectrum set to: %s \n', params.hrv_spec)
-else
-    params.hrv_spec = 'LombScargle';  % 'LombScargle' (default), 'pwelch', 'fft'
-    fprintf("Method to estimate HRV power spectrum not defined: set to 'LombScargle' by default. \n")
-end
-
-% hrv_overlap
-idx = find(strcmpi(varargin,'hrv_overlap'));
-if ~isempty(idx)
-    params.hrv_overlap = varargin{idx+1};
-    fprintf('Overlap for HRV power spectrum set to: %g%%. \n', params.hrv_overlap*100)
-else
-    params.hrv_overlap = 0.25;
-    fprintf('Overlap for HRV power spectrum not defined and set to default: 25%% overlap \n')
-end
 
 % Visualize preprocessings
 idx = find(strcmpi(varargin,'vis_cleaning'));
@@ -226,7 +294,6 @@ end
 idx = find(strcmpi(varargin,'gpu'));
 if ~isempty(idx)
     params.gpu = varargin{idx+1};
-    if ~islogical(params.gpu), error("The 'gpu' input should be logical (true or false)."); end
     fprintf('GPU computing: set to ON. \n')
 else
     params.gpu = false;
