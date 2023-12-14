@@ -29,7 +29,8 @@ types = repmat({'R-peak'},1,length(evt));
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index
 EEG = eeg_checkset(EEG);
 
-% Add back heart channel (for plotting final output mainly)
+% Add back heart channel (mainly for plotting to check if R-peaks events 
+% align correctly with ECG signal)
 if isfield(params,'keep_heart') && params.keep_heart
     % if EEG.srate ~= CARDIO.srate
     %     CARDIO = pop_resample(CARDIO,EEG.srate);
@@ -48,7 +49,6 @@ if isfield(params,'keep_heart') && params.keep_heart
         EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
     end
     EEG = eeg_checkset(EEG);
-    % pop_eegplot(EEG,1,1,1);
 end
 
 % Calculate inter-beat-intervals (IBI) from EEG markers and R peaks (to
@@ -112,20 +112,22 @@ if params.clean_eeg
     % Preprocessing outputs
     EEG.brainbeats.preprocessing.removed_eeg_trials = params.removed_eeg_trials;
     EEG.brainbeats.preprocessing.removed_eeg_components = params.removed_eeg_components;
-
 end
 
-% Remove epochs containing more than 1 R-peak
-warning('Removing remaining epochs containing more than 1 R-peak (i.e. remaining interbeat intervals that are too short)')
-idx = false(length(HEP.epoch),1);
+% Only keep 1st marker when several are present in sam eepoch
+count = 0;
 for iEv = 1:length(HEP.epoch)
     if length(HEP.epoch(iEv).eventtype)>1
-        idx(iEv,1) = true;
+        HEP.epoch(iEv).event = HEP.epoch(iEv).event(1);
+        HEP.epoch(iEv).eventlatency = HEP.epoch(iEv).eventlatency(1);
+        HEP.epoch(iEv).eventduration = HEP.epoch(iEv).eventduration(1);
+        HEP.epoch(iEv).eventtype = HEP.epoch(iEv).eventtype(1);
+        count = count+1;
     end
 end
-HEP = pop_rejepoch(HEP, find(idx), 0);
-% HEP.event = [];
-% HEP = eeg_checkset(HEP);
+warning('%g epochs contained more than 1 R-peak and were adjusted by preserving only the first event of the epochs',count)
+HEP.epoch = rmfield(HEP.epoch,'eventurevent');
+HEP = eeg_checkset(HEP);
 
 
 %% Plot Heartbeat-evoked potentials (HEP) and oscillations (HEO)
@@ -135,6 +137,12 @@ HEP = pop_rejepoch(HEP, find(idx), 0);
 % band for ERSP. 
 
 if params.vis_outputs
+
+    if params.vis_cleaning
+        pop_eegplot(HEP,1,1,1);
+        set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+        set(gcf,'Name','Final output','NumberTitle','Off')  % name
+    end
 
     % Show mean HEP for each electrodes and allows clicking on them to see
     % more closely

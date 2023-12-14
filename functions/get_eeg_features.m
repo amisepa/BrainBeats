@@ -1,5 +1,8 @@
 %% Extract EEG features in time, fequency, and nonlinear domains.
 %
+% Example:
+%   eeg_features = get_eeg_features(EEG.data,params)
+% 
 % Copyright (C) - Cedric Cannard, 2023
 
 function eeg_features = get_eeg_features(signals,params)

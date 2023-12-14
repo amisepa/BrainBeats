@@ -96,7 +96,7 @@ if nargin == 1
         disp('Aborted.'); return 
     end
 elseif nargin > 1
-    params = getparams_command(varargin{:});    % Command line
+    params = getparams_cmd(varargin{:});    % Command line
 end
 
 % run routine checks
@@ -314,6 +314,9 @@ if contains(params.analysis, {'features' 'hep'})
         EEG.brainbeats.features = Features;
         disp("Features are stored in the EEG.features field")
     end
+    
+    % Store parameters in EEG structure for reporting in publications
+    EEG.brainbeats.parameters = params;
 
     % Save and plot features  
     if strcmp(params.analysis,'features')
@@ -340,7 +343,6 @@ end
 % if params.parpool
 %     delete(gcp('nocreate'));
 % end
-
 
 % % Command history (for 'eegh')
 % if contains(params.analysis,'hep')

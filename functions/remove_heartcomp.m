@@ -4,13 +4,11 @@
 
 function EEG = remove_heartcomp(EEG, CARDIO, params)
 
-if params.clean_eeg
-
-    % Filter, re-reference, remove bad channels
-    params.clean_eeg_step = 0;
-    [EEG, params] = clean_eeg(EEG, params);
-
-end
+% if params.clean_eeg
+%     % Filter, re-reference, remove bad channels
+%     params.clean_eeg_step = 0;
+%     [EEG, params] = clean_eeg(EEG, params); 
+% end
 
 % Add CARDIO channels back
 EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
@@ -20,6 +18,7 @@ for iChan = 1:CARDIO.nbchan
 end
 EEG = eeg_checkset(EEG);
 
+% run ICA
 dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
 if exist('picard.m','file')
     EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
@@ -27,11 +26,13 @@ else
     EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
 end
 
+% Classify components with ICLabel
 EEG = pop_iclabel(EEG,'default');
 EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.85 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 85% confidence
 % pop_selectcomps(EEG,1:EEG.nbchan); colormap('parula');
 heart_comp = find(EEG.reject.gcompreject);
 
+% Visualize
 if ~isempty(heart_comp)
 
     fprintf('Number of heart components detected: %g. \n', length(heart_comp));
@@ -71,6 +72,9 @@ if ~isempty(heart_comp)
 else
     fprintf('Sorry, no heart component was detected. Make sure the CARDIO channel you selected is correct. \nYou may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended). \n')
 end
+
+% Store parameters in EEG structure for reporting in publications
+EEG.brainbeats.params = params;
 
 % Save
 if params.save

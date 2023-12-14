@@ -98,7 +98,7 @@ nSamp = 500;        % number of ransac samples (default = 500; higher is longer 
 if isfield(params,'detectMethod')
     detectMethod = params.detectMethod;
 else
-    detectMethod = 'grubbs';   % 'median' (agressive), 'grubbs' (moderate, default), 'mean' (conservative)
+    detectMethod = 'grubbs';   % 'median' (more agressive), 'grubbs' (moderate; default), 'mean' (more lax)
 end
 
 % ASR parameters
@@ -135,8 +135,8 @@ if params.clean_eeg_step == 0
     % methodology to user guidelines. Journal of Neuroscience Methods.
     if ~strcmp(reref,'off')
         if EEG.nbchan < 30
-            warndlg('Cannot reference these EEG data, not recommended with less than 30 channels.')
-            warning('Cannot reference these EEG data, not recommended with less than 30 channels.')
+            warndlg('Cannot reference these EEG data to infinity or average, not validated with less than 30 channels.')
+            warning('Cannot reference these EEG data to infinity or average, not validated with less than 30 channels.')
         else
             if strcmp(reref,'infinity')
                 fprintf('Re-referencing EEG data to infinity... \n')
@@ -185,6 +185,12 @@ if params.clean_eeg_step == 0
 
     % Lowpass filter set by user
     EEG = pop_eegfiltnew(EEG,'hicutoff',lowpass,'minphase',causalfilt);  
+    
+    % nothc filter if line noise is below lowpass filter
+    if isfield(params,'linenoise') && params.linenoise<lowpass
+        EEG = pop_eegfiltnew(EEG, 'locutoff',params.linenoise-3, ...
+            'hicutoff',params.linenoise+3,'revfilt',1,'filtorder',500);
+    end
 
     % Interpolate them
     if EEG.nbchan>20
@@ -193,14 +199,6 @@ if params.clean_eeg_step == 0
     else
         warning('Cannot interpolate bad EEG channels reliably with less than 30 channels')
     end
-
-    % % Add CARDIO channels back? (requires adding CARDIO in inputs)
-    % EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
-    % EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
-    % for iChan = 1:CARDIO.nbchan
-    %     EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
-    % end
-    % EEG = eeg_checkset(EEG);
 
     % update tracker
     params.clean_eeg_step = 1;
@@ -280,10 +278,10 @@ elseif params.clean_eeg_step == 1
     EEG = pop_iclabel(EEG,'default');
     if contains(params.analysis, {'rm_heart' 'hep'}) 
         % Do not remove heart components
-        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
+        EEG = pop_icflag(EEG,[NaN NaN; .9 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
         % Remove components: muscle, eye, heart, line noise, channel noise
-        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
+        EEG = pop_icflag(EEG,[NaN NaN; .9 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
     end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
@@ -312,18 +310,6 @@ elseif params.clean_eeg_step == 1
         EEG = pop_subcomp(EEG, badComp, 0);
     end
     
-    % plot final cleaned data
-    if params.vis_cleaning
-        if strcmp(params.analysis, 'hep')
-            pop_eegplot(EEG,1,1,1);
-            set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
-            set(gcf,'Name','Final output after preprocessings','NumberTitle','Off')  % name
-        % elseif strcmp(params.analysis, 'features')
-        %     eegplot(EEG.data,'winlength',15,'srate',EEG.srate,'events', ...
-        %         EEG.event,'spacing',50);
-        end
-    end
-
     % update tracker
     params.clean_eeg_step = 2;
 

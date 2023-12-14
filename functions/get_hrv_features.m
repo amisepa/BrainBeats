@@ -84,7 +84,7 @@ if params.hrv_frequency
     if isfield(params,'hrv_norm') && ~isempty(params.hrv_norm)
         norm = params.hrv_norm;
     else
-        norm = true;
+        norm = false;
     end
     if isfield(params,'hrv_overlap') && ~isempty(params.hrv_overlap)
         overlap = params.hrv_overlap;
@@ -137,7 +137,6 @@ if params.hrv_frequency
                 
                 % Welch or FFT (require resampling)
                 else
-
                     % Resample
                     resamp_freq = 7;
                     NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR 
@@ -278,13 +277,12 @@ if params.hrv_frequency
     % end
 end
 
-% Nonlinear domain
+%% Nonlinear domain
 if params.hrv_nonlinear
     
-    disp('Extracting HRV features in the nonlinear domain...')
+    disp('Extracting HRV features in the nonlinear domain (Poincare, Sample entropy, Fractal dimension, PRSA)...')
 
     % Poincare
-    fprintf('Computing Poincare... \n')
     SDSD = std(diff(NN));
     SDRR = std(NN);
     SD1 = (1 / sqrt(2)) * SDSD;     % measures the width of poincare cloud
@@ -293,21 +291,15 @@ if params.hrv_nonlinear
     HRV.nonlinear.Poincare.SD2 = SD2*1000;      % in ms
     HRV.nonlinear.Poincare.SD1SD2 = SD1/SD2;
 
-    % Fuzzy entropy (FIXME: install get_entropy plugin if not already installed)
-    fprintf('Extracting nonlinear features from NN intervals (sample entropy and fractal dimension)... \n')
+    % Sample entropy
     m = 2;
     r = .15;
-
-    % Sample entropy (fast method)
-    HRV.nonlinear.SE = compute_se_fast(NN,m,r);
-
-    % Fractal dimension
-    HRV.nonlinear.FD = fractal_volatility(NN);
+    HRV.nonlinear.SE = compute_se(NN,m,r);
 
     % Fuzzy entropy
     % tau = 1;
     % n = 2;
-    % HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau,params.gpu);
+    % HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau, false);
 
     % Multiscale fuzzy entropy (MFE)
     % coarseType = 'Standard deviation';
@@ -316,8 +308,10 @@ if params.hrv_nonlinear
     % [HRV.nonlinear.MFE, HRV.nonlinear.MFE_scales] = compute_mfe(NN, ...
     %     m, r, tau, coarseType, nScales, filtData, params.fs, n, params.gpu);
     % figure; area(HRV.MFE_scales, HRV.nonlinear.multiscale_fuzzy_entropy); axis tight
-    
 
+    % Fractal dimension
+    HRV.nonlinear.FD = fractal_volatility(NN);
+    
     % Phase rectified signal averaging (PRSA)
     fprintf('Computing phase rectified signal averaging (PRSA)... \n')
     thresh = 20;
@@ -333,7 +327,6 @@ if params.hrv_nonlinear
 
 end
 
-end
 
 %% Resample NN intervals to compute PSD with pwelch or FFT
 %
@@ -357,5 +350,4 @@ switch interp_method
         NN_resamp = interp1(NN_times,NN,ti','spline')'; % cubic spline interpolation (default)
     case 'lin'
         NN_resamp = interp1(NN_times,NN,ti','linear')'; % linear interpolation
-end
 end

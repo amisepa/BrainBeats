@@ -22,7 +22,7 @@ try
     else
         title('PPG signal + R peaks (press -> arrow to scroll)'); 
     end
-    ylabel('mV'); xlabel('Time (s)')
+    ylabel('μV'); xlabel('Time (s)')
 catch
     warning('Scroll plot failed. Please submit an issue at: https://github.com/amisepa/BrainBeats/issues')
     scroll = false;
@@ -37,8 +37,7 @@ if strcmp(sigtype,'ecg')
 else
     title('PPG signal + R peaks'); 
 end
-ylabel('mV');
-
+ylabel('μV');
 
 if scroll, subplot(3,1,2); else, subplot(2,1,2); end
 if sum(flagged) == 0
@@ -46,9 +45,9 @@ if sum(flagged) == 0
 else
     plot(RR_t,RR,'-','color','#A2142F','linewidth',1);
     hold on; plot(NN_t, NN,'-','color',"#0072BD", 'LineWidth', 1);
-    legend('RR artifacts','After correction')
+    % legend('RR artifacts','After correction')
 end
-title('Normal-to-normal (NN) intervals'); ylabel('NN intervals (s)'); xlabel('Time (s)');
+title('NN intervals (blue) & RR artifacts before interpolation (red)'); ylabel('NN intervals (s)'); xlabel('Time (s)');
 axis tight; box on
 
 % if scroll, subplot(4,1,4); else, subplot(3,1,3); end
