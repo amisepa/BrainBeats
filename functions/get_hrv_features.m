@@ -142,7 +142,7 @@ if params.hrv_frequency
                     NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR 
             
                     % Pwelch
-                    if strcmp(hrv_spec, 'welch')
+                    if strcmp(hrv_spec, 'pwelch')
                         [pwr,freqs] = pwelch(NN_resamp,minLength(iBand),[],[],resamp_freq);
                         fprintf('Computing pwelch on the NN series... \n')
 

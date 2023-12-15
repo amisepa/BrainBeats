@@ -81,7 +81,7 @@ end
 
 % Includes EEG or not (for plotting only)
 if ~isfield(params,'eeg_features')
-    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency || params.eeg_nonlinear
+    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || (isfield(params, 'eeg_frequency') && params.eeg_frequency) || (isfield(params, 'eeg_nonlinear') && params.eeg_nonlinear)
         params.eeg_features = true;
     else
         params.eeg_features = false;
