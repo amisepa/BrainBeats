@@ -82,27 +82,10 @@ if params.eeg_nonlinear
     % filtData = true;  					% bandpass filter each scale factor (see Kosciessa et al. 2020)
 end
 
-
-
 disp('----------------------------------------------------')
 disp('               Extracting EEG features ')
 disp('----------------------------------------------------')
 
-
-% Parallel computing
-if useparpool
-    p = gcp('nocreate');
-    % delete(gcp('nocreate')) % shut down opened parpool
-    if isempty(p) % if not already on, launch it
-        disp('Initiating parrallel computing (all cores and threads -1)...')
-        c = parcluster; % cluster profile
-        % N = feature('numcores');        % physical number of cores
-        N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
-        if ischar(N), N = str2double(N); end
-        c.NumWorkers = N-2;  % update cluster profile to include all workers
-        c.parpool();
-    end
-end
 
 % Use parallel GPUs computing (if multiple GPUS are available)
 % if useparpool && usegpu

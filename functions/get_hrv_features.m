@@ -2,21 +2,24 @@
 % 1) Time domain: NN stats, SDNN, RMSSD, pNN50
 % 
 % 2) Frequency domain: ULF, VLF, LF, HF, LF/HF ratio, TTLPWR.
-%   Options: PSD can be calculated using the Lomb-Scargle periodogram (default), 
-%   pwelch, FFT, or Burg methods. Lomb-Scargle periodogram does not require 
+%   Options: PSD can be calculated using the normalized Lomb-Scargle 
+%   periodogram (default), standard Lomb-Scargle periodogram, 
+%   Welch, or FFT. Lomb-Scargle periodogram does not require 
 %   interpolation or resampling of the data (contrary to welch or FFT), thus 
-%   preserving the original information. 
-%   Normalization can be turned ON to better deal with non-uniformly sampled
-%   or irregularly sampled data, which is common in HRV analysis. It is
-%   applied during Lomb-scargle periodogram estimation by scaling the total
-%   power with variance in the time series, to make results more comparable 
-%   across different datasets or subjects. It is also applied in a 2nd
-%   step by dividing each band power by the total power, to provide a more 
+%   preserving the original information. The Lomb-Scargle method is
+%   recommended as it better deals with non-uniformly sampled data, missing 
+%   data, noise (common with NN intervals), and does not require resampling. 
+%   The normalized version is selected by default (although users can choose 
+%   the standard version) by scaling the power by the variance of the signal, 
+%   making results more comparable across different recordings or subjects. 
+%   If users set hrv_norm to ON, a 2nd level normalization is applied
+%   by dividing each band-power by the total power, to provide a more 
 %   intuitive measure of the relative contribution of each frequency 
-%   component to the overall power.
+%   component to the overall power. Preferable to do this option when VLF
+%   and ULF are available (long time-series required). 
 %
-% 3) Nonlinear domain: Poincare, fuzzy entropy, multiscale fuzzy entropy,
-%   and PRSA.
+% 3) Nonlinear domain: Poincare, fuzzy entropy, fractal dimension, 
+%   phase-rectified signal amplitude (PRSA).
 %
 % Following recommendations by the Task Force of the European Society of 
 % Cardiology and the North American Society of Pacing and Electrophysiology

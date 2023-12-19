@@ -213,7 +213,7 @@ end
 % Save
 if params.save
     newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
-    pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
+    pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath);
 end
 
 

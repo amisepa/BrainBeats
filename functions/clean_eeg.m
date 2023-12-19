@@ -22,9 +22,9 @@
 % 6) The preconditioned ICA algorithm is used to to perform fast but reliable 
 %   blind source spearation, implementing PCA-dimension reduction to control 
 %   for effective data rank and avoid ghost IC artifacts (see Kim et al. 2023). 
-%   If users do not wish to use PICARD, the infomax algorithm is used with 
-%   'lrate' = 1e-5 and 'maxsteps' = 2000. It takes much longer, but allows
-%   replication (and the order of the IC maps is always the same). 
+%   Users can also use the standard Infomax algorithm or theh modified Infomax
+%   ('lrate' = 1e-5 and 'maxsteps' = 2000). This last option takes much longer,
+%   but allows replication/convergence of the IC maps. 
 % 7) ICLabel tags artifactual ICs with: 
 %       - muscle (95% confidence);
 %       - eye (90% confidence)
@@ -52,7 +52,7 @@ end
 if isfield(params,'lowpass')
     lowpass = params.lowpass;
 else
-    lowpass = 40; % default
+    lowpass = 40; % default to safely remove power line at 50/60 Hz with a low filter order (high transition bandwidth)
 end
 if isfield(params,'filttype')
     if strcmp(params.filttype,'causal')
@@ -91,7 +91,7 @@ else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
 end
 win_length = 5;     % window length to scan channels (default = 5 s)
-line_thresh = 5;    % line noise threshold to remove bad channels (default = 5)
+line_thresh = 4;    % line noise threshold to remove bad channels (default = 5)
 nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs

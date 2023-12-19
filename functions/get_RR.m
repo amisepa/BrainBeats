@@ -500,7 +500,6 @@ end
 
 function [beat1,ebuf,lbuf,tt_2, aet] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow)
 
-
 while t > tt_2
     prevVal = 0;
 

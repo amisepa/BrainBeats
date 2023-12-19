@@ -142,11 +142,13 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 % plot_features(EEG.brainbeats.features,params)
 
 %% METHOD 3: Remove heart components from EEG signals
+% to avoid preprocessing the whole file again, remove PPG channel and the
+% first 10 s that contain simulated artifacts (that were added for illustration). 
 
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = pop_select(EEG,'nochannel',{'PPG'}); % to avoid pop-up window asking to remove PPG channel
-EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',30);  % to avoid having to do preprocessing again
-EEG = pop_select(EEG,'nopoint',[1 10*EEG.srate]);  % remove large artifacts in the 10 first seconds
+EEG = pop_select(EEG,'nochannel',{'PPG'});              % remove PPG channel
+EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',40);   % filter
+EEG = pop_select(EEG,'nopoint',[1 10*EEG.srate]);       % remove first 10 s
 % pop_eegplot(EEG,1,1,1);
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,'keep_heart',false, ...

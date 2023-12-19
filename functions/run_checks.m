@@ -81,7 +81,8 @@ end
 
 % Includes EEG or not (for plotting only)
 if ~isfield(params,'eeg_features')
-    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency || params.eeg_nonlinear
+    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || (isfield(params, 'eeg_frequency') ...
+            && params.eeg_frequency) || (isfield(params, 'eeg_nonlinear') && params.eeg_nonlinear)      
         params.eeg_features = true;
     else
         params.eeg_features = false;
@@ -128,11 +129,20 @@ params.fs = EEG.srate;
 ps = parallel.Settings;
 if params.parpool
     fprintf('Parallel computing set to ON. \n')
-    params.parpool = true;
     ps.Pool.AutoCreate = true;
+    p = gcp('nocreate');
+    % delete(gcp('nocreate')) % shut down opened parpool
+    if isempty(p) % if not already on, launch it
+        disp('Initiating parrallel computing (all cores and threads -1)...')
+        c = parcluster; % cluster profile
+        % N = feature('numcores');          % only physical cores
+        N = getenv('NUMBER_OF_PROCESSORS'); % all processor (cores + threads)
+        if ischar(N), N = str2double(N); end
+        c.NumWorkers = N-2;  % update cluster profile to include all workers
+        c.parpool();
+    end
 else
     fprintf('Parallel computing set to OFF. \n')
-    params.parpool = false;
     ps.Pool.AutoCreate = false;  % prevents parfor loops from launching parpool mode
 end
 
