@@ -164,7 +164,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3));    % db
             elseif eeg_norm == 2
-                delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+                delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3)) ./ sum(pwr_dB);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -182,7 +182,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7));    % db
             elseif eeg_norm == 2
-                theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+                theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7)) ./ sum(pwr_dB);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -200,7 +200,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13));    % db
             elseif eeg_norm == 2
-                alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+                alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13)) ./ sum(pwr_dB);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -218,7 +218,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30));    % db
             elseif eeg_norm == 2
-                beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+                beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30)) ./ sum(pwr_dB);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -236,7 +236,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2)));    % db
             elseif eeg_norm == 2
-                gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2))) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+                gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2))) ./ sum(pwr_dB);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -340,14 +340,14 @@ if params.eeg_nonlinear
         fprintf(' channel %g... \n', iChan);
 
         % Sample entropy (fast method)
-        se(iChan,:) = compute_se_fast(sig,m,r);
+        % se(iChan,:) = compute_se_fast(sig,m,r);
         % se(iChan,:) = compute_se(sig,m,r,tau);
 
         % Fractal dimension
         fd(iChan,:) = fractal_volatility(sig);
 
         % Fuzzy entropy
-        % fe(iChan,:) = compute_fe(sig, m, r, n, tau, usegpu);
+        fe(iChan,:) = compute_fe(sig, m, r, n, tau, usegpu);
 
         % Multiscale fuzzy entropy
         % disp('Computing multiscale fuzzy entropy...')
@@ -368,9 +368,9 @@ if params.eeg_nonlinear
     % toc
 
     % Outputs
-    eeg_features.nonlinear.SE = se;     % sample entropy
+    % eeg_features.nonlinear.SE = se;     % sample entropy
     eeg_features.nonlinear.FD = fd;     % fractal dimension
-    % eeg_features.nonlinear.FE = fe;     % fuzzy entropy
+    eeg_features.nonlinear.FE = fe;     % fuzzy entropy
     % eeg_features.nonlinear.MFE_scales(iChan,:) = scales;
     % eeg_features.nonlinear.MFE_scale_bounds(iChan,:) = scale_bounds;
     % eeg_features.nonlinear.MFE(iChan,:) = mfe;

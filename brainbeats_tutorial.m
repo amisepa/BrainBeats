@@ -112,6 +112,14 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',true);
 
+% All features can be found in EEG.brainbeats.features or in a .mat file
+% saved in the same place as the .set file loaded in EEGLAB
+% (filename_features.mat) if "save" input is set to true.
+
+% You can replot features using:
+% params.chanlocs = EEG.chanlocs;
+% plot_features(EEG.brainbeats.features,params)
+
 %% Same but this time, we use PPG signal and modify some parameters 
 % Again, this is for illustration purpose only, we recommend using default
 % parameters. 
@@ -136,10 +144,6 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
     'eeg_norm',0,'hrv_norm',false,'asy_norm',true, ...
     'parpool',true,'save',true,'vis_cleaning',true,'vis_outputs',true);
 
-% You can find all features in EEG.brainbeats.features
-% You can plot them again using:
-% params.chanlocs = EEG.chanlocs;
-% plot_features(EEG.brainbeats.features,params)
 
 %% METHOD 3: Remove heart components from EEG signals
 % to avoid preprocessing the whole file again, remove PPG channel and the

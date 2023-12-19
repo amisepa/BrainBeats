@@ -295,14 +295,16 @@ if params.hrv_nonlinear
     HRV.nonlinear.Poincare.SD1SD2 = SD1/SD2;
 
     % Sample entropy
-    m = 2;
-    r = .15;
-    HRV.nonlinear.SE = compute_se(NN,m,r);
+    % m = 2;
+    % r = .15;
+    % HRV.nonlinear.SE = compute_se(NN,m,r);
 
     % Fuzzy entropy
-    % tau = 1;
-    % n = 2;
-    % HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau, false);
+    m = 2;
+    r = .15;
+    tau = 1;
+    n = 2;
+    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau, false);
 
     % Multiscale fuzzy entropy (MFE)
     % coarseType = 'Standard deviation';

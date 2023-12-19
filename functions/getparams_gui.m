@@ -243,9 +243,9 @@ elseif strcmp(params.analysis, 'features') && strcmp(params.heart_signal, 'ecg')
     hrvnorm = {'Yes' 'No (default)'};
     freqrange = '[1 40]';
     wintype = {'hamming' 'hann' 'rectwin' 'blackmannharris'};
-    freqbounds = {'Conventional (e.g., alpha = 8-13 Hz)' 'Individualized (e.g., 7.8-12.3 Hz)'};
+    freqbounds = {'Conventional (e.g., alpha = 8-13 Hz)' 'Individualized (e.g., alpha = 7.8-12.3 Hz)'};
     winlen = '2';
-    eegnorm = {'Decibels (default)' 'Decibels + divided by total power' 'off'};
+    eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Decibels + divided by total power'};
     asynorm = {'None' 'Divided by total power'};
 
     % Callback functions
@@ -355,9 +355,9 @@ elseif strcmp(params.analysis, 'features') && strcmp(params.heart_signal, 'ppg')
     hrvnorm = {'Yes' 'No (default)'};
     freqrange = '[1 40]';
     wintype = {'hamming' 'hann' 'rectwin' 'blackmannharris'};
-    freqbounds = {'Conventional (e.g., alpha = 8-13 Hz)' 'Individualized (e.g., 7.8-12.3 Hz)'};
+    freqbounds = {'Conventional (e.g., alpha = 8-13 Hz)' 'Individualized (e.g., alpha = 7.8-12.3 Hz)'};
     winlen = '2';
-    eegnorm = {'Decibels (default)' 'Decibels + divided by total power' 'off'};
+    eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Decibels + divided by total power'};
     asynorm = {'None' 'Divided by total power'};
 
     % Callback functions
@@ -694,7 +694,7 @@ if isfield(params, 'eeg_freq_opts') && ~isempty(params.eeg_freq_opts)
 
     idx = find(strcmp(params.eeg_freq_opts,'eegnorm'));
     tmp = params.eeg_freq_opts{idx+1};
-    if contains(tmp,'off')
+    if contains(tmp,'none')
         params.eeg_norm = 0;
     elseif contains(tmp,'default')
         params.eeg_norm = 1;  % decibels
@@ -808,7 +808,7 @@ uilist = {
     {} ...
     {'style' 'text' 'string' 'Frequency bands' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' freqbounds 'tag' 'eeg_freqbounds' }  ...
     {} ...
-    {'style' 'text' 'string' 'Band-power normalization' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' eegnorm 'tag' 'eeg_norm'}  ...
+    {'style' 'text' 'string' 'Band-power normalization' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' eegnorm 'tag' 'eeg_norm' 'value' 2}  ...
     {} ...
     {'style' 'text' 'string' 'Alpha asymmerty normalization' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' asynorm 'tag' 'asy_norm' }  ...
     };

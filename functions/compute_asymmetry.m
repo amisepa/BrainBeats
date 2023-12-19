@@ -117,7 +117,7 @@ end
 if ~isempty(asy)
     disp('Electrode pairs: ')
     fprintf('   %s \n', pairLabels{:})
-    fprintf(['Normalized alpha asymmetry was succesfully computed on %g channel pairs. ' ...
+    fprintf(['Alpha asymmetry was succesfully computed on %g channel pairs. ' ...
         'Positive values from the output reflect greater left-hemispheric activity, and negative values reflect greater right-hemispheric activity \n'], length(asy))
 else
     warning("Failed to compute alpha asymmetry on these data")

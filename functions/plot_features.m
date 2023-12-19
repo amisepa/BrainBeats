@@ -306,15 +306,15 @@ if params.eeg_features && params.eeg_frequency
 end
 
 if params.eeg_features && params.eeg_nonlinear
-    nexttile
-    plot_topo(gather(EEG.nonlinear.SE),params.chanlocs,mode,'entropy');
-    cb = colorbar; ylabel(cb,'Sample entropy','Rotation',270,'fontSize',12,'fontweight','bold')
-    title('Sample entropy');
-
     % nexttile
-    % plot_topo(gather(EEG.nonlinear.FE),params.chanlocs,mode,'entropy');
-    % cb = colorbar; ylabel(cb,'Fuzzy entropy','Rotation',270,'fontSize',12,'fontweight','bold')
-    % title('Fuzzy entropy');
+    % plot_topo(gather(EEG.nonlinear.SE),params.chanlocs,mode,'entropy');
+    % cb = colorbar; ylabel(cb,'Sample entropy','Rotation',270,'fontSize',12,'fontweight','bold')
+    % title('Sample entropy');
+
+    nexttile
+    plot_topo(gather(EEG.nonlinear.FE),params.chanlocs,mode,'entropy');
+    cb = colorbar; ylabel(cb,'Fuzzy entropy','Rotation',270,'fontSize',12,'fontweight','bold')
+    title('Fuzzy entropy');
 
     nexttile
     plot_topo(gather(EEG.nonlinear.FD),params.chanlocs,mode,'entropy');
