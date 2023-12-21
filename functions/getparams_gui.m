@@ -75,7 +75,7 @@ else
     error('You must select your ECG/PPG channels from the list')
 end
 
-%% Preprocessing parameters: ECG & EEG
+%% GUI for HEP with ECG
 
 if strcmp(params.analysis, 'hep') && strcmp(params.heart_signal, 'ecg')
 
@@ -149,7 +149,9 @@ if strcmp(params.analysis, 'hep') && strcmp(params.heart_signal, 'ecg')
     [res,~,~,params2] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats: parameters for HEP mode',EEG);
     if isempty(res), abort = true; return; end % Abort if no input
 
-%% GUI for HEP PPG
+
+%% GUI for HEP with PPG
+
 elseif strcmp(params.analysis, 'hep') && strcmp(params.heart_signal, 'ppg')
     
     % dropdown options for PPG
@@ -225,7 +227,7 @@ elseif strcmp(params.analysis, 'hep') && strcmp(params.heart_signal, 'ppg')
     [res,~,~,params2] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats: parameters for HEP mode',EEG);
     if isempty(res), abort = true; return; end % Abort if no input
 
-    %% GUI for Features mode with ECG
+    %% GUI for Features-mode with ECG
 elseif strcmp(params.analysis, 'features') && strcmp(params.heart_signal, 'ecg')
 
 
@@ -452,6 +454,71 @@ elseif strcmp(params.analysis, 'features') && strcmp(params.heart_signal, 'ppg')
         };
     [res,~,~,params2] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats: parameters for Features mode',EEG);
     if isempty(res), abort = true; return; end % Abort if no input
+
+
+%% GUI for Removing heart artifacts with ECG
+
+elseif strcmp(params.analysis, 'rm_heart') && strcmp(params.heart_signal, 'ecg')
+
+    % dropdown options
+    linefreq = {'60 Hz (US)' '50 Hz (Europe)'};
+    refmethod = {'Infinity (default)' 'Average' 'Off'};
+    filttype = {'Causal nonlinear' 'Non-causal linear (default)'};
+    eeginterp = {'Yes (default)' 'No'};
+    icamethod = {'Fast (default)' 'Normal' 'Long but replicable'};
+
+    % Callback functions
+    cleanECG = "if get(gcbo,'value'), set(findobj(gcbf,'userdata','clean_ecg'),'enable','on'); else, set(findobj(gcbf,'userdata','clean_ecg'),'enable','off'); end";
+    cleanEEG = "if get(gcbo,'value'), set(findobj(gcbf,'userdata','clean_eeg'),'enable','on'); else, set(findobj(gcbf,'userdata','clean_eeg'),'enable','off'); end";
+
+    % GUI
+    uilist = { 
+        {'style' 'checkbox' 'string' 'Preprocess ECG' 'fontweight' 'bold' 'tag' 'clean_ecg' 'callback' cleanECG 'value' 1} ...
+        {} {'style' 'text' 'string' 'Highpass filter:' } {'style' 'edit' 'string' '1' 'tag' 'highpass_ecg' 'enable' 'on' 'userdata' 'clean_ecg'}  ...
+        {} {'style' 'text' 'string' 'Lowpass filter:' } {'style' 'edit' 'string' '20' 'tag' 'lowpass_ecg' 'enable' 'on' 'userdata' 'clean_ecg' }  ...
+        {'style' 'checkbox' 'string' 'Preprocess EEG' 'fontweight' 'bold' 'tag' 'clean_eeg' 'callback' cleanEEG 'value' 1} ...
+        {} {'style' 'text' 'string' 'Re-reference data to:' } {'style' 'popupmenu' 'string' refmethod 'tag' 'reref' 'enable' 'on' 'userdata' 'clean_eeg'}  ...
+        {} {'style' 'text' 'string' 'Power line noise (Hz):' } {'style' 'popupmenu' 'string' linefreq 'tag' 'linenoise' 'enable' 'on' 'userdata' 'clean_eeg'}  ...
+        {} {'style' 'text' 'string' 'Highpass filter:' } {'style' 'edit' 'string' '1' 'tag' 'highpass' 'enable' 'on' 'userdata' 'clean_eeg'}  ...
+        {} {'style' 'text' 'string' 'Lowpass filter:' } {'style' 'edit' 'string' '40' 'tag' 'lowpass' 'enable' 'on' 'userdata' 'clean_eeg' }  ...
+        {} {'style' 'text' 'string' 'Filter type:' } {'style' 'popupmenu' 'string' filttype 'tag' 'filttype' 'enable' 'on' 'userdata' 'clean_eeg' 'value' 2}  ...
+        {} {'style' 'text' 'string' 'Longest flat lines before removing channel (in sec):' } {'style' 'edit' 'string' '5' 'tag' 'flatline' 'enable' 'on' 'userdata' 'clean_eeg' }  ...
+        {} {'style' 'text' 'string' 'Minimum correlation before removing channel (.5-.9):' } {'style' 'edit' 'string' '.65' 'tag' 'corrThresh' 'enable' 'on' 'userdata' 'clean_eeg' }  ...
+        {} {'style' 'text' 'string' 'Max portion tolerated before removing channel (0.1-0.5):' } {'style' 'edit' 'string' '.33' 'tag' 'maxBad' 'enable' 'on' 'userdata' 'clean_eeg' }  ...
+        {} {'style' 'text' 'string' 'Interpolate EEG channels after removal' } {'style' 'popupmenu' 'string' eeginterp 'tag' 'eeg_interp' 'enable' 'on' 'userdata' 'clean_eeg' }  ...
+        {} {'style' 'text' 'string' 'Threshold to reject bad segments with ASR (1-100):' } {'style' 'edit' 'string' '30' 'tag' 'asr_cutoff' 'enable' 'on' 'userdata' 'clean_eeg' }  ...
+        {} {'style' 'text' 'string' 'Available RAM to use for ASR (in %):' } {'style' 'edit' 'string' '85' 'tag' 'asr_mem' 'enable' 'on' 'userdata' 'clean_eeg' }  ...
+        {} {'style' 'text' 'string' 'ICA method to extract artifactual components:' } {'style' 'popupmenu' 'string' icamethod 'tag' 'icamethod' 'enable' 'on' 'userdata' 'clean_eeg' 'value' 1}  ...
+        {'style' 'checkbox' 'string' 'Visualize preprocessings' 'tag' 'vis_cleaning' 'fontweight' 'bold' 'value' 1}  ...
+        {} ...
+        {'style' 'text' 'string' 'Minimum confidence level to remove heart components (%)' 'fontweight' 'bold'}  {'style' 'edit' 'string' '80' 'tag' 'conf_thresh' 'enable' 'on'} {}...
+        {'style' 'checkbox' 'string' 'Boost mode (beta)' 'fontweight' 'bold' 'tag' 'boost' 'value' 1} ...
+        };
+    uigeom = {
+        .3 ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        .3 ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        [.01 .1 .08] ...
+        .3 ...
+        .3 ...
+        [.1 .03 .01] ...
+        .3 ...
+        };
+    [res,~,~,params2] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats: parameters for HEP mode',EEG);
+    if isempty(res), abort = true; return; end % Abort if no input
+
 end
 
 %% Merge all parameters into params structure
@@ -517,6 +584,9 @@ if isfield(params, 'gpu') && ~isempty(params.gpu)
     params.gpu = logical(params.gpu);
 else
     params.gpu = false;
+end
+if isfield(params, 'boost') && ~isempty(params.boost)
+    params.boost = logical(params.boost);
 end
 
 % RR artfact correction method
@@ -596,6 +666,15 @@ if isfield(params, 'asr_cutoff') && ~isempty(params.asr_cutoff)
 end
 if isfield(params, 'asr_mem') && ~isempty(params.asr_mem)
     params.asr_mem = str2double(params.asr_mem);
+end
+if isfield(params, 'highpass_ecg') && ~isempty(params.highpass_ecg)
+    params.highpass_ecg = str2double(params.highpass_ecg);
+end
+if isfield(params, 'lowpass_ecg') && ~isempty(params.lowpass_ecg)
+    params.lowpass_ecg = str2double(params.lowpass_ecg);
+end
+if isfield(params, 'conf_thresh') && ~isempty(params.conf_thresh)
+    params.conf_thresh = str2double(params.conf_thresh);
 end
 
 % rereference EEG
@@ -725,7 +804,7 @@ if isfield(params, 'ibi_size') && ~isempty(params.ibi_size)
 end
 
 % if HRV preprocessing is turned off
-if params.clean_heart == 0
+if isfield(params, 'clean_heart') && params.clean_heart == 0
     if strcmp(params.heart_signal,'ecg')
         params = rmfield(params,'ecg_peakthresh');
         params = rmfield(params,'ecg_searchback');

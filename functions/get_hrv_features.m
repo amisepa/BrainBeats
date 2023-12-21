@@ -32,12 +32,12 @@
 % sliding time windows using these minimum lengths are used for each band.
 % Warnings are printed when length is smaller than minimum recommended. 
 % 
-% Time and nonlinear HRV features are computed over the whole time-series for faster 
-% computation and higher reliability. 
+% Time and nonlinear HRV features are computed over the whole time-series 
+% for faster computation and higher reliability. 
 % 
 % Copyright (C) - Cedric Cannard, 2023
 
-function HRV = get_hrv_features(NN, NN_times, params)
+function [HRV, params] = get_hrv_features(NN, NN_times, params)
 
 
 %% Time domain
@@ -83,21 +83,26 @@ if params.hrv_frequency
         hrv_spec = params.hrv_spec;
     else
         hrv_spec = 'LombScargle_norm';
+        params.hrv_spec_method = 'LombScargle_norm';  % for exportation for users
     end
     if isfield(params,'hrv_norm') && ~isempty(params.hrv_norm)
         norm = params.hrv_norm;
     else
         norm = false;
+        params.hrv_normalization = norm;     % for exportation for users
     end
     if isfield(params,'hrv_overlap') && ~isempty(params.hrv_overlap)
         overlap = params.hrv_overlap;
     else
         overlap = .25;  % window overlap (default = 25 %)
+        params.hrv_window_overlap = overlap;  % for exportation for users
     end
 
     % HRV frequency bands (ULF; VLF; LF; HF)
     bands = [ 0 .003; 0.003 .04; .04 .15; 0.15 0.40 ];
     bandNames = {'ULF' 'VLF' 'LF' 'HF'};
+    params.hrv_band_freqs = bands;  % for exportation for users
+    params.hrv_band_names = bandNames;  % for exportation for users
 
     % Minimum data length requirements for each band
     % minULF = 86400;       % 24 hours
@@ -125,9 +130,9 @@ if params.hrv_frequency
                 end_idx = start_idx + winLength - 1;
                 win_idx = NN_times >= start_idx & NN_times <= end_idx;
 
-                % Frequency vector for this band
-                % nfft = 1024; 
-                nfft = 2^nextpow2(length(NN(win_idx)));    % use this instead? 
+                % Frequency resolution and vector for this window
+                % nfft = 2^nextpow2(length(NN(win_idx)));    % dynamic nfft based on window length
+                nfft = max(2^nextpow2(length(NN(win_idx))), 512);  % use 512 as minimum value for smaller windows
                 fvec = bands(iBand,1):1/nfft:bands(iBand,2);
                                 
                 % Lomb-Scargle Periodogram (no resampling required and best method)
@@ -299,11 +304,17 @@ if params.hrv_nonlinear
     % r = .15;
     % HRV.nonlinear.SE = compute_se(NN,m,r);
 
-    % Fuzzy entropy
+    % Fuzzy entropy parameters
     m = 2;
     r = .15;
     tau = 1;
     n = 2;
+    params.entropy_m = m;  % for exportation for users
+    params.entropy_r = r;  % for exportation for users
+    params.entropy_tau = tau;  % for exportation for users
+    params.entropy_n = n;  % for exportation for users
+
+    % Run Fuzzy entropy
     HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau, false);
 
     % Multiscale fuzzy entropy (MFE)
@@ -320,6 +331,7 @@ if params.hrv_nonlinear
     % Phase rectified signal averaging (PRSA)
     fprintf('Computing phase rectified signal averaging (PRSA)... \n')
     thresh = 20;
+    params.prsa_thresh = 20;  % for exportation for users
     lowAnchor = 1-thresh/100-0.0001; % lower limit for the AC anchor selection
     highAnchor = 1+thresh/100;      % The upper limit for the DC anchor selection
     drr_per = NN(2:end)./NN(1:end-1);
@@ -329,7 +341,7 @@ if params.hrv_nonlinear
     dc_anchor(1) = false; % ignore 1st heartbeat
     HRV.nonlinear.PRSA_AC = mean(1000*NN(ac_anchor));  % acceleration capacity (in ms)
     HRV.nonlinear.PRSA_DC = mean(1000*NN(dc_anchor));  % deceleration capacity (in ms)
-
+    
 end
 
 

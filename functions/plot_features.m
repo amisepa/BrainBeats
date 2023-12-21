@@ -72,7 +72,6 @@ if params.hrv_features && params.hrv_frequency
 
     % Subplot mode if EEG PSD was also extracted
     if params.eeg_features && params.eeg_frequency
-        % subplot(2,1,1); 
         nexttile([2 3])
     end
     
@@ -138,23 +137,33 @@ end
 
 % % Multiscale fuzzy entropy (MFE) - HRV
 % if params.hrv_features && params.hrv_nonlinear
-%   nexttile      
-%   hold on
-%     mfe = HRV.nonlinear.MFE;
-%     scales = HRV.nonlinear.MFE_scales;
-%     area(scales,mfe,'FaceColor',"#A2142F",'FaceAlpha',.7);
-%     title('Multiscale fuzzy entropy - HRV'); xlabel('Scale factors'); ylabel('Entropy')
-%     axis tight; box on; grid on
+    % nexttile      
+    % hold on
+    % mfe = HRV.nonlinear.MFE;
+    % scales = HRV.nonlinear.MFE_scales;
+    % area(scales,mfe,'FaceColor',"#A2142F",'FaceAlpha',.7);
+    % title('Multiscale fuzzy entropy - HRV'); xlabel('Scale factors'); ylabel('Entropy')
+    % axis tight; box on; grid on
 % end
 
 % PSD - EEG
 if params.eeg_features && params.eeg_frequency
 
     if params.hrv_features && params.hrv_frequency    
-        % subplot(2,1,2); 
         nexttile([2 3])
     else
         figure('color','w')
+    end
+
+    % PSD units for ylabel
+    if isfield(params,'eeg_norm')
+        if params.eeg_norm == 0
+            units = 'Power (uV^2/Hz)';
+        elseif params.eeg_norm == 1
+            units = 'Power (db)';
+        elseif params.eeg_norm == 2
+            units = 'Power (normalized)';
+        end
     end
 
     hold on
@@ -197,20 +206,12 @@ if params.eeg_features && params.eeg_frequency
     legend({'delta' 'theta' 'alpha' 'beta' 'gamma'})
     warning on
     xlabel('Frequency (Hz)');
-    if isfield(params,'eeg_norm') 
-        if params.eeg_norm == 0
-            ylabel('Power (uV^2/Hz)'); 
-        elseif params.eeg_norm == 1
-             ylabel('Power (db)'); 
-        elseif params.eeg_norm == 2
-             ylabel('Power (normalized)'); 
-        end
-    end
+    ylabel(units); 
     axis tight;
 
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
-    set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
+    set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold'); % font
 
 end
 
@@ -249,43 +250,42 @@ if params.eeg_features && params.eeg_frequency
     mode = 1;  % 1 for 2D, 2 for 3D
 
     % Create figure
-    figure('color','w')
-    set(gcf, 'Units', 'Normalized', 'OuterPosition', [0 0 1 1]);    % enlarge
-    set(gcf, 'Toolbar', 'none', 'Menu', 'none');                    % remove toolbobar and menu
-    set(gcf, 'Name', 'EEG features', 'NumberTitle', 'Off')  % name
+    figure('color','w','Units','Normalized','OuterPosition', [0 0 1 1],...
+        'Toolbar','none','Menu','none','Name','EEG features','NumberTitle','Off')
 
     % delta, theta, alpha, beta
     warning('off','all')
     nexttile
     plot_topo(gather(mean(EEG.frequency.delta,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
+    cb = colorbar; 
+    ylabel(cb,units,'Rotation',270,'fontSize',12,'fontweight','bold')
     % pos = get(cb,'position');  % move left & shrink to match head size
     % set(cb,'position',[pos(1) pos(2)+0.2 0.01 0.4],'fontSize',12,'fontweight','bold');
+    
     title('Delta power'); %colorbar off;
     nexttile
     plot_topo(gather(mean(EEG.frequency.theta,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
-    % pos = get(cb,'position');  % move left & shrink to match head size
-    % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
+    cb = colorbar; 
+    ylabel(cb,units,'Rotation',270,'fontSize',12,'fontweight','bold')
     title('Theta power');
+
     nexttile
     plot_topo(gather(mean(EEG.frequency.alpha,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
-    % pos = get(cb,'position');  % move left & shrink to match head size
-    % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
+    cb = colorbar; 
+    ylabel(cb,units,'Rotation',270,'fontSize',12,'fontweight','bold')
     title('Alpha power');
+
     nexttile
     plot_topo(gather(mean(EEG.frequency.beta,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
-    % pos = get(cb,'position');  % move left & shrink to match head size
-    % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
+    cb = colorbar; 
+    ylabel(cb,units,'Rotation',270,'fontSize',12,'fontweight','bold')
     title('Beta power');
+
     nexttile
     plot_topo(gather(mean(EEG.frequency.gamma,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
-    % pos = get(cb,'position');  % move left & shrink to match head size
-    % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
-    title('Mean gamma power');
+    cb = colorbar; 
+    ylabel(cb,units,'Rotation',270,'fontSize',12,'fontweight','bold')
+    title('Gamma power');
     warning on
 
     % IAF
@@ -293,7 +293,7 @@ if params.eeg_features && params.eeg_frequency
         % subplot(3,3,5)
         nexttile
         plot_topo(gather(EEG.frequency.IAF),params.chanlocs,mode,'psd');
-        cb = colorbar; ylabel(cb,'Power (db)','Rotation',270,'fontSize',12,'fontweight','bold')
+        cb = colorbar; ylabel(cb,'Frequency (Hz)','Rotation',270,'fontSize',12,'fontweight','bold')
         % pos = get(cb,'position');  % move left & shrink to match head size
         % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
         title('Individual alpha frequency (IAF)');

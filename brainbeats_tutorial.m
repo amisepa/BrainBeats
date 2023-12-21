@@ -125,24 +125,23 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 % parameters. 
 
 % We modify these parameters:
-%   - 'hrv_features' and 'eeg_features' to {'time' 'frequency' 'nonlinear'} 
-%       to extract features in all three domains. (type 'help get_hrv_features' 
-%       and 'help get_eeg_features' for more detail)
-%   - 'eeg_norm' set to 0 to not convert to decibles (db; default = 1) 
-%   - 'hrv_norm' set to false to NOT apply normalization (default = true)
-%   - 'asy_norm' set to true to normalize by dividing by total power (default = false)
-%   - 'parpool' set to false to prevent using parallel computing.
-%   - 'vis_cleaning' to 'true' to see preprocessing steps (slightly different
-%       than for HEP). 
-%   - 'save' to true
-% Type 'help get_hrv_features' and 'help get_eeg_features' for more detail
-% on parameters for this method.
-EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true, ...
-    'hrv_features', {'time' 'frequency' 'nonlinear'}, ...
-    'eeg_features', {'time' 'frequency'}, ...
-    'eeg_norm',0,'hrv_norm',false,'asy_norm',true, ...
-    'parpool',true,'save',true,'vis_cleaning',true,'vis_outputs',true);
+%   - 'hrv_features' to {'time' 'frequency' 'nonlinear'} 
+%   - 'eeg_features' to {'frequency'} to only compute frequency-domain
+%       features
+%   - 'hrv_spec' to 'LombScargle' to use the standard version of the
+%       algorithm
+%   - 'eeg_norm' set to 0 to NOT convert PSD to decibles (db; default = 1) 
+%   - 'parpool' set to false to prevent using parallel computing
+%   - 'save' to false to prevent saving
+%   - 'vis_cleaning' to 'false' since we already saw them above
+%   - 'vis_outputs' to 'true' to see the outputs
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
+EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'clean_eeg',true, ...
+    'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','LombScargle', ...
+    'eeg_features', {'frequency'},'eeg_norm',0,...
+    'parpool',false,'save',false,'vis_cleaning',false,'vis_outputs',true);
 
 
 %% METHOD 3: Remove heart components from EEG signals
@@ -150,13 +149,8 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 % first 10 s that contain simulated artifacts (that were added for illustration). 
 
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = pop_select(EEG,'nochannel',{'PPG'});              % remove PPG channel
-EEG = pop_eegfiltnew(EEG,'locutoff',1,'hicutoff',40);   % filter
-EEG = pop_select(EEG,'nopoint',[1 10*EEG.srate]);       % remove first 10 s
-% pop_eegplot(EEG,1,1,1);
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',false,'keep_heart',false, ...
-    'save',true,'vis_cleaning',false,'vis_outputs',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'vis_cleaning',false);
 
 %% To launch the GUI only
 

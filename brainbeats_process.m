@@ -239,19 +239,19 @@ if contains(params.analysis, {'features' 'hep'})
     EEG.brainbeats.preprocessings.NN = NN;
     EEG.brainbeats.preprocessings.NN_times = NN_t;
 
+    % % Take filtered cardio signal
+    % if strcmp(params.heart_signal,'ecg') && pol<0
+    %     CARDIO.data = -sig; % reverse to positive polarity
+    % else
+    %     CARDIO.data = sig;
+    % end
+
     % Exit BrainBeats if user only wants to work with cardiovascular data
     if ~params.eeg_features && ~strcmp(params.analysis,'features')
         disp('Done processing cardiovascular signals'); gong
         return
     end
 
-    % Take filtered cardio signal
-    if strcmp(params.heart_signal,'ecg') && pol<0
-        CARDIO.data = -sig; % reverse to positive polarity
-    else
-        CARDIO.data = sig;
-    end
-    
     % Filter, re-reference, remove bad channels
     if params.clean_eeg    
         params.clean_eeg_step = 0;
@@ -259,7 +259,6 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Preprocessing outputs
         EEG.brainbeats.preprocessings.removed_eeg_channels = params.removed_eeg_channels;
-        
     end
     
     %%%%% MODE 1: Heartbeat-evoked potentials (HEP) %%%%%
@@ -279,7 +278,7 @@ if contains(params.analysis, {'features' 'hep'})
             params.file_length = file_length;
 
             % Extract HRV measures
-            features_hrv = get_hrv_features(NN, NN_t, params);
+            [features_hrv, params] = get_hrv_features(NN, NN_t, params);
 
             % Final output with everything
             Features.HRV = features_hrv;
@@ -301,7 +300,7 @@ if contains(params.analysis, {'features' 'hep'})
 
         % Extract EEG features and store in EEGLAB structure
         params.chanlocs = EEG.chanlocs;
-        features_eeg = get_eeg_features(EEG.data, params);
+        [features_eeg, params] = get_eeg_features(EEG.data, params);
 
         % Final output with everything
         Features.EEG = features_eeg;
@@ -336,7 +335,48 @@ if contains(params.analysis, {'features' 'hep'})
 
 %%%%% MODE 3: remove heart components from EEG signals %%%%%
 elseif strcmp(params.analysis,'rm_heart')
-    EEG = remove_heartcomp(EEG, CARDIO, params);
+    
+    % Preprocess EEG
+    if params.clean_eeg
+        
+        % ref, filt, bad channels
+        params.clean_eeg_step = 0;
+        [EEG, params] = clean_eeg(EEG, params);
+        
+        % EEG artifacts
+        params.clean_eeg_step = 1;
+        [EEG, params] = clean_eeg(EEG, params);
+        
+        % Filter ECG 
+        if ~isfield(params,'highpass_ecg')
+            params.highpass_ecg = 1;
+        end
+        if ~isfield(params,'lowpass_ecg')
+            params.lowpass_ecg = 20;
+        end
+        CARDIO = pop_eegfiltnew(CARDIO,'locutoff',params.highpass_ecg,'hicutoff',params.lowpass_ecg);    
+
+        % Remove same segments from cardio signal
+        CARDIO = pop_select(CARDIO,'nopoint', params.removed_eeg_segments);
+        
+        % Preprocessing outputs
+        EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
+        EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
+    end
+
+    % Add CARDIO channel back with EEG
+    EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
+    EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
+    for iChan = 1:CARDIO.nbchan
+        EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+    end
+    EEG = eeg_checkset(EEG);
+
+    % if params.vis_cleaning
+    %     pop_eegplot(EEG,1,1,1);
+    % end
+
+    EEG = remove_heartcomp(EEG, params);
 end
 
 % Shut down parallel pool

@@ -38,4 +38,4 @@ analyze = [try_strings.no_check '[] = brainbeats_analyze();' catch_strings.new_a
 % create menus
 submenu = uimenu(menu, 'Label', 'BrainBeats', 'separator', 'on');
 uimenu(submenu, 'Label', '1st level (subject)', 'CallBack', process);
-uimenu(submenu, 'Label', '2nd level (group)', 'CallBack', analyze);
+% uimenu(submenu, 'Label', '2nd level (group)', 'CallBack', analyze);

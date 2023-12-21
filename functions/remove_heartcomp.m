@@ -2,33 +2,43 @@
 %
 % Cedric Cannard, 2023
 
-function EEG = remove_heartcomp(EEG, CARDIO, params)
+function EEG = remove_heartcomp(EEG, params)
 
-% if params.clean_eeg
-%     % Filter, re-reference, remove bad channels
-%     params.clean_eeg_step = 0;
-%     [EEG, params] = clean_eeg(EEG, params); 
-% end
-
-% Add CARDIO channels back
-EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
-EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
-for iChan = 1:CARDIO.nbchan
-    EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+% default ICA algorithm
+if ~isfield(params,'icamethod')
+    params.icamethod = 1;
 end
-EEG = eeg_checkset(EEG);
 
-% run ICA
+% Rescale Cardio signal
+idx = contains({EEG.chanlocs.labels}, params.heart_channels);
+EEG.data(idx,:) = rescale(EEG.data(idx,:), -500, 500);
+
+% smear cardio signal across EEG signals to increase accuracy
+if isfield(params,'boost') && params.boost
+    disp('Smearing cardiovascular signal across EEG channels to boost classification (beta). ')
+    EEG.data = EEG.data - repmat(mean(EEG.data),size(EEG.data,1),1);
+end
+
+% Run ICA at effective data rank to control for ghost ICs (Kim et al. 2023). 
+% Use Picard algorithm when possible to increase speed. 
+% use lrate=1e-5 and maxsteps=2000 to obtain reproducible ICA results
 dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
-if exist('picard.m','file')
-    EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard','pca',dataRank);
-else
+if params.icamethod == 1
+    EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard', ...
+        'pca',dataRank);
+elseif params.icamethod == 2
     EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
+elseif params.icamethod == 3 
+    EEG = pop_runica(EEG,'icatype','runica','extended',1, ...
+        'pca',dataRank,'lrate',1e-5,'maxsteps',2000);
 end
 
 % Classify components with ICLabel
+if ~isfield(params,'conf_thresh')
+    params.conf_thresh = 0.8;  % 80% confidence
+end
 EEG = pop_iclabel(EEG,'default');
-EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; 0.85 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 85% confidence
+EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; params.conf_thresh 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 85% confidence
 % pop_selectcomps(EEG,1:EEG.nbchan); colormap('parula');
 heart_comp = find(EEG.reject.gcompreject);
 
@@ -40,10 +50,12 @@ if ~isempty(heart_comp)
     % Visualize heart component
     if params.vis_outputs
         if length(heart_comp)==1
-            pop_selectcomps(EEG,heart_comp); colormap("parula")
+            pop_selectcomps(EEG,heart_comp); 
         else
-            pop_selectcomps(EEG,1:max(heart_comp)); colormap("parula")
+            pop_selectcomps(EEG,1:max(heart_comp)); 
         end
+        set(gcf,'Name','Heart component(s) removed','NumberTitle','Off')  % name
+        colormap("parula"); pause(0.1)
     end
     
     % Substract heart component from signal
@@ -52,22 +64,26 @@ if ~isempty(heart_comp)
     
     % visualize 
     if params.vis_outputs
-        if isfield(EEG.etc, 'clean_channel_mask') %&& length(EEG.etc.clean_channel_mask)<length(oriEEG.etc.clean_channel_mask)
+        if isfield(EEG.etc, 'clean_channel_mask')
             EEG.etc = rmfield(EEG.etc, 'clean_channel_mask');
-            % EEG.etc.clean_channel_mask(end+1:end+CARDIO.nbchan) = true;
         end
         if isfield(oriEEG.etc, 'clean_channel_mask')
             oriEEG.etc = rmfield(oriEEG.etc, 'clean_channel_mask');
         end
+        if isfield(EEG.etc, 'clean_sample_mask') 
+            EEG.etc = rmfield(EEG.etc, 'clean_sample_mask');
+        end
+        if isfield(oriEEG.etc, 'clean_sample_mask')
+            oriEEG.etc = rmfield(oriEEG.etc, 'clean_sample_mask');
+        end
         vis_artifacts(EEG,oriEEG,'ShowSetname',false); 
-        set(gcf, 'Toolbar', 'none', 'Menu', 'none');                    % remove toolbobar and menu
-        set(gcf, 'Name', 'Heart components removed', 'NumberTitle', 'Off')  % name
+        set(gcf, 'Toolbar', 'none', 'Menu', 'none','Name', 'Heart components removed', 'NumberTitle', 'Off');                    % remove toolbobar and menu
     end
     
     % Remove CARDIO channel
-    if isfield(params,'keep_heart') && ~params.keep_heart
-        EEG = pop_select(EEG,'nochannel', params.heart_channels);
-    end
+    % if isfield(params,'keep_heart') && ~params.keep_heart
+    EEG = pop_select(EEG,'nochannel', params.heart_channels);
+    % end
 
 else
     fprintf('Sorry, no heart component was detected. Make sure the CARDIO channel you selected is correct. \nYou may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended). \n')

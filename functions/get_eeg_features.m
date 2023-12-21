@@ -1,11 +1,11 @@
-%% Extract EEG features in time, fequency, and nonlinear domains.
+ %% Extract EEG features in time, fequency, and nonlinear domains.
 %
 % Example:
 %   eeg_features = get_eeg_features(EEG.data,params)
 % 
 % Copyright (C) - Cedric Cannard, 2023
 
-function eeg_features = get_eeg_features(signals,params)
+function [eeg_features, params] = get_eeg_features(signals,params)
 
 tstart = tic;
 
@@ -37,36 +37,43 @@ if params.eeg_frequency
         fRange = params.eeg_frange;
     else
         fRange = [1 40];        % overall frequency range to compute PSD (in Hz)
+        params.fRange = fRange; % to export
     end
     if isfield(params,'eeg_wintype') && ~isempty(params.eeg_wintype)
         wintype = params.eeg_wintype;
     else
         wintype = 'hamming';    % window type. Default = 'hamming' (see Smith et al, 2017 for asymmetry)
+        params.wintype = wintype; % to export
     end
     if isfield(params,'eeg_winlen') && ~isempty(params.eeg_winlen)
         winlen = params.eeg_winlen;
     else
         winlen = 2;            % window size (in s). Default = 2 (see Smith et al, 2017 for asymmetry)
+        params.winlen = winlen; % to export
     end
     if isfield(params,'eeg_winoverlap') && ~isempty(params.eeg_winoverlap)
         overlap = params.eeg_winoverlap;
     else
         overlap = 50;           % window overlap. Default = 50% (see Smith et al, 2017 for asymmetry)
+        params.overlap = overlap; % to export
     end
     if isfield(params,'eeg_freqbounds') && ~isempty(params.eeg_freqbounds)
         freqbounds = params.eeg_freqbounds;
     else
         freqbounds = 'conventional';      % freq bounds for band-power: 'conventional' (default) or 'individualized' (see Corcoran et al. 2018)
+        params.freqbounds = freqbounds; % to export
     end
     if isfield(params,'eeg_norm') && ~isempty(params.eeg_norm)
         eeg_norm = params.eeg_norm;
     else
         eeg_norm = 1;      % none (0), normalize to decibels (1), normalize to decibels + divide by total power (2)
+        params.eeg_norm = eeg_norm; % to export
     end
     if isfield(params,'asy_norm') && ~isempty(params.asy_norm)
         asy_norm = params.asy_norm;
     else
         asy_norm = false;      % normalization by dividing electrode's alpha power by total power (true) or not (false). see Smith et al. (2017)
+        params.asy_norm = asy_norm; % to export
     end
     
 end
@@ -164,7 +171,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3));    % db
             elseif eeg_norm == 2
-                delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -182,7 +189,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7));    % db
             elseif eeg_norm == 2
-                theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -200,7 +207,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13));    % db
             elseif eeg_norm == 2
-                alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -218,7 +225,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30));    % db
             elseif eeg_norm == 2
-                beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -236,7 +243,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2)));    % db
             elseif eeg_norm == 2
-                gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2))) ./ sum(pwr_dB);   % normalized by total power of same channel
+                gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2))) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try

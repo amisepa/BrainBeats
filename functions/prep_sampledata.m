@@ -1,6 +1,6 @@
 %% prep sample data for BrainBeats tutorial
 
-datapath = 'C:\Users\Tracy\Downloads\ds003838';
+datapath = 'C:\Users\Cedric\Downloads\ds003838';
 eeglab;close
 
 subject = 'sub-032';   %32-36, 38-44
@@ -50,7 +50,7 @@ t = 0:1/EEG.srate:duration-1/EEG.srate;
 artifact = 100 .* randn(length(channels), length(t));
 EEG.data(channels, startTime:(startTime+length(t)-1)) = EEG.data(channels, startTime:(startTime+length(t)-1)) + artifact;
 
-pop_saveset(EEG, 'filename','dataset.set','filepath','C:\Users\Tracy\Documents\\MATLAB\BrainBeats\sample_data\');
+pop_saveset(EEG, 'filename','dataset.set','filepath','C:\Users\Cedric\Documents\\MATLAB\BrainBeats\sample_data\');
 
 % EEG = rm_DC(EEG);
 % pop_eegplot(EEG,1,1,1);

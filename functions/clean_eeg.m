@@ -294,14 +294,13 @@ elseif params.clean_eeg_step == 1
         nComps = size(EEG.icaact,1);
         if nComps >= 24
             pop_selectcomps(EEG,1:24); 
-            set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
-            set(gcf,'Name','Independent components','NumberTitle','Off')  % name
+            set(gcf,'Toolbar','none','Menu','none','Name','Independent components','NumberTitle','Off');  % remove toolbobar and menu and name
         else
             pop_selectcomps(EEG,1:nComps)
-            set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
-            set(gcf,'Name','Independent components','NumberTitle','Off')  % name
+            set(gcf,'Toolbar','none','Menu','none','Name','Independent components','NumberTitle','Off');  % remove toolbobar and menu and name
+            
         end
-        colormap("parula")
+        colormap("parula"); pause(0.1)
     end
     
     % Remove bad components
