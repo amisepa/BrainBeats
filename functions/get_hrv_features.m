@@ -24,10 +24,11 @@
 % Following recommendations by the Task Force of the European Society of 
 % Cardiology and the North American Society of Pacing and Electrophysiology
 % (1996), minimum data length for each band is 5-10 cycles.
-%   - ULF: at least 24 hours
-%   - VLF: at least 28 minutes
-%   - LF: at least 125 s
-%   - HF: at least 34 s
+%   - ULF (0-0.003 Hz): at least 24 hours
+%   - VLF (0.003-0.04 Hz): at least 28 minutes
+%   - LF (0.04-0.15 Hz): at least 125 s
+%   - HF (0.15-0.40 Hz): at least 34 s
+% 
 % To maximize trade-off between time resolution and frequency resolution,
 % sliding time windows using these minimum lengths are used for each band.
 % Warnings are printed when length is smaller than minimum recommended. 

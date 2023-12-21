@@ -125,9 +125,20 @@ EEG.data = double(EEG.data);
 % Store sampling frequency
 params.fs = EEG.srate;
 
-% Initiate or block parallel computing 
-ps = parallel.Settings;
+% check if user has parallel toolbox
 if params.parpool
+    try 
+        ver('parallel')
+    catch
+        warning("You do not have the parallel toolbox. Turning parallel computing OFF.")
+        warningdlg("You do not have the parallel toolbox. Turning parallel computing OFF.")
+        params.parpool = false;
+    end
+end
+
+% Initiate or block parallel computing 
+if params.parpool
+    ps = parallel.Settings;
     fprintf('Parallel computing set to ON. \n')
     ps.Pool.AutoCreate = true;
     p = gcp('nocreate');
@@ -143,6 +154,7 @@ if params.parpool
     end
 else
     fprintf('Parallel computing set to OFF. \n')
+    ps = parallel.Settings;
     ps.Pool.AutoCreate = false;  % prevents parfor loops from launching parpool mode
 end
 
