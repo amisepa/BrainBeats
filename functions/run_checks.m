@@ -114,6 +114,9 @@ if params.clean_eeg
     end
 end
 if strcmp(params.analysis,'rm_heart')
+    if ~exist('picard','file') && params.icamethod == 1
+        plugin_askinstall('picard', 'picard', 0);
+    end
     if ~exist('iclabel','file')
         plugin_askinstall('iclabel', 'iclabel', 0);
     end

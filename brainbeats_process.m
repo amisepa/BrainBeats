@@ -149,8 +149,9 @@ if contains(params.analysis, {'features' 'hep'})
 
         % % Fix values if PPG had a different sampling rate than EEG (this
         % should now be avoided by resampling above)
-        % factor = EEG.srate / CARDIO.srate;
-        % if factor ~= 1
+        factor = EEG.srate / CARDIO.srate;
+        if factor ~= 1
+            errordlg("Your EEG and cardiovascular data must have the same sampling rate.")
         %     RR.(elec) = RR.(elec) .* factor;
         %     RR_t.(elec) = (Rpeaks.(elec) .* factor) / EEG.srate;
         %     % RR_t.(elec) = (Rpeaks(1:end-1) .* factor) / EEG.srate;  
@@ -158,7 +159,7 @@ if contains(params.analysis, {'features' 'hep'})
         %     % sig = CARDIO.data(iElec,:);
         %     sig_t(iElec,:) = sig_t(iElec,:) .* factor;
         %     params.fs = CARDIO.srate;
-        % end
+        end
 
         % SQI
         SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
