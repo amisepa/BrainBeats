@@ -49,7 +49,8 @@ Example of extraction of cardiovascular components from EEG signals
 
 ## Tutorial
 
+A sample dataset is provided and located in the "sample_data" folder. 
+
 See the JoVE preprint for a step-by-step tutorial using the sample dataset: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v1.full.pdf
 
-## Examples
 
