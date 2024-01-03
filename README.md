@@ -10,12 +10,17 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 
 ## 3 methods available 
 
-  1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
+  1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
 
+Example of HEP result at the subject level, obtained from simultaneous EEG-ECG signals:
 <p align="center" width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.11.png">
 </p>
-    Example of HEP result at the subject level, obtained from simultaneous EEG-ECG signals.  
+
+Example of HEP result at the subject level, obtained from simultaneous EEG-PPG signals:
+<p align="center" width="100%">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.17.png">
+</p>
     
   3) Extract EEG and HRV features from continuous data in the time, frequency, and nonlinear domains. 
      - HRV time domain: SDNN, RMSSD, pNN50.
@@ -31,3 +36,6 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 ## Tutorial
 
 See the JoVE preprint for a step-by-step tutorial using the sample dataset: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v1.full.pdf
+
+## Examples
+
