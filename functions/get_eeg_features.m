@@ -312,9 +312,9 @@ if params.eeg_nonlinear
         fac = fs / new_fs;  % downsample factor
         if fac ~= floor(fac)
             fac = round(fac);
-            fprintf('Decimating EEG data to a sample rate of %g Hz sample rate to avoid memory issues and increase speed... \n',new_fs)
+            fprintf('Decimating EEG data to a sample rate of %g Hz to avoid memory issues and increase speed... \n',new_fs)
         else
-            fprintf('Downsampling EEG data to a sample rate of %g Hz sample rate to avoid memory issues and increase speed... \n',new_fs)
+            fprintf('Downsampling EEG data to a sample rate of %g Hz to avoid memory issues and increase speed... \n',new_fs)
         end
 
         % Downsample if integer, otherwise decimate to round factor
