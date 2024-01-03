@@ -37,11 +37,15 @@ Example of power spectral density (PSD) estimated from HRV and EEG data:
 
 Example of EEG features extracted from sample dataset.
 <p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig2.4.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig2.5.png"> 
 </p>
 
 3) Remove heart components from EEG signals using ICA and ICLabel.
-
+   
+Example of extraction of cardiovascular components from EEG signals
+<p width="100%">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig3.3.png"> 
+</p>
 
 ## Tutorial
 
