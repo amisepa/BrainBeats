@@ -10,18 +10,22 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 
 ## 3 methods available 
 
-  1) Prepares data for heartbeat-evoked potentials (HEP) analysis, including signal processing, adding R-peaks events into the EEG data, segmentation around the R-peaks, time-frequency decomposition, exporting .set files for statistical analysis. Statistical analyses can then be done using the EEGLAB STUDY mode or hierarchical linear modeling and advanced corrections for the type 1 error with the LIMO-EEG plugin (see LIMO-EEG page for tutorial). 
+  1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
 
-  2) Extract EEG and HRV features from continuous data in the time, frequency, and nonlinear domains. 
-     - HRV time domain: NN statistics, SDNN, RMSSD, pNN50.
-     - HRV frequency domain: VLF-power, ULF-power, LF-power, HF-power, LF/HF ratio, Total power. 
-     - HRV nonlinear domain: Poincare SD1, SD2, SD1/SD2, fuzzy entropy, multiscale fuzzy entropy, PRSA AC/DC. 
+<p align="center" width="100%">
+    <img width="50%" src="[https://github.com/amisepa/BrainBeats/blob/v1.3/brainbeats_logo.png](https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.11.png)">
+</p>
+    Example of HEP result at the subject level, obtained from simultaneous EEG-ECG signals.  
+    
+  3) Extract EEG and HRV features from continuous data in the time, frequency, and nonlinear domains. 
+     - HRV time domain: SDNN, RMSSD, pNN50.
+     - HRV frequency domain: VLF-power, ULF-power, LF-power, HF-power, LF:HF ratio, Total power. 
+     - HRV nonlinear domain: Poincare, fuzzy entropy, fractal dimension, PRSA. 
 
-     - EEG time domain: RMS, mode, variance, skewness, kurtosis, interquartile range
-     - EEG frequency domain: band power (delta, theta, alpha, gamma), individual alpha frequency (IAF, using the alpha center of gravity), alpha asymmetry (all possible pairs, normalized), EEG coherence.
-     - EEG nonlinear domain: fuzzy entropy, multiscale fuzzy entropy on all channels
+     - EEG frequency domain: average band power (delta, theta, alpha, beta, gamma), individual alpha frequency (IAF), alpha asymmetry.
+     - EEG nonlinear domain: fuzzy entropy, fractal dimension
 
-  3) Remove heart components from EEG signals using ICA and ICLabel; 
+  4) Remove heart components from EEG signals using ICA and ICLabel.
 
 
 ## Tutorial
