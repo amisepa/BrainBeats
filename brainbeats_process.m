@@ -248,7 +248,7 @@ if contains(params.analysis, {'features' 'hep'})
     % end
 
     % Exit BrainBeats if user only wants to work with cardiovascular data
-    if ~params.eeg_features && ~strcmp(params.analysis,'features')
+    if ~params.eeg_features && strcmp(params.analysis,'features')
         disp('Done processing cardiovascular signals'); gong
         return
     end

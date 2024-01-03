@@ -210,39 +210,48 @@ end
 if strcmp(params.analysis,'features')
     idx = find(strcmpi(varargin,'eeg_features'));
     if ~isempty(idx)
-        if ~isfield(params,'eeg_features')
-            params.eeg_features = true;
-        end
-        eeg_features = varargin{idx+1};
-        if sum(contains(eeg_features,{'time'})) > 0
-            params.eeg_time = true;
-        else
+
+        if varargin{idx+1} == false % EEG features are turned off entirely by user
             params.eeg_time = false;
-        end
-        if sum(contains(eeg_features,{'frequency'})) > 0
-            params.eeg_frequency = true;
-        else
             params.eeg_frequency = false;
-        end
-        if sum(contains(eeg_features,'nonlinear')) > 0
-            params.eeg_nonlinear = true;
-        else
             params.eeg_nonlinear = false;
-        end 
+
+        else
+            params.eeg_features = true;  % EEG features turned ON
+
+            % which features to compute
+            eeg_features = varargin{idx+1};
+            if sum(contains(eeg_features,{'time'})) > 0
+                params.eeg_time = true;
+            else
+                params.eeg_time = false;
+            end
+            if sum(contains(eeg_features,{'frequency'})) > 0
+                params.eeg_frequency = true;
+            else
+                params.eeg_frequency = false;
+            end
+            if sum(contains(eeg_features,'nonlinear')) > 0
+                params.eeg_nonlinear = true;
+            else
+                params.eeg_nonlinear = false;
+            end 
+        end
+        
+    % run all domains by default if not set
     else
-        % run all domains by default if not set
         disp('EEG features not defined. Setting all domains by default (time, frequency, and nonlinear)')
         params.eeg_features = true;
         params.eeg_time = true;
         params.eeg_frequency = true;
         params.eeg_nonlinear = true;
     end
-else
-    params.eeg_features = false;
-    params.eeg_time = false;
-    params.eeg_frequency = false;
-    params.eeg_nonlinear = false;
-    fprintf('You chose NOT to extract EEG features on these data. \n')
+% else
+%     params.eeg_features = false;
+%     params.eeg_time = false;
+%     params.eeg_frequency = false;
+%     params.eeg_nonlinear = false;
+%     fprintf('You chose NOT to extract EEG features on these data. \n')
 end
 
 % EEG frequency-domain parameters
