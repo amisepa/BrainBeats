@@ -9,14 +9,25 @@ if ~isfield(params,'icamethod')
     params.icamethod = 1;
 end
 
+% default confidence level
+if ~isfield(params,'conf_thresh')
+    params.conf_thresh = 0.8;  % 80% confidence
+else
+    if params.conf_thresh > 1  % from GUI is in %
+        params.conf_thresh = params.conf_thresh / 100;
+    end
+end
+
 % Rescale Cardio signal
 idx = contains({EEG.chanlocs.labels}, params.heart_channels);
 EEG.data(idx,:) = rescale(EEG.data(idx,:), -500, 500);
 
 % smear cardio signal across EEG signals to increase accuracy
 if isfield(params,'boost') && params.boost
-    disp('Smearing cardiovascular signal across EEG channels to boost classification (beta). ')
+    % pop_eegplot(EEG,1,1,1);
+    disp('Smearing cardiovascular signal across EEG channels to increase classification performance (beta)... ')
     EEG.data = EEG.data - repmat(mean(EEG.data),size(EEG.data,1),1);
+    % pop_eegplot(EEG,1,1,1);
 end
 
 % Run ICA at effective data rank to control for ghost ICs (Kim et al. 2023). 
@@ -34,11 +45,8 @@ elseif params.icamethod == 3
 end
 
 % Classify components with ICLabel
-if ~isfield(params,'conf_thresh')
-    params.conf_thresh = 0.8;  % 80% confidence
-end
 EEG = pop_iclabel(EEG,'default');
-EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; params.conf_thresh 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components with 85% confidence
+EEG = pop_icflag(EEG,[NaN NaN; NaN NaN; NaN NaN; params.conf_thresh 1; NaN NaN; NaN NaN; NaN NaN]); % flag heart components
 % pop_selectcomps(EEG,1:EEG.nbchan); colormap('parula');
 heart_comp = find(EEG.reject.gcompreject);
 

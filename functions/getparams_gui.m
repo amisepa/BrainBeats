@@ -458,7 +458,7 @@ elseif strcmp(params.analysis, 'features') && strcmp(params.heart_signal, 'ppg')
 
 %% GUI for Removing heart artifacts with ECG
 
-elseif strcmp(params.analysis, 'rm_heart') && strcmp(params.heart_signal, 'ecg')
+elseif strcmp(params.analysis, 'rm_heart') 
 
     % dropdown options
     linefreq = {'60 Hz (US)' '50 Hz (Europe)'};
@@ -492,7 +492,7 @@ elseif strcmp(params.analysis, 'rm_heart') && strcmp(params.heart_signal, 'ecg')
         {'style' 'checkbox' 'string' 'Visualize preprocessings' 'tag' 'vis_cleaning' 'fontweight' 'bold' 'value' 1}  ...
         {} ...
         {'style' 'text' 'string' 'Minimum confidence level to remove heart components (%)' 'fontweight' 'bold'}  {'style' 'edit' 'string' '80' 'tag' 'conf_thresh' 'enable' 'on'} {}...
-        {'style' 'checkbox' 'string' 'Boost mode (beta)' 'fontweight' 'bold' 'tag' 'boost' 'value' 1} ...
+        {'style' 'checkbox' 'string' 'Boost mode (beta)' 'fontweight' 'bold' 'tag' 'boost' 'value' 0} ...
         };
     uigeom = {
         .3 ...
@@ -538,9 +538,13 @@ params.vis_outputs = logical(params.vis_outputs);
 params.save = logical(params.save);
 if isfield(params, 'clean_heart') && ~isempty(params.clean_heart)
     params.clean_heart = logical(params.clean_heart);
+else
+    params.clean_heart = false;
 end
 if isfield(params, 'clean_eeg') && ~isempty(params.clean_eeg)
     params.clean_eeg = logical(params.clean_eeg);
+else
+    params.clean_eeg = false;
 end
 if isfield(params, 'vis_cleaning') && ~isempty(params.vis_cleaning)
     params.vis_cleaning = logical(params.vis_cleaning);
@@ -674,7 +678,7 @@ if isfield(params, 'lowpass_ecg') && ~isempty(params.lowpass_ecg)
     params.lowpass_ecg = str2double(params.lowpass_ecg);
 end
 if isfield(params, 'conf_thresh') && ~isempty(params.conf_thresh)
-    params.conf_thresh = str2double(params.conf_thresh);
+    params.conf_thresh = str2double(params.conf_thresh)/100;
 end
 
 % rereference EEG
@@ -804,7 +808,7 @@ if isfield(params, 'ibi_size') && ~isempty(params.ibi_size)
 end
 
 % if HRV preprocessing is turned off
-if isfield(params, 'clean_heart') && params.clean_heart == 0
+if isfield(params, 'clean_heart') && params.clean_heart == 0  && ~strcmp(params.analysis,'rm_heart')
     if strcmp(params.heart_signal,'ecg')
         params = rmfield(params,'ecg_peakthresh');
         params = rmfield(params,'ecg_searchback');
@@ -820,7 +824,7 @@ if isfield(params, 'clean_heart') && params.clean_heart == 0
     params = rmfield(params,'rr_changelim');
     params = rmfield(params,'rr_correct');
     params = rmfield(params,'rr_physlimlow');
-    params = rmfield(params,'rr_physlimhigh');    
+    params = rmfield(params,'rr_physlimhigh');
 end
 
 % remove heart components

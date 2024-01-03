@@ -101,24 +101,24 @@ end
 % Install necessary plugins for preprocessing
 if params.clean_eeg
     if ~exist('clean_asr','file')
-        plugin_askinstall('clean_asr','clean_asr', 0);
+        plugin_askinstall('clean_asr','clean_asr', 1);
     end
     if ~exist('picard','file') && params.icamethod == 1
-        plugin_askinstall('picard', 'picard', 0);
+        plugin_askinstall('picard', 'picard', 1);
     end
     if ~exist('iclabel','file')
-        plugin_askinstall('iclabel', 'iclabel', 0);
+        plugin_askinstall('iclabel', 'iclabel', 1);
     end
     if ~exist('ref_infinity','file') && strcmp(params.reref, 'infinity')
-        plugin_askinstall('REST_cmd', 'REST_cmd', 0);
+        plugin_askinstall('REST_cmd', 'REST_cmd', 1);
     end
 end
 if strcmp(params.analysis,'rm_heart')
     if ~exist('picard','file') && params.icamethod == 1
-        plugin_askinstall('picard', 'picard', 0);
+        plugin_askinstall('picard', 'picard', 1);
     end
     if ~exist('iclabel','file')
-        plugin_askinstall('iclabel', 'iclabel', 0);
+        plugin_askinstall('iclabel', 'iclabel', 1);
     end
 end
 
