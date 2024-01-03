@@ -12,12 +12,10 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 
 1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
 
-Example of HEP result at the subject level, obtained from simultaneous EEG-ECG signals:
-<p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.11.png">
-</p>
+Example of HEP at the subject level, obtained from simultaneous EEG-ECG signals:
+<p <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.11.png"> </p>
 
-Example of HEP result at the subject level, obtained from simultaneous EEG-PPG signals:
+Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals:
 <p width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.17.png">
 </p>
