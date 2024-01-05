@@ -91,7 +91,7 @@ else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
 end
 win_length = 5;     % window length to scan channels (default = 5 s)
-line_thresh = 4;    % line noise threshold to remove bad channels (default = 5)
+line_thresh = 8;    % line noise threshold to remove bad channels (default = 8)
 nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
