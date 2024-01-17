@@ -191,6 +191,8 @@ end
 idx = find(strcmpi(varargin,'reref'));
 if ~isempty(idx)
     params.reref = varargin{idx+1};
+else
+    params.reref = 'infinity';
 end
 idx = find(strcmpi(varargin,'linenoise'));
 if ~isempty(idx)

@@ -109,8 +109,10 @@ if params.clean_eeg
     if ~exist('iclabel','file')
         plugin_askinstall('iclabel', 'iclabel', 1);
     end
-    if isfield(params,'reref') && strcmp(params.reref, 'infinity') && ~exist('ref_infinity','file')
-        plugin_askinstall('REST_cmd', 'REST_cmd', 1);
+    if isfield(params,'reref') && strcmp(params.reref, 'infinity') 
+        if ~exist('ref_infinity','file')
+            plugin_askinstall('REST_cmd', 'REST_cmd', 1);
+        end
     end
 end
 if strcmp(params.analysis,'rm_heart')
