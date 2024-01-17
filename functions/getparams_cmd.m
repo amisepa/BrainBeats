@@ -213,7 +213,8 @@ if strcmp(params.analysis,'features')
     idx = find(strcmpi(varargin,'eeg_features'));
     if ~isempty(idx)
 
-        if varargin{idx+1} == false % EEG features are turned off entirely by user
+        if strcmp(varargin{idx+1},'off') % EEG features are turned off entirely by user
+            params.eeg_features = false;
             params.eeg_time = false;
             params.eeg_frequency = false;
             params.eeg_nonlinear = false;
