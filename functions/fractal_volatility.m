@@ -117,5 +117,5 @@ e=y2-X*pinv(X)*y2;
 sigma = e'*e*C;
 sigma = sqrt(sigma);
 
-dimension = -beta(2);
+dimension = round(-beta(2),3);
 standard_dev = sigma(2,2);

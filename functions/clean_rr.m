@@ -36,10 +36,10 @@ fs = params.fs;
 if isfield(params,'rr_physlimlow') && ~isempty(params.rr_physlimlow)
     lowerphysiolim = params.rr_physlimlow;
 else
-    lowerphysiolim = .375;    % default = .375 s (normal range = .6-1 s)
+    lowerphysiolim = .375;    % default = .375 s (healthy range = .6-1 s)
 end
 if isfield(params,'rr_physlimhigh') && ~isempty(params.rr_physlimhigh)
-    upperphysiolim = params.rr_physlimhigh;
+    upperphysiolim = params.rr_physlimhigh;  % (healthy range = .6-1 s)
 else
     upperphysiolim = 2;    % default = 2 s
 end

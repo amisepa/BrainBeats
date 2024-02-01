@@ -167,23 +167,23 @@ eegh
 % % ECG
 % EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 % EEG = pop_select(EEG,'nochannel',{'PPG'}); 
-% EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-%     'heart_channels',{'ECG'},'eeg_features',false,...
-%     'hrv_features',{'time' 'frequency' 'nonlinear'},...
-%     'vis_cleaning',true,'vis_outputs',true);
-% 
-% % PPG
-% EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-% EEG = pop_select(EEG,'nochannel',{'ECG'}); 
-% EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
-%     'heart_channels',{'PPG'},'eeg_features',false,...
-%     'hrv_features',{'time' 'frequency' 'nonlinear'},...
-%     'vis_cleaning',true,'vis_outputs',true);
-% 
-% % Cardiovascular preprocessing outputs can be found in:
-% EEG.brainbeats.preprocessings
-% 
-% % Cardiovascular preprocessing outputs can be found in:
-% EEG.brainbeats.features.HRV
+EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'eeg_features','off',...
+    'hrv_features',{'time' 'frequency' 'nonlinear'},...
+    'vis_cleaning',true,'vis_outputs',true);
+
+% PPG
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'ECG'}); 
+EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'eeg_features','off',...
+    'hrv_features',{'time' 'frequency' 'nonlinear'},...
+    'vis_cleaning',true,'vis_outputs',true);
+
+% Cardiovascular preprocessing outputs can be found in:
+EEG.brainbeats.preprocessings
+
+% Cardiovascular preprocessing outputs can be found in:
+EEG.brainbeats.features.HRV
 
 

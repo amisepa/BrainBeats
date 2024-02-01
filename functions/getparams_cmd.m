@@ -44,23 +44,14 @@ idx = find(strcmpi(varargin,'clean_heart'));
 if ~isempty(idx)
     params.clean_heart = varargin{idx+1};
 end
-idx = find(strcmpi(varargin,'ecg_searchback'));
-if ~isempty(idx)
-    params.ecg_searchback = varargin{idx+1};
-end
 idx = find(strcmpi(varargin,'keep_heart'));
 if ~isempty(idx)
     params.keep_heart = varargin{idx+1};
 else
     params.keep_heart = false;
 end    
-idx = find(strcmpi(varargin,'rr_correct'));
-if ~isempty(idx)
-    params.rr_correct = varargin{idx+1};
-else
-    params.rr_correct = 'pchip';
-end
 
+% get_RR on PPG signal
 idx = find(strcmpi(varargin,'ppg_learnperiod'));
 if ~isempty(idx)
     params.ppg_learnperiod = varargin{idx+1};
@@ -85,6 +76,36 @@ idx = find(strcmpi(varargin,'ppg_slopewindow'));
 if ~isempty(idx)
     params.ppg_slopewindow = varargin{idx+1};
 end
+
+% get_RR on ECG signal
+idx = find(strcmpi(varargin,'ecg_searchback'));
+if ~isempty(idx)
+    params.ecg_searchback = varargin{idx+1};
+end
+
+
+% RR artifacts
+idx = find(strcmpi(varargin,'rr_physlimlow'));
+if ~isempty(idx)
+    params.rr_physlimlow = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'rr_physlimhigh'));
+if ~isempty(idx)
+    params.rr_physlimhigh = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'rr_gaplim'));
+if ~isempty(idx)
+    params.rr_gaplim = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'rr_changelim'));
+if ~isempty(idx)
+    params.rr_changelim = varargin{idx+1};
+end
+idx = find(strcmpi(varargin,'rr_correct'));
+if ~isempty(idx)
+    params.rr_correct = varargin{idx+1};
+end
+
 
 %% HRV features
 

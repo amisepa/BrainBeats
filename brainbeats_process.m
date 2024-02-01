@@ -247,11 +247,33 @@ if contains(params.analysis, {'features' 'hep'})
     %     CARDIO.data = sig;
     % end
 
-    % Exit BrainBeats if user only wants to work with cardiovascular data
-    if ~params.eeg_features && strcmp(params.analysis,'features')
-        disp('Done processing cardiovascular signals'); gong
-        return
+    %%%%% MODE 2: HRV features %%%%%
+    if strcmp(params.analysis,'features') && params.hrv_features
+
+        % File length (we take the whole series for now to allow ULF and VLF as much as possible)
+        file_length = floor(EEG.xmax)-1;
+        if file_length < 300
+            warning('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+            warndlg('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+        end
+        params.file_length = file_length;
+
+        % Extract HRV measures
+        [features_hrv, params] = get_hrv_features(NN, NN_t, params);
+
+        % Final output with everything
+        Features.HRV = features_hrv;
+        Features.HRV.time.heart_rate = round(mean(HR,'omitnan'),1);
+
+        % Exit BrainBeats if user only wants to work with cardiovascular data
+        if strcmp(params.analysis,'features') && ~params.eeg_features
+            EEG.brainbeats.features = Features;
+            disp('Done processing cardiovascular signals'); gong
+            return
+        end
+
     end
+
 
     % Filter, re-reference, remove bad channels
     if params.clean_eeg    
@@ -266,25 +288,6 @@ if contains(params.analysis, {'features' 'hep'})
     if strcmp(params.analysis,'hep')
         % EEG = run_HEP(EEG, params, Rpeaks);
         EEG = run_HEP(EEG, CARDIO, params, Rpeaks); % for adding cardio channel back in final output
-    end
-    
-    %%%%% MODE 2: HRV features %%%%%
-    if strcmp(params.analysis,'features') && params.hrv_features
-
-            % File length (we take the whole series for now to allow ULF and VLF as much as possible)
-            file_length = floor(EEG.xmax)-1;
-            if file_length < 300
-                warning('File length is shorter than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
-            end
-            params.file_length = file_length;
-
-            % Extract HRV measures
-            [features_hrv, params] = get_hrv_features(NN, NN_t, params);
-
-            % Final output with everything
-            Features.HRV = features_hrv;
-            Features.HRV.time.heart_rate = round(mean(HR,'omitnan'),1);
-
     end
     
     %%%%% MODE 2: EEG features %%%%% 

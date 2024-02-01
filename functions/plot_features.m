@@ -2,45 +2,38 @@ function plot_features(Features,params)
 
 disp('Plotting features...')
 
-% If no params in input, set defaults here 
-% (useful when users want to replot things without having to define all the params)
-if nargin==1 || ~isfield(params,'hrv_features') || ~isfield(params,'eeg_features') 
-
+% If no params in input, set defaults here (useful when users have computed 
+% features and want to replot them without having to redefine all the params)
+if nargin==1 
     % HRV
-    if any(contains(fieldnames(Features), {'HRV'}))
+    if ~isfield(params,'hrv_features') && any(contains(fieldnames(Features), {'HRV'}))
         params.hrv_features = true;
+        if any(contains(fieldnames(Features.HRV), {'frequency'}))
+            params.hrv_frequency = true;
+            params.hrv_norm = true;     % use default (just for units)
+        end
     else
         params.hrv_features = false;
-    end
-    if any(contains(fieldnames(Features.HRV), {'frequency'}))
-        params.hrv_frequency = true;
-        params.hrv_norm = true;     % use default (just for units)
-    else
         params.hrv_frequency = false;
-    end
-    
-    % EEG
-    if any(contains(fieldnames(Features), {'EEG'}))
-        params.eeg_features = true;
-    else
-        params.eeg_features = false;
-    end
-    if any(contains(fieldnames(Features.EEG), {'frequency'}))
-        params.eeg_frequency = true;
-        params.eeg_norm = true;     % use default (just for units)
-    else
-        params.eeg_frequency = false;
-    end
-    if any(contains(fieldnames(Features.EEG), {'nonlinear'}))
-        params.eeg_nonlinear = true;
-    else
-        params.eeg_nonlinear = false;
+        params.hrv_norm = false;     % assuming default in get_hrv_features
     end
 
-% params in input
-else
-    if ~isfield(params,'hrv_norm')
-        params.hrv_norm = true;  % default in get_hrv_features
+    % EEG
+    if ~isfield(params,'eeg_features') && any(contains(fieldnames(Features), {'EEG'}))
+        params.eeg_features = true;
+        if any(contains(fieldnames(Features.EEG), {'frequency'}))
+            params.eeg_frequency = true;
+            params.eeg_norm = true;     % use default (just for units)
+        else
+            params.eeg_frequency = false;
+        end
+        if any(contains(fieldnames(Features.EEG), {'nonlinear'}))
+            params.eeg_nonlinear = true;
+        else
+            params.eeg_nonlinear = false;
+        end
+    else
+        params.eeg_features = false;
     end
 end
 
@@ -164,7 +157,9 @@ if params.eeg_features && params.eeg_frequency
         elseif params.eeg_norm == 2
             units = 'Power (normalized)';
         end
-    end
+    else
+        units = 'Power (db)';  % assume default
+    end        
 
     hold on
     pwr = trimmean(EEG.frequency.pwr,20,1); % 20% trimmed mean across channels

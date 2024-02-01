@@ -48,7 +48,8 @@ else
     % legend('RR artifacts','After correction')
 end
 title('NN intervals (blue) & RR artifacts before interpolation (red)'); ylabel('NN intervals (s)'); xlabel('Time (s)');
-axis tight; box on
+axis tight;
+box on
 
 % if scroll, subplot(4,1,4); else, subplot(3,1,3); end
 % area(sqi(1,:), sqi(2,:)); hold on; plot(xlim,[.9 .9],'r--','linewidth',2)

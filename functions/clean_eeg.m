@@ -231,18 +231,22 @@ elseif params.clean_eeg_step == 1
         oriEEG = EEG;
         m = memory; maxmem = round(asr_mem*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
         cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,maxmem);
+        
+        % Mask for vis_artifacts
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;
-        EEG.etc.clean_sample_mask = ~mask;
-        badData = reshape(find(diff([false mask false])),2,[])';
-        badData(:,2) = badData(:,2)-1;
-
-        % Ignore very small artifacts (<5 samples)
-        if ~isempty(badData)
-            smallIntervals = diff(badData')' < 5;
-            badData(smallIntervals,:) = [];
+        EEG.etc.clean_sample_mask = true(1, length(mask)); % initialize all samples as clean
+        badData = reshape(find(diff([false mask false])), 2, [])';
+        badData(:, 2) = badData(:, 2) - 1;
+        % exclude very short artifacts < 10 samples
+        if ~isempty(badData)  
+            smallIntervals = diff(badData')' < 10;
+            badData(smallIntervals, :) = [];
+            for i = 1:size(badData, 1)
+                EEG.etc.clean_sample_mask(badData(i, 1):badData(i, 2)) = false;
+            end
         end
 
-        % Remove them
+        % Remove them from data
         EEG = pop_select(EEG,'nopoint',badData);
         % if strcmp(params.analysis,'hep')
         %     CARDIO = pop_select(CARDIO,'nopoint',badData);

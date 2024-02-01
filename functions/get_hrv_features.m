@@ -61,15 +61,15 @@ if params.hrv_time
     % HRV.time.NN_iqr = iqr(NN.*1000);        % in ms
 
     % SDNN (standard deviation of the NN intervals)
-    HRV.time.SDNN = std(NN.*1000);   % in ms
+    HRV.time.SDNN = round(std(NN.*1000),1);   % in ms
 
     % RMSSD (sqrt of the mean squared time diff between heartbeats)
-    HRV.time.RMSSD = sqrt(mean(diff(NN.*1000).^2));  % in ms
+    HRV.time.RMSSD = round(sqrt(mean(diff(NN.*1000).^2)),1);  % in ms
 
     % pNN50 (fraction of differences larger than alpha = 50)
     % requires at least 2 min of data (see Ginsberg and Schaffer 2017)
     alpha = 50;
-    HRV.time.pNN50 = sum( abs(diff(NN)) >= alpha/1000 )/length(diff(NN));
+    HRV.time.pNN50 = round(sum( abs(diff(NN)) >= alpha/1000 )/length(diff(NN)),1);
 
 end
 
@@ -256,16 +256,16 @@ if params.hrv_frequency
     
     % Average across time windows
     if isfield(HRV.frequency,'ulf') 
-        HRV.frequency.ulf = mean(HRV.frequency.ulf,'omitnan');
+        HRV.frequency.ulf = round(mean(HRV.frequency.ulf,'omitnan'),2);
     end
     if isfield(HRV.frequency,'vlf') 
-        HRV.frequency.vlf = mean(HRV.frequency.vlf,'omitnan');
+        HRV.frequency.vlf = round(mean(HRV.frequency.vlf,'omitnan'),2);
     end
     if isfield(HRV.frequency,'lf') 
-        HRV.frequency.lf = mean(HRV.frequency.lf,'omitnan');
+        HRV.frequency.lf = round(mean(HRV.frequency.lf,'omitnan'),2);
     end
     if isfield(HRV.frequency,'hf') 
-        HRV.frequency.hf = mean(HRV.frequency.hf,'omitnan');
+        HRV.frequency.hf = round(mean(HRV.frequency.hf,'omitnan'),2);
     end
     
     % if params.vis_outputs
@@ -296,9 +296,9 @@ if params.hrv_nonlinear
     SDRR = std(NN);
     SD1 = (1 / sqrt(2)) * SDSD;     % measures the width of poincare cloud
     SD2 = sqrt((2 * SDRR^2) - (0.5 * SDSD^2));      % measures the length of the poincare cloud
-    HRV.nonlinear.Poincare.SD1 = SD1*1000;      % in ms
-    HRV.nonlinear.Poincare.SD2 = SD2*1000;      % in ms
-    HRV.nonlinear.Poincare.SD1SD2 = SD1/SD2;
+    HRV.nonlinear.Poincare.SD1 = round(SD1*1000,3);      % in ms
+    HRV.nonlinear.Poincare.SD2 = round(SD2*1000,3);      % in ms
+    HRV.nonlinear.Poincare.SD1SD2 = round(SD1/SD2,3);
 
     % Sample entropy
     % m = 2;
@@ -340,8 +340,8 @@ if params.hrv_nonlinear
     dc_anchor = (drr_per > 1) & (drr_per <= highAnchor);
     ac_anchor(1) = false; % ignore 1st heartbeat
     dc_anchor(1) = false; % ignore 1st heartbeat
-    HRV.nonlinear.PRSA_AC = mean(1000*NN(ac_anchor));  % acceleration capacity (in ms)
-    HRV.nonlinear.PRSA_DC = mean(1000*NN(dc_anchor));  % deceleration capacity (in ms)
+    HRV.nonlinear.PRSA_AC = round(mean(1000*NN(ac_anchor)),1);  % acceleration capacity (in ms)
+    HRV.nonlinear.PRSA_DC = round(mean(1000*NN(dc_anchor)),1);  % deceleration capacity (in ms)
     
 end
 

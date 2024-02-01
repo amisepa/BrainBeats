@@ -135,26 +135,17 @@ if params.eeg_frequency
     samplesPerWindow = fs * winlen;
     nfft = 2^nextpow2(samplesPerWindow);
     freqResolution = fs / nfft;
-    numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution) + 1;
+    % numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution) + 1;
+    numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution);
     
     % preallocate memory
     pwr = nan(nChan,numFrequencyBins);
     pwr_dB = nan(nChan,numFrequencyBins);
     delta = nan(nChan,1);
-    delta_norm = nan(nChan,1);
-    delta_indiv = nan(nChan,1);
     theta = nan(nChan,1);
-    theta_norm = nan(nChan,1);
-    theta_indiv = nan(nChan,1);
     alpha = nan(nChan,1);
-    alpha_norm = nan(nChan,1);
-    alpha_indiv = nan(nChan,1);
     beta = nan(nChan,1);
-    beta_norm = nan(nChan,1);
-    beta_indiv = nan(nChan,1);
     gamma = nan(nChan,1);
-    low_gamma_norm = nan(nChan,1);
-    low_gamma_indiv = nan(nChan,1);
 
     disp('Calculating band-power on each EEG channel:')
     for iChan = 1:nChan
@@ -267,18 +258,18 @@ if params.eeg_frequency
     elseif eeg_norm == 1 || eeg_norm == 2
         eeg_features.frequency.pwr = pwr_dB;
     end
-    eeg_features.frequency.delta = delta;
-    eeg_features.frequency.theta = theta;
-    eeg_features.frequency.alpha = alpha;
-    eeg_features.frequency.beta = beta;
-    eeg_features.frequency.gamma = gamma;
+    eeg_features.frequency.delta = round(delta,3);
+    eeg_features.frequency.theta = round(theta,3);
+    eeg_features.frequency.alpha = round(alpha,3);
+    eeg_features.frequency.beta = round(beta,3);
+    eeg_features.frequency.gamma = round(gamma,3);
 
     %%%%% Individual alpha frequency (IAF) %%%%%
     % Use alpha center of gravity (CoG) since it's the best
     disp('Attempting to find the individual alpha frequency (IAF) for each EEG channel...')
     [pSum, pChans, ~] = restingIAF(signals, size(signals,1), 1, [1 30], fs, [7 14], 11, 5);
-    eeg_features.frequency.IAF_mean = pSum.cog;
-    eeg_features.frequency.IAF = [pChans.gravs]';
+    eeg_features.frequency.IAF_mean = round(pSum.cog,3);
+    eeg_features.frequency.IAF = round([pChans.gravs]',3);
     if ~isnan(eeg_features.frequency.IAF_mean)
         fprintf('Mean IAF across all channels: %g \n', eeg_features.frequency.IAF_mean)
     elseif sum(isnan(eeg_features.frequency.IAF)) == length(chanlocs)
@@ -289,7 +280,7 @@ if params.eeg_frequency
     % on log(pwr) no pwr_dB - on all possible symmetric pairs of electrodes
     alpha_pwr = mean(pwr(:,f >= 8 & f <= 13),2);  % IMPORTANT: use power in μV^2/Hz NOT in decibels
     [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, asy_norm, chanlocs, false);
-    eeg_features.frequency.asymmetry = asy;
+    eeg_features.frequency.asymmetry = round(asy,3);
     eeg_features.frequency.asymmetry_pairs_labels = pairLabels;
     eeg_features.frequency.asymmetry_pairs_num = pairNums;
 
