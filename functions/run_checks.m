@@ -58,6 +58,7 @@ end
 
 % Check if heart channels are in file (for command line mode)
 nchan = length(params.heart_channels);
+idx = [];
 for i = 1:nchan
     idx(i) = any(strcmp(params.heart_channels{i},{EEG.chanlocs.labels}));
     if idx(i) == 0
@@ -75,7 +76,7 @@ if length(idx) ~= sum(idx)
 end
 
 % Check heart signal type
-if ~contains(params.heart_signal, {'ecg' 'ppg'})
+if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
     errordlg('Heart signal should be either ECG or PPG')
     return
 end

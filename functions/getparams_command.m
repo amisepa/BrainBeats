@@ -4,9 +4,20 @@
 
 function params = getparams_command(varargin)
 
+idx = find(strcmpi(varargin,'gong'));
+if isempty(idx)
+    params.gong = 'on';
+else
+    params.gong = varargin{idx+1};
+end
+
 % Extract user parameters
 idx = find(strcmpi(varargin,'heart_signal'));
-if ~isempty(idx)
+params.heart = true;
+if isempty(idx)
+    params.heart = false;
+    warning("Heart signal type not defined. Please define 'heart_signal' as 'ecg', 'ppg', or 'off' (default). Type help in the command window for an example")
+else 
     params.heart_signal = lower(varargin{idx+1});
     if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
         error("Heart signal not recognized. Should be 'ecg' or 'ppg' or 'off'.")
@@ -14,17 +25,19 @@ if ~isempty(idx)
     if contains(params.heart_signal, 'off')
         params.heart = false;
     end
-else
-    error("Heart signal type not defined. Please define 'heart_signal' as 'ecg', 'ppg', or 'off'. Type help in the command window for an example")
 end
 
 % Detect if there are 1 or multiple heart channel(s)
 idx = find(strcmpi(varargin,'heart_channels'));
-if ~isempty(idx)
-    params.heart_channels = varargin{idx+1};
-    fprintf('Number of heart channels selected: %g \n', length(params.heart_channels));
+if params.heart
+    if ~isempty(idx)
+        params.heart_channels = varargin{idx+1};
+        fprintf('Number of heart channels selected: %g \n', length(params.heart_channels));
+    else
+        error("Heart channels not defined. Please define 'heart_channels'. See help for an example")
+    end
 else
-    error("Heart channels not defined. Please define 'heart_channels'. See help for an example")
+    params.heart_channels = {};
 end
 
 % Analysis to do
@@ -56,7 +69,7 @@ else
     params.clean_eeg = false;
 end
 
-% EEG features
+% EEG features default
 if strcmp(params.analysis,'features')
     idx = find(strcmpi(varargin,'eeg_features'));
     if ~isempty(idx)
@@ -110,6 +123,9 @@ if strcmp(params.analysis,'features')
 else
     params.hrv = false;
     fprintf('You chose NOT to extract HRV features on these data. \n')
+end
+if ~params.heart
+    params.hrv   = false;
 end
 
 % Normalize frequency features
