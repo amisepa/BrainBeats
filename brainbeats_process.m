@@ -343,4 +343,4 @@ fprintf('\n\n')
 fprintf("Done! Thank you for using the BrainBeats toolbox! \n");
 fprintf("Please cite: Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06 \n")
 
-gong
+ gong
