@@ -129,36 +129,10 @@ end
 %%%%% MODE 1 & 2: RR, SQI, and NN %%%%%
 if contains(params.analysis, {'features' 'hep'})
     
-<<<<<<< HEAD
-    % Keep only EEG and ECG channels in separate structures
-    % EEG = pop_select(EEG, 'chantype',{'ECG','EEG'});  
-    CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
-    if isempty(params.heart_channels)
-        CARDIO.data = [];
-    end
-    EEG = pop_select(EEG,'nochannel',params.heart_channels); 
-
-    % basic check for missed auxiliary channels that could cause issues 
-    % (very limited by dataset's electrode labels)
-    idx = contains({EEG.chanlocs.labels}, {'ecg' 'ECG' 'aux' 'AUX'});
-    if any(idx)
-        auxChan = strjoin({EEG.chanlocs(idx).labels});
-        opts.Interpreter = 'tex';
-        opts.Default = 'Yes';
-        quest = sprintf("The following channels may not be EEG or ECG/PPG and may cause serious innacuracies: \n\n %s \n\n They are about to be removed, please confirm", auxChan);
-        answer = questdlg(quest,'Potentially undesirable electrodes','Yes','No','Cancel',opts);
-        % ans = questdlg(");
-        if strcmp(answer,'Cancel')
-            disp('Aborted.'); return
-        elseif strcmp(answer,'Yes')
-            EEG = pop_select(EEG,'nochannel',{EEG.chanlocs(idx).labels}); 
-        end
-=======
     % Resample CARDIO data to match EEG for HEP, when different
     if strcmp(params.analysis, 'hep') && EEG.srate~=CARDIO.srate
         fprintf('Resampling cardiovascular data to match EEG sampling rate to ensure time synchrony. \n')
         CARDIO = pop_resample(CARDIO,EEG.srate);
->>>>>>> origin/v1.4
     end
 
     % Get RR and NN intervals from ECG/PPG signals
@@ -220,65 +194,7 @@ if contains(params.analysis, {'features' 'hep'})
     end
 
     % Keep only ECG data of electrode with the lowest number of RR
-<<<<<<< HEAD
-    % artifacts (FIXME: add SQI)
-    % [~, best_elec] = min(SQI);
-    % sqi = [sqi_times(best_elec,:); sqi(best_elec,:)];
-    % SQI = SQI(best_elec);
-    if exist('flaggedRatio')
-        [~,best_elec] = min(struct2array(flaggedRatio));
-        elec = sprintf('elec%g',best_elec);
-        maxThresh = .2;         % max portion of artifacts (.2 default from Vest et al. 2019)
-        % if SQI > maxThresh    % more than 20% of RR series is bad
-        %      warning on
-        %     warning("%g%% of the RR series on your best ECG electrode has a signal quality index (SQI) below minimum recommendations (max 20%% below SQI = .9; see Vest et al., 2019)!",round(SQI,2));
-        %     errordlg("Signal quality is too low: aborting! You could inspect the data in EEGLAB > Plot > Channel data (Scroll) and try to remove large artifacts first.");
-        % else
-        %     fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", SQI )
-        % end
-        flaggedRatio = flaggedRatio.(elec);
-        flagged = flagged.(elec);
-        if sum(flagged) > 0
-            if contains(params.rr_correct,'remove')
-                fprintf('%g heart beats were flagged as artifacts and removed. \n', sum(flagged));
-            else
-                fprintf('%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged));
-            end
-        end
-        if flaggedRatio > maxThresh % more than 20% of RR series is bad
-            warning("%g%% of the RR series on your best electrode are artifacts. Maximum recommendations 20%%! Aborting...", round(flaggedRatio*100,2));
-        else
-            fprintf('%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged));
-        end
-        sig_t = sig_t(best_elec,:);
-        sig = sig(best_elec,:);
-        RR = RR.(elec);
-        RR_t = RR_t.(elec);
-        RR_t(1) = [];       % always ignore 1st hearbeat
-        Rpeaks = Rpeaks.(elec);
-        Rpeaks(1) = [];     % always ignore 1st hearbeat
-        NN_t = NN_t.(elec);
-        NN = NN.(elec);
-    
-        % Plot filtered ECG and RR series of best electrode and interpolated
-        % RR artifacts (if any)
-        if params.vis_cleaning
-            plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, flagged)
-        end
-        
-        % Preprocessing outputs
-        Features.HRV.ECG_filtered = sig;
-        Features.HRV.ECG_times = sig_t;
-        if exist('SQI','var')
-            Features.HRV.SQI = SQI;
-        end
-        Features.HRV.RR = RR;
-        Features.HRV.RR_times = RR_t;
-        Features.HRV.HR = HR;
-        Features.HRV.NN = NN;
-        Features.HRV.NN_times = NN_t;
-        Features.HRV.flagged_heartbeats = flagged;
-=======
+
     % artifacts
     [~,best_elec] = min(struct2array(flaggedRatio));
     elec = sprintf('elec%g',best_elec);
@@ -357,7 +273,6 @@ if contains(params.analysis, {'features' 'hep'})
             return
         end
 
->>>>>>> origin/v1.4
     end
 
 
