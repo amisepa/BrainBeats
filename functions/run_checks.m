@@ -76,7 +76,7 @@ if length(idx) ~= sum(idx)
 end
 
 % Check heart signal type
-if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
+if ~contains(params.heart_signal, {'ecg' 'ppg'})
     errordlg('Heart signal should be either ECG or PPG')
     return
 end
