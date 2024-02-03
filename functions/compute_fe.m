@@ -56,5 +56,5 @@ for k = m:m+1
     p(k-m+1) = sum(count)/(N-m);
 end
 
-fe = log(p(1)/p(2));
+fe = round(log(p(1)/p(2)),3);
 

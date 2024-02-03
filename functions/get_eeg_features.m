@@ -1,36 +1,98 @@
-%% Extract EEG features in time, fequency, and nonlinear domains.
+ %% Extract EEG features in time, fequency, and nonlinear domains.
 %
+% Example:
+%   eeg_features = get_eeg_features(EEG.data,params)
+% 
 % Copyright (C) - Cedric Cannard, 2023
 
-function eeg_features = get_eeg_features(signals,params)
+function [eeg_features, params] = get_eeg_features(signals,params)
+
+tstart = tic;
+
+% General parameters
+if isfield(params,'fs') && ~isempty(params.fs)
+    fs = params.fs;
+else
+    errordlg("The 'params' structure must contain EEG sample frequency. Example to add it: params.fs = 256;  % in Hz","error in get_eeg_features.m")
+end
+if isfield(params,'chanlocs') && ~isempty(params.chanlocs)
+    chanlocs = params.chanlocs;
+else
+    errordlg("The 'params' structure must contain EEG channel locations. Example to add it: params.chanlocs = EEG.chanlocs;","error in get_eeg_features.m")
+end
+if isfield(params,'gpu') && ~isempty(params.gpu)
+    usegpu = params.gpu;
+else
+    usegpu = false;
+end
+if isfield(params,'parpool') && ~isempty(params.parpool)
+    useparpool = params.parpool;
+else
+    useparpool = false;
+end
+
+% Frequency domain parameters
+if params.eeg_frequency
+    if isfield(params,'eeg_frange') && ~isempty(params.eeg_frange)
+        fRange = params.eeg_frange;
+    else
+        fRange = [1 40];        % overall frequency range to compute PSD (in Hz)
+        params.fRange = fRange; % to export
+    end
+    if isfield(params,'eeg_wintype') && ~isempty(params.eeg_wintype)
+        wintype = params.eeg_wintype;
+    else
+        wintype = 'hamming';    % window type. Default = 'hamming' (see Smith et al, 2017 for asymmetry)
+        params.wintype = wintype; % to export
+    end
+    if isfield(params,'eeg_winlen') && ~isempty(params.eeg_winlen)
+        winlen = params.eeg_winlen;
+    else
+        winlen = 2;            % window size (in s). Default = 2 (see Smith et al, 2017 for asymmetry)
+        params.winlen = winlen; % to export
+    end
+    if isfield(params,'eeg_winoverlap') && ~isempty(params.eeg_winoverlap)
+        overlap = params.eeg_winoverlap;
+    else
+        overlap = 50;           % window overlap. Default = 50% (see Smith et al, 2017 for asymmetry)
+        params.overlap = overlap; % to export
+    end
+    if isfield(params,'eeg_freqbounds') && ~isempty(params.eeg_freqbounds)
+        freqbounds = params.eeg_freqbounds;
+    else
+        freqbounds = 'conventional';      % freq bounds for band-power: 'conventional' (default) or 'individualized' (see Corcoran et al. 2018)
+        params.freqbounds = freqbounds; % to export
+    end
+    if isfield(params,'eeg_norm') && ~isempty(params.eeg_norm)
+        eeg_norm = params.eeg_norm;
+    else
+        eeg_norm = 1;      % none (0), normalize to decibels (1), normalize to decibels + divide by total power (2)
+        params.eeg_norm = eeg_norm; % to export
+    end
+    if isfield(params,'asy_norm') && ~isempty(params.asy_norm)
+        asy_norm = params.asy_norm;
+    else
+        asy_norm = false;      % normalization by dividing electrode's alpha power by total power (true) or not (false). see Smith et al. (2017)
+        params.asy_norm = asy_norm; % to export
+    end
+    
+end
+
+% Nonlinear domain parameters
+if params.eeg_nonlinear
+    m = 2;
+    r = .15;
+    n = 2;
+    tau = 1;
+    % coarseType = 'Standard deviation';	% coarse graining method
+    % nScales = 30;						    % number of scale factors to compute
+    % filtData = true;  					% bandpass filter each scale factor (see Kosciessa et al. 2020)
+end
 
 disp('----------------------------------------------------')
 disp('               Extracting EEG features ')
 disp('----------------------------------------------------')
 
-tstart = tic;
-
-fs = params.fs;
-chanlocs = params.chanlocs;
-usegpu = params.gpu;
-useparpool = params.parpool;
-
-% Parallel computing
-% ps = parallel.Settings;
-% ps.Pool.AutoCreate = useparpool;  % false will prevent parfor to launch parpool
-if useparpool
-    p = gcp('nocreate');
-    % delete(gcp('nocreate')) % shut down opened parpool
-    if isempty(p) % if not already on, launch it
-        disp('Initiating parrallel computing (all cores and threads -1)...')
-        c = parcluster; % cluster profile
-        % N = feature('numcores');        % physical number of cores
-        N = getenv('NUMBER_OF_PROCESSORS'); % all processors (including threads)
-        if ischar(N), N = str2double(N); end
-        c.NumWorkers = N-1;  % update cluster profile to include all workers
-        c.parpool();
-    end
-end
 
 % Use parallel GPUs computing (if multiple GPUS are available)
 % if useparpool && usegpu
@@ -46,25 +108,21 @@ end
 
 %% Time domain
 
-if params.eeg_time
-    disp('Calculating time-domain EEG features...')
-    eeg_features.time.rms = rms(signals,2);
-    eeg_features.time.mode = mode(signals,2);
-    eeg_features.time.var = var(signals,0,2);
-    eeg_features.time.skewness = skewness(signals,0,2);
-    eeg_features.time.kurtosis = kurtosis(signals,0,2);
-    eeg_features.time.iqr = iqr(signals,2);
-end
+% if params.eeg_time
+%     disp('Calculating time-domain EEG features...')
+%     eeg_features.time.rms = rms(signals,2);
+%     eeg_features.time.mode = mode(signals,2);
+%     eeg_features.time.var = var(signals,0,2);
+%     eeg_features.time.skewness = skewness(signals,0,2);
+%     eeg_features.time.kurtosis = kurtosis(signals,0,2);
+%     eeg_features.time.iqr = iqr(signals,2);
+% end
 
 %% Frequency domain
 
 if params.eeg_frequency
 
     nChan = size(signals,1);
-    fRange = [1 40];    % FIXME: lowpass/highpass should be in params to make sure these are within filtered signal
-    winSize = 4;        % window size (in s). Default = 2 (at least 2 s recommended by Smith et al, 2017 for asymmetry)
-    winType = 'hamming';
-    overlap = 50;       % 50% default (Smith et al. 2017)
 
     % progressbar (only when not in parpool)
     if ~useparpool
@@ -72,96 +130,157 @@ if params.eeg_frequency
     end
 
     %%%%% Band power %%%%%
+
+    % number of frequency bins to preallocate memory
+    samplesPerWindow = fs * winlen;
+    nfft = 2^nextpow2(samplesPerWindow);
+    freqResolution = fs / nfft;
+    % numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution) + 1;
+    numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution);
+    
+    % preallocate memory
+    pwr = nan(nChan,numFrequencyBins);
+    pwr_dB = nan(nChan,numFrequencyBins);
+    delta = nan(nChan,1);
+    theta = nan(nChan,1);
+    alpha = nan(nChan,1);
+    beta = nan(nChan,1);
+    gamma = nan(nChan,1);
+
     disp('Calculating band-power on each EEG channel:')
     for iChan = 1:nChan
 
         fprintf('  - channel %g \n', iChan)
 
         % Compute PSD using pwelch
-        [pwr, pwr_dB, f] = compute_psd(signals(iChan,:),fs*winSize,winType,overlap,[],fs,fRange,'psd',usegpu);
-        eeg_features.frequency.pwr(iChan,:) = pwr;
-        eeg_features.frequency.pwr_dB(iChan,:) = pwr_dB;
-        eeg_features.frequency.freqs(iChan,:) = f;
+        [pwr(iChan,:), pwr_dB(iChan,:), f] = compute_psd(signals(iChan,:),fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
 
         % Delta
-        eeg_features.frequency.delta(iChan,:) = mean( pwr_dB(f >= f(1) & f <= 3) );
-        eeg_features.frequency.delta_norm(iChan,:) = eeg_features.frequency.delta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        try
-            bounds = get_freqBounds(pwr, f, fs, [f(1) 3], winSize,0.25);  % individualized frequency bounds
-            eeg_features.frequency.delta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
-        catch
-            % fprintf('Could not detect individualized frequency bounds for Delta \n')
-            eeg_features.frequency.delta_indiv(iChan,:) = NaN;
+        if strcmp(freqbounds, 'conventional')
+            if eeg_norm == 0
+                delta(iChan,:) = mean(pwr(iChan,f >= f(1) & f <= 3));       % no normalization (uV^2/Hz)
+            elseif eeg_norm == 1
+                delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3));    % db
+            elseif eeg_norm == 2
+                delta(iChan,:) = mean(pwr_dB(iChan,f >= f(1) & f <= 3)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+            end
+        elseif strcmp(freqbounds, 'individualized')
+            try
+                bounds = get_freqBounds(pwr(iChan,:), f, fs, [f(1) 3.5], winlen, 0.25);  % individualized frequency bounds
+                delta(iChan,:) = mean(pwr_dB(iChan,f >= bounds(1) & f <= bounds(2)));
+            catch
+                delta(iChan,:) = NaN;
+            end
         end
 
         % Theta
-        eeg_features.frequency.theta(iChan,:) = mean( pwr_dB(f >= 3 & f <= 7) );
-        eeg_features.frequency.theta_norm(iChan,:) = eeg_features.frequency.theta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        try
-            bounds = get_freqBounds(pwr, f, fs, [2 8], winSize, 0.25);  % individualized lower/upper bounds
-            eeg_features.frequency.theta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
-        catch
-            % fprintf('Could not detect individualized frequency bounds for Theta \n')
-            eeg_features.frequency.theta_indiv(iChan,:) = NaN;
+        if strcmp(freqbounds, 'conventional')
+            if eeg_norm == 0
+                theta(iChan,:) = mean(pwr(iChan,f >= f(3) & f <= 7));       % no normalization (uV^2/Hz)
+            elseif eeg_norm == 1
+                theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7));    % db
+            elseif eeg_norm == 2
+                theta(iChan,:) = mean(pwr_dB(iChan,f >= f(3) & f <= 7)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+            end
+        elseif strcmp(freqbounds, 'individualized')
+            try
+                bounds = get_freqBounds(pwr(iChan,:), f, fs, [3 7], winlen, 0.25);  % individualized frequency bounds
+                theta(iChan,:) = mean(pwr_dB(iChan,f >= bounds(1) & f <= bounds(2)));
+            catch
+                theta(iChan,:) = NaN;
+            end
         end
 
         % Alpha
-        eeg_features.frequency.alpha(iChan,:) = mean( pwr_dB(f >= 7.5 & f <= 13) );
-        eeg_features.frequency.alpha_norm(iChan,:) = eeg_features.frequency.alpha(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        try
-            bounds = get_freqBounds(pwr, f, fs, [7 14], winSize, 1);  % individualized lower/upper bounds
-            eeg_features.frequency.alpha_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
-        catch
-            % fprintf('Could not detect individualized frequency bounds for Alpha \n')
-            eeg_features.frequency.alpha_indiv(iChan,:) = NaN;
+        if strcmp(freqbounds, 'conventional')
+            if eeg_norm == 0
+                alpha(iChan,:) = mean(pwr(iChan,f >= f(8) & f <= 13));       % no normalization (uV^2/Hz)
+            elseif eeg_norm == 1
+                alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13));    % db
+            elseif eeg_norm == 2
+                alpha(iChan,:) = mean(pwr_dB(iChan,f >= f(8) & f <= 13)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+            end
+        elseif strcmp(freqbounds, 'individualized')
+            try
+                bounds = get_freqBounds(pwr(iChan,:), f, fs, [7 14], winlen, 1);  % individualized frequency bounds
+                alpha(iChan,:) = mean(pwr_dB(iChan,f >= bounds(1) & f <= bounds(2)));
+            catch
+                alpha(iChan,:) = NaN;
+            end
         end
 
         % Beta
-        eeg_features.frequency.beta(iChan,:) = mean( pwr_dB(f >= 13.5 & f <= 30) );
-        eeg_features.frequency.beta_norm(iChan,:) = eeg_features.frequency.beta(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        try
-            bounds = get_freqBounds(pwr, f, fs, [13 30], winSize, 0.25);  % individualized lower/upper bounds
-            eeg_features.frequency.beta_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
-        catch
-            % fprintf('Could not detect individualized frequency bounds for Beta \n')
-            eeg_features.frequency.beta_indiv(iChan,:) = NaN;
+        if strcmp(freqbounds, 'conventional')
+            if eeg_norm == 0
+                beta(iChan,:) = mean(pwr(iChan,f >= f(13) & f <= 30));       % no normalization (uV^2/Hz)
+            elseif eeg_norm == 1
+                beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30));    % db
+            elseif eeg_norm == 2
+                beta(iChan,:) = mean(pwr_dB(iChan,f >= f(13) & f <= 30)) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+            end
+        elseif strcmp(freqbounds, 'individualized')
+            try
+                bounds = get_freqBounds(pwr(iChan,:), f, fs, [13 30], winlen, 0.25);  % individualized frequency bounds
+                beta(iChan,:) = mean(pwr_dB(iChan,f >= bounds(1) & f <= bounds(2)));
+            catch
+                beta(iChan,:) = NaN;
+            end
         end
 
         % Low gamma
-        eeg_features.frequency.low_gamma(iChan,:) = mean( pwr_dB(f >= 31 & f <= fRange(2)) );
-        eeg_features.frequency.low_gamma_norm(iChan,:) = eeg_features.frequency.low_gamma(iChan,:) ./ sum(pwr_dB); % normalized by total power of same channel
-        try
-            bounds = get_freqBounds(pwr, f, fs, [30 45], winSize, 0.25);  % individualized lower/upper bounds
-            eeg_features.frequency.low_gamma_indiv(iChan,:) = mean( pwr_dB(f >= bounds(1) & f <= bounds(2)) );
-        catch
-            % fprintf('Could not detect individualized frequency bounds for Low gamma \n')
-            eeg_features.frequency.low_gamma_indiv(iChan,:) = NaN;
+        if strcmp(freqbounds, 'conventional')
+            if eeg_norm == 0
+                gamma(iChan,:) = mean(pwr(iChan,f >= f(30) & f <= fRange(2)));       % no normalization (uV^2/Hz)
+            elseif eeg_norm == 1
+                gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2)));    % db
+            elseif eeg_norm == 2
+                gamma(iChan,:) = mean(pwr_dB(iChan,f >= f(30) & f <= fRange(2))) ./ sum(pwr_dB(iChan,:));   % normalized by total power of same channel
+            end
+        elseif strcmp(freqbounds, 'individualized')
+            try
+                bounds = get_freqBounds(pwr(iChan,:), f, fs, [30 fRange(2)], winlen, 0.25);  % individualized frequency bounds
+                gamma(iChan,:) = mean(pwr_dB(iChan,f >= bounds(1) & f <= bounds(2)));
+            catch
+                gamma(iChan,:) = NaN;
+            end
         end
 
         if ~useparpool
             progressbar(iChan/nChan)
         end
-
+        
     end
+
+    % Outputs
+    eeg_features.frequency.freqs = f;
+    if eeg_norm == 0
+        eeg_features.frequency.pwr = pwr;
+    elseif eeg_norm == 1 || eeg_norm == 2
+        eeg_features.frequency.pwr = pwr_dB;
+    end
+    eeg_features.frequency.delta = round(delta,3);
+    eeg_features.frequency.theta = round(theta,3);
+    eeg_features.frequency.alpha = round(alpha,3);
+    eeg_features.frequency.beta = round(beta,3);
+    eeg_features.frequency.gamma = round(gamma,3);
 
     %%%%% Individual alpha frequency (IAF) %%%%%
     % Use alpha center of gravity (CoG) since it's the best
     disp('Attempting to find the individual alpha frequency (IAF) for each EEG channel...')
-    [pSum, pChans, ~] = restingIAF(signals, size(signals,1), 1, [1 30], fs, [7 13], 11, 5);
-    eeg_features.frequency.IAF_mean = pSum.cog;
-    eeg_features.frequency.IAF = [pChans.gravs]';
+    [pSum, pChans, ~] = restingIAF(signals, size(signals,1), 1, [1 30], fs, [7 14], 11, 5);
+    eeg_features.frequency.IAF_mean = round(pSum.cog,3);
+    eeg_features.frequency.IAF = round([pChans.gravs]',3);
     if ~isnan(eeg_features.frequency.IAF_mean)
         fprintf('Mean IAF across all channels: %g \n', eeg_features.frequency.IAF_mean)
     elseif sum(isnan(eeg_features.frequency.IAF)) == length(chanlocs)
-        warning("Failed to find the IAF on all EEG channels. This can sometimes be due to improper preprocessing of the EEG data (i.e., too many artifacts remaining).")
+        warning("Failed to find the IAF on all EEG channels. This can be due to improperly preprocessed data or lack of alpha peak in the power spectral distribution.")
     end
 
     %%%%% Alpha asymmetry %%%%%
-    % on log(pwr) no pwr_dB - on possible symmetric pairs of electrodes
-    norm = true;  % normalize by dividing by total alpha power
-    [asy, pairLabels, pairNums] = compute_asymmetry(eeg_features.frequency.alpha, ...
-        norm, chanlocs, false);
-    eeg_features.frequency.asymmetry = asy;
+    % on log(pwr) no pwr_dB - on all possible symmetric pairs of electrodes
+    alpha_pwr = mean(pwr(:,f >= 8 & f <= 13),2);  % IMPORTANT: use power in μV^2/Hz NOT in decibels
+    [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, asy_norm, chanlocs, false);
+    eeg_features.frequency.asymmetry = round(asy,3);
     eeg_features.frequency.asymmetry_pairs_labels = pairLabels;
     eeg_features.frequency.asymmetry_pairs_num = pairNums;
 
@@ -171,31 +290,22 @@ end
 
 if params.eeg_nonlinear
 
-    % default parameters
-    m = 2;
-    r = .15;
-    % n = 2;
-    % tau = 1;
-    % coarseType = 'Standard deviation';	% coarse graining method
-    % nScales = 30;						    % number of scale factors to compute
-    % filtData = true;  					% bandpass filter each scale factor (see Kosciessa et al. 2020)
-
     % Initiate progressbar (only when not in parpool)
     disp('Computing EEG features in the nonlinear-domain (this may take a while)...')
     if ~useparpool
         progressbar('Computing nonlinear features on all EEG channels')
     end
     
-    % Downsample/decimate for large data (>5 min)
-    if fs>250 && size(signals,2)/fs/60 > 3
+    % Downsample/decimate if data are >2 min long and > 100 Hz sample rate
+    if fs>100 && size(signals,2)/fs/60 > 2
         
         new_fs = 90;        % for Nyquist freq = default lowpass cutoff (i.e. 45 Hz)
         fac = fs / new_fs;  % downsample factor
         if fac ~= floor(fac)
             fac = round(fac);
-            fprintf('Decimating EEG data to %g Hz sample rate to increase computing speed... \n',new_fs)
+            fprintf('Decimating EEG data to a sample rate of %g Hz to avoid memory issues and increase speed... \n',new_fs)
         else
-            fprintf('Downsampling EEG data to %g Hz sample rate to increase computing speed... \n',new_fs)
+            fprintf('Downsampling EEG data to a sample rate of %g Hz to avoid memory issues and increase speed... \n',new_fs)
         end
 
         % Downsample if integer, otherwise decimate to round factor
@@ -228,14 +338,14 @@ if params.eeg_nonlinear
         fprintf(' channel %g... \n', iChan);
 
         % Sample entropy (fast method)
-        se(iChan,:) = compute_se_fast(sig,m,r);
+        % se(iChan,:) = compute_se_fast(sig,m,r);
         % se(iChan,:) = compute_se(sig,m,r,tau);
 
         % Fractal dimension
         fd(iChan,:) = fractal_volatility(sig);
 
         % Fuzzy entropy
-        % fe(iChan,:) = compute_fe(sig, m, r, n, tau, usegpu);
+        fe(iChan,:) = compute_fe(sig, m, r, n, tau, usegpu);
 
         % Multiscale fuzzy entropy
         % disp('Computing multiscale fuzzy entropy...')
@@ -256,9 +366,9 @@ if params.eeg_nonlinear
     % toc
 
     % Outputs
-    eeg_features.nonlinear.SE = se;     % sample entropy
+    % eeg_features.nonlinear.SE = se;     % sample entropy
     eeg_features.nonlinear.FD = fd;     % fractal dimension
-    % eeg_features.nonlinear.FE = fe;     % fuzzy entropy
+    eeg_features.nonlinear.FE = fe;     % fuzzy entropy
     % eeg_features.nonlinear.MFE_scales(iChan,:) = scales;
     % eeg_features.nonlinear.MFE_scale_bounds(iChan,:) = scale_bounds;
     % eeg_features.nonlinear.MFE(iChan,:) = mfe;

@@ -2,7 +2,7 @@
 %
 % INPUT:
 %   EEG - EEG stucture (EEGLAB)
-%   method  - 'grubbs' (default, more aggressive), 'mean' (more lax)
+%   method  - 'median' (more aggressive), 'grubbs' (moderate, default), 'mean' (more conservative)
 %
 % OUTPUT:
 %   badTrials
@@ -26,7 +26,9 @@ badTrials = unique([find(badRMS) find(badSNR)]);
 
 if vis
     eegplot(EEG.data(:,:,badTrials),'srate',EEG.srate,'events',EEG.event, ...
-        'spacing',80,'title','Bad epochs removed','plottitle','Bad epochs');
+        'spacing',80,'title','Epochs removed','plottitle','Bad epochs');
+    set(gcf,'Toolbar', 'none', 'Menu', 'none');   % remove toolbobar and menu
+    set(gcf,'Name','Epochs removed','NumberTitle','Off')  % name
 end
 
 fprintf('Trials detected: %g \n', length(badTrials));

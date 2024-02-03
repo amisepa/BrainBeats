@@ -25,16 +25,44 @@
 %   Waveform and Interval Analysis" Physiological Measurement.
 %
 %   ORIGINAL SOURCE AND AUTHORS:
-%       Adriana N. Vest and various authors (Physionet Cardiovasculat
-%       Signal toolbox).
+%       Adriana N. Vest and various authors (Physionet Cardiovascular Signal toolbox).
 %
-% Cedric Cannard, 2022
-
+% Copyright (C), BrainBeats, Cedric Cannard, 2022
 
 function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params)
 
+%% Parameters
 fs = params.fs;
+if isfield(params,'rr_physlimlow') && ~isempty(params.rr_physlimlow)
+    lowerphysiolim = params.rr_physlimlow;
+else
+    lowerphysiolim = .375;    % default = .375 s (healthy range = .6-1 s)
+end
+if isfield(params,'rr_physlimhigh') && ~isempty(params.rr_physlimhigh)
+    upperphysiolim = params.rr_physlimhigh;  % (healthy range = .6-1 s)
+else
+    upperphysiolim = 2;    % default = 2 s
+end
+if isfield(params,'rr_gaplim') && ~isempty(params.rr_gaplim)
+    gaplimit = params.rr_gaplim;
+else
+    gaplimit = 2;    % default = 2 s 
+end
+if isfield(params,'rr_changelim') && ~isempty(params.rr_changelim)
+    changeLimit = params.rr_changelim;
+else
+    changeLimit = .2;    % default = .2
+end
+if isfield(params,'rr_correct') && ~isempty(params.rr_correct)
+    interpMeth = params.rr_correct;
+else
+    interpMeth = 'pchip';    % default = 'pchip'
+end
 
+
+%% Run
+
+% prep
 t_rr(1) = [];  % remove 1st heartbeat
 Rpeaks = repmat('N', [length(rr) 1]);
 
@@ -59,25 +87,25 @@ t_rr(idx_remove2) = [];
 clear idx_remove idx_remove2
 
 % Remove large RR intervals caused by gaps (not counted in total signal removed)
-gaplimit = 2;
 idx_remove = find(rr >= gaplimit);
 rr(idx_remove) = [];
 t_rr(idx_remove) = [];
 Rpeaks(idx_remove) = [];
 clear idx_remove;
 
-% Find non-Rpeaks
-% [~,~,outliers] = AnnotationConversion(Rpeaks);
+% Find non-R peaks
 goodbeats = strcmp(cellstr(Rpeaks),'N');
 badbeats = ~goodbeats;
 outliers = false(length(badbeats),1);
-% removing beats after non-N beats
+
+% remove beats after non-R beats
 for i = 1:length(badbeats)
     if badbeats(i)
         outliers(i) = 1;
         outliers(i+1) = 1;
     end
 end
+
 % remove extra points that may have been introduced at the end of the file
 if (length(outliers) > length(badbeats))
     z = length(outliers);
@@ -88,7 +116,6 @@ if length(Rpeaks) ~= length(rr)
 end
 
 % Find RR over given percentage change
-changeLimit = .2;
 idxRRtoBeRemoved = FindSpikesInRR(rr, changeLimit);
 
 % Combine Rpeaks and percentage outliers
@@ -105,33 +132,31 @@ end
 % Remove or interpolate outliers
 idx_outliers = find(outliers == 1);
 numOutliers = length(idx_outliers);
-rr_original = rr;
+% rr_original = rr;
 rr(idx_outliers) = NaN;
-if strcmp(params.rr_correct, 'remove')
+if strcmp(interpMeth, 'remove')
     NN_Outliers = rr;
     NN_Outliers(idx_outliers) = [];
     t_Outliers = t_rr;
     t_Outliers(idx_outliers) = [];
 else
-    NN_Outliers = interp1(t_rr,rr,t_rr,params.rr_correct);
+    NN_Outliers = interp1(t_rr,rr,t_rr,interpMeth);
     t_Outliers = t_rr;
 end
 
 % Identify non-physiologic beats
-lowerphysiolim = .375;      % equivalent to RR = .375
-upperphysiolim = 2;         % equivalent to RR = 2
 toohigh = NN_Outliers > upperphysiolim;
 toolow = NN_Outliers < lowerphysiolim;
 idx_toolow = find(toolow == 1);
 NN_NonPhysBeats = NN_Outliers;
 NN_NonPhysBeats(idx_toolow) = NaN;
 numOutliers = numOutliers + length(idx_toolow);
-if strcmp(params.rr_correct, 'remove')
+if strcmp(interpMeth, 'remove')
     NN_NonPhysBeats(idx_toolow) = [];
     t_NonPhysBeats = t_Outliers;
     t_NonPhysBeats(idx_toolow) = [];
 else
-    NN_NonPhysBeats = interp1(t_Outliers,NN_NonPhysBeats,t_Outliers,params.rr_correct);
+    NN_NonPhysBeats = interp1(t_Outliers,NN_NonPhysBeats,t_Outliers,interpMeth);
     t_NonPhysBeats = t_Outliers;
     flagged_beats = logical(outliers(:) + toohigh(:) + toolow(:));
 end
@@ -142,13 +167,14 @@ idx_outliers_2ndPass = find(logical(toohigh(:)) ~= 0);
 NN_TooFastBeats = NN_NonPhysBeats;
 NN_TooFastBeats(idx_outliers_2ndPass) = NaN;
 numOutliers = numOutliers + length(idx_outliers_2ndPass);
-if strcmp(params.rr_correct, 'remove')
+if strcmp(interpMeth, 'remove')
     flagged_beats = numOutliers;
     NN_TooFastBeats(idx_outliers_2ndPass) = [];
     t_TooFasyBeats = t_NonPhysBeats;
     t_TooFasyBeats(idx_outliers_2ndPass) = [];
 else
     NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,'spline','extrap');
+    % NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,interpMeth,'extrap');
     t_TooFasyBeats = t_NonPhysBeats;
 end
 

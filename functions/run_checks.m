@@ -10,17 +10,9 @@ fprintf('Running basic checks... \n')
 
 err = false;
 
-% basic checks on EEG data
-if isempty(EEG) || isempty(EEG.data)
-    errordlg('Empty EEG dataset.'); 
-    err = true; return   
-end
-if isempty(EEG.chanlocs(1).labels)
-    errordlg('No channel labels.'); 
-    err = true; return
-end
 if isempty(EEG.ref)
-    warning('EEG data not referenced! Referencing is highly recommended');
+    % warning('EEG data not referenced! Referencing is highly recommended');
+    params.reref = 'infinity';
 end
 
 % Check if data format is compatible with chosen analysis and select analysis
@@ -52,7 +44,7 @@ end
 
 % Make sure Heart channel is a cell
 if ~iscell(params.heart_channels)
-    warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
+    % warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
     params.heart_channels = {params.heart_channels};
 end
 
@@ -81,9 +73,27 @@ if ~contains(params.heart_signal, {'ecg' 'ppg'})
     return
 end
 
+% Includes HRV or not (for plotting only)
+if ~isfield(params,'hrv_features')
+    if strcmp(params.analysis,{'features'}) && params.clean_heart
+        params.hrv_features = true;
+    end
+end
+
+% Includes EEG or not (for plotting only)
+if ~isfield(params,'eeg_features')
+    if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || (isfield(params, 'eeg_frequency') ...
+            && params.eeg_frequency) || (isfield(params, 'eeg_nonlinear') && params.eeg_nonlinear)      
+        params.eeg_features = true;
+    else
+        params.eeg_features = false;
+        params.clean_eeg = false;
+    end
+end
+
 % Check for channel locations
-if params.eeg
-    if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
+if params.eeg_features
+    if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(2).X)
         errordlg("Electrode location coordinates must be loaded for visualizing outputs.")
         err = true; return
     end
@@ -91,34 +101,66 @@ end
 
 % Install necessary plugins for preprocessing
 if params.clean_eeg
-    % fprintf('Checking if required EEGLAB plugins are installed... \n')
     if ~exist('clean_asr','file')
-        plugin_askinstall('clean_asr','clean_asr', 0);
+        plugin_askinstall('clean_asr','clean_asr', 1);
     end
-    if ~exist('picard','file')
-        plugin_askinstall('picard', 'picard', 0);
+    if ~exist('picard','file') && params.icamethod == 1
+        plugin_askinstall('picard', 'picard', 1);
     end
     if ~exist('iclabel','file')
-        plugin_askinstall('iclabel', 'iclabel', 0);
+        plugin_askinstall('iclabel', 'iclabel', 1);
+    end
+    if isfield(params,'reref') && strcmp(params.reref, 'infinity') 
+        if ~exist('ref_infinity','file')
+            plugin_askinstall('REST_cmd', 'REST_cmd', 1);
+        end
     end
 end
 if strcmp(params.analysis,'rm_heart')
+    if ~exist('picard','file') && params.icamethod == 1
+        plugin_askinstall('picard', 'picard', 1);
+    end
     if ~exist('iclabel','file')
-        plugin_askinstall('iclabel', 'iclabel', 0);
+        plugin_askinstall('iclabel', 'iclabel', 1);
     end
 end
 
-% Includes EEG or not (for plotting only)
-if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || params.eeg_frequency
-    params.eeg = true;
-else
-    params.eeg = false;
-    params.clean_eeg = false;
-end
-
-% Ensure data double precision
-EEG.data = double(EEG.data);  % ensure double precision
+% Ensure data have double precision
+EEG.data = double(EEG.data);
 
 % Store sampling frequency
 params.fs = EEG.srate;
+
+% check if user has parallel toolbox
+if params.parpool
+    try 
+        ver('parallel')
+    catch
+        warning("You do not have the parallel toolbox. Turning parallel computing OFF.")
+        warningdlg("You do not have the parallel toolbox. Turning parallel computing OFF.")
+        params.parpool = false;
+    end
+end
+
+% Initiate or block parallel computing 
+if params.parpool
+    ps = parallel.Settings;
+    fprintf('Parallel computing set to ON. \n')
+    ps.Pool.AutoCreate = true;
+    p = gcp('nocreate');
+    % delete(gcp('nocreate')) % shut down opened parpool
+    if isempty(p) % if not already on, launch it
+        disp('Initiating parrallel computing (all cores and threads -1)...')
+        c = parcluster; % cluster profile
+        % N = feature('numcores');          % only physical cores
+        N = getenv('NUMBER_OF_PROCESSORS'); % all processor (cores + threads)
+        if ischar(N), N = str2double(N); end
+        c.NumWorkers = N-2;  % update cluster profile to include all workers
+        c.parpool();
+    end
+else
+    fprintf('Parallel computing set to OFF. \n')
+    ps = parallel.Settings;
+    ps.Pool.AutoCreate = false;  % prevents parfor loops from launching parpool mode
+end
 

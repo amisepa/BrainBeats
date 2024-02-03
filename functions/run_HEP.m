@@ -10,7 +10,13 @@
 %
 % Cedric Cannard, 2023
 
-function HEP = run_HEP(EEG, params, Rpeaks)
+function HEP = run_HEP(EEG, CARDIO, params, Rpeaks)
+
+% Remove boundary events
+idx = strcmpi({EEG.event.type}, 'boundary');
+if any(idx)
+    EEG.event(idx) = [];
+end
 
 % Add heartbeat markers in the signals, taking into account
 % existing events
@@ -23,6 +29,28 @@ types = repmat({'R-peak'},1,length(evt));
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index
 EEG = eeg_checkset(EEG);
 
+% Add back heart channel (mainly for plotting to check if R-peaks events 
+% align correctly with ECG signal)
+if isfield(params,'keep_heart') && params.keep_heart
+    % if EEG.srate ~= CARDIO.srate
+    %     CARDIO = pop_resample(CARDIO,EEG.srate);
+    % end
+    CARDIO = pop_eegfiltnew(CARDIO,'locutoff',1,'hicutoff',20);    
+    for iChan = 1:CARDIO.nbchan
+        CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -100, 100);
+    end
+    if EEG.pnts ~= CARDIO.pnts
+        EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data(:,1:end-1); % for PPG
+    else
+        EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
+    end
+    EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
+    for iChan = 1:CARDIO.nbchan
+        EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+    end
+    EEG = eeg_checkset(EEG);
+end
+
 % Calculate inter-beat-intervals (IBI) from EEG markers and R peaks (to
 % compare)
 IBI = nan(length(EEG.event),1);
@@ -34,7 +62,7 @@ IBI(1) = []; % remove first NaN value
 % figure('color','w'); histogram(IBI); hold on;
 % histogram(diff(Rpeaks)/EEG.srate *1000); legend('from EEG events','from R peaks');
 
-% Remove trials with IBI<550 ms (see Candia-Rivera et al. 2021; Park & Blanke 2019)
+% Remove epochs with IBI<550 ms (see Candia-Rivera et al. 2021; Park & Blanke 2019)
 shortTrials = find(IBI<550);
 if ~isempty(shortTrials)
     warning('Removing %g trials with interbeat intervals (IBI) < 550 ms', length(shortTrials))
@@ -44,7 +72,7 @@ else
     fprintf('All trial have an interbeat interval (IBI) above 550 ms (minimum recommended). \n')
 end
 
-% Remove remaining outlier trials
+% Remove remaining outlier epochs
 outliers = find(isoutlier(IBI,'grubbs'));
 if ~isempty(outliers)
     warning('Removing %g outlier trials with the following interbeat intervals (IBI): ', length(outliers))
@@ -63,8 +91,12 @@ if params.vis_outputs
     figure('color','w'); histfit(IBI); hold on
     plot([prctile(IBI,5) prctile(IBI,5)],ylim,'--r','linewidth',2)
     % plot([prctile(IBI,97.5) prctile(IBI,97.5)],ylim,'--r','linewidth',2)
-    title('Interbeat intervals (IBI) after removal of outlier trials'); xlabel('time (ms)')
+    title('Interbeat intervals (IBI) after removal of outliers'); 
+    xlabel('Time (ms)'); ylabel('Number of IBIs')
     legend('','','lower 95% percentile (epoch size)')
+    set(gcf,'Toolbar','none','Menu','none');                    % remove toolbobar and menu
+    set(gcf,'Name','Inter-beat intervals (IBI) distribution','NumberTitle','Off')  % name
+    set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
 end
 
 % Epoch (no baseline removal as it can bias results because of
@@ -76,19 +108,26 @@ HEP = pop_epoch(EEG,{},[-.3 prctile(IBI,5)/1000],'epochinfo','yes');
 % Remove bad epochs, run ICA, and remove bad components
 if params.clean_eeg
     [HEP, params] = clean_eeg(HEP,params);
+
+    % Preprocessing outputs
+    EEG.brainbeats.preprocessing.removed_eeg_trials = params.removed_eeg_trials;
+    EEG.brainbeats.preprocessing.removed_eeg_components = params.removed_eeg_components;
 end
 
-% Remove epochs containing more than 1 R-peak
-warning('Removing remaining epochs containing more than 1 R-peak (i.e. remaining interbeat intervals that are too short)')
-idx = false(length(HEP.epoch),1);
+% Only keep 1st marker when several are present in sam eepoch
+count = 0;
 for iEv = 1:length(HEP.epoch)
     if length(HEP.epoch(iEv).eventtype)>1
-        idx(iEv,1) = true;
+        HEP.epoch(iEv).event = HEP.epoch(iEv).event(1);
+        HEP.epoch(iEv).eventlatency = HEP.epoch(iEv).eventlatency(1);
+        HEP.epoch(iEv).eventduration = HEP.epoch(iEv).eventduration(1);
+        HEP.epoch(iEv).eventtype = HEP.epoch(iEv).eventtype(1);
+        count = count+1;
     end
 end
-HEP = pop_rejepoch(HEP, find(idx), 0);
-% HEP.event = [];
-% HEP = eeg_checkset(HEP);
+warning('%g epochs contained more than 1 R-peak and were adjusted by preserving only the first event of the epochs',count)
+HEP.epoch = rmfield(HEP.epoch,'eventurevent');
+HEP = eeg_checkset(HEP);
 
 
 %% Plot Heartbeat-evoked potentials (HEP) and oscillations (HEO)
@@ -99,9 +138,19 @@ HEP = pop_rejepoch(HEP, find(idx), 0);
 
 if params.vis_outputs
 
+    if params.vis_cleaning
+        pop_eegplot(HEP,1,1,1);
+        set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+        set(gcf,'Name','Final output','NumberTitle','Off')  % name
+    end
+
+    % Show mean HEP for each electrodes and allows clicking on them to see
+    % more closely
     figure
     pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0, 'ydir',1);
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    % set(gcf,'Name','Mean HEP for EEG each channel','NumberTitle','Off')  % name
 
     % HEP all elecs + scalp topographies of window of interest
     figure
@@ -127,36 +176,44 @@ if params.vis_outputs
         10,1,{'R-peak'},[],'','yerplabel','\muV','erp','on','cbar','on' );
     colormap("parula") % parula hot bone sky  summer winter
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Name','HEP','NumberTitle','Off')  % name
 
     % % Headplot
     % pop_headplot(HEP, 1, 0, 'HEP', [1  1], 'setup', ...
     %     { fullfile(HEP.filepath,'sample_data', sprintf('%s_HEP.spl', HEP.filename(1:end-4))), ...
     %     'meshfile','mheadnew.mat','transform',[-1.136 7.7523 11.4527 -0.027117 0.015531 -1.5455 0.91234 0.93161 0.80698] });
     % colormap("parula")
+    % set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    % set(gcf,'Name','HEP','NumberTitle','Off')  % name
 
-    % Event-related spectral perturbations (ERSP) and inter-trial coherence (ITC) (non-corrected)
-    figure('color','w');
-    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8], ...
-        'topovec',1,'elocs',HEP.chanlocs,'chaninfo',HEP.chaninfo,'freqs',[7 30], ...
-        'baseline',0,'plotphase','on','padratio',2,'caption', ...
-        sprintf('%s (uncorrected)',elecName));
-    colormap("parula") % "parula" "hot" "bone" "sky" "summer" "winter"
-    
+    % ERSP and ITC (uncorrected)
+    % figure('color','w');
+    % pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8], ...
+    %     'topovec',1,'elocs',HEP.chanlocs,'chaninfo',HEP.chaninfo,'freqs',[7 25], ...
+    %     'baseline',0,'plotphase','on','padratio',2,'caption', ...
+    %     sprintf('%s (uncorrected)',elecName));
+    % colormap("parula") % "parula" "hot" "bone" "sky" "summer" "winter"
+    % set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    % set(gcf,'Name','Heartbeat-evoked oscillations (HEO) and ITC','NumberTitle','Off')  % name
+
     % ERSP and ITC (bootstrap + FDR-corrected)
     figure('color','w');
-    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8],'topovec',1,'elocs', ...
-        HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[8 30], ...
+    pop_newtimef(HEP,1,elecNum,[HEP.times(1) HEP.times(end)],[3 0.8],...
+        'topovec',1,'elocs', HEP.chanlocs,'chaninfo',HEP.chaninfo, 'freqs',[7 25], ...
         'baseline',0,'plotphase','on','padratio',2, ...
-        'alpha',0.05,'mcorrect','fdr','naccu',1000,'caption', ...
-        sprintf('%s (FDR-corrected)',elecName));
+        'alpha',0.05,'mcorrect','fdr','naccu',1000,...
+        'caption',sprintf('Channel %s (p=0.05; FDR-corrected)',elecName));
     colormap("parula") % parula hot bone sky summer winter
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Name','Heartbeat-evoked oscillations (HEO) and ITC','NumberTitle','Off')  % name
 
 end
 
 % Save
 if params.save
-    newname = sprintf('%s_HEP.set', HEP.filename(1:end-5));
-    pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath); % FIXME: add output
+    newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
+    pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath);
 end
 
 

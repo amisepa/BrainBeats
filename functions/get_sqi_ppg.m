@@ -23,12 +23,12 @@
 %
 % Original code by Qiao Li (2011)
 %
-% Copyright (C) - Cedric Cannard, 2023
+% Copyright (C) BrainBeats, Cedric Cannard, 2023
 
-function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs, winlength)
+function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs)
 
-% Params
-winlength = winlength*fs; % default = 30-s window
+% Window length 
+winlength = 30*fs; % default = 30 s
 
 % Initialize
 template = [];
@@ -38,11 +38,13 @@ for j = 1:length(beats)
     annot(j) = 'Q';
 end
 
-sqimatrix_all = zeros(length(beats),3);
-sqi_mu = zeros(1,ceil(length(signal)/fs/30));
+% sqi_mu = zeros(1,ceil(length(signal)/fs/winlength));
 
-% loop every 30-sec
-for j = 1:ceil(length(signal)/winlength)
+% loop every 30-sec window
+nWind = ceil(length(signal)/winlength);
+progressbar('Calculating signal quality index (SQI) from PPG signal')
+sqi_mu = nan(1,nWind);
+for j = 1:nWind
     databegin = (j-1)*winlength+1;
     dataend = min(length(signal),j*winlength);
     annf = find(beats<=dataend);
@@ -62,16 +64,19 @@ for j = 1:ceil(length(signal)/winlength)
     anntime = beats(annf)-databegin+1;
 
     % PPG SQI analysis
-    [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,30*fs,fs);
-    for k=1:length(annot)
-        annot(annf(k))=annot{k};
-        sqimatrix_all(annf(k),:)=sqimatrix(k,1:3); % 1:4
+    [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,winlength*fs,fs);
+    sqimatrix_all = nan(length(beats),size(sqimatrix,2));
+    for k = 1:length(annot)
+        annot(annf(k)) = annot(k);
+        sqimatrix_all(annf(k),:) = sqimatrix(k,:);
         beat_i=beat_i+1;
     end
-    sqi_mu(j) = mean(mean(sqimatrix(:,1:3)'));
+    sqi_mu(j) = mean(mean(sqimatrix_all,2,'omitnan'),'omitnan');
 
+    progressbar(j/nWind)
 end
 sqi = round(mean(sqimatrix_all(:,1:3),2)');
+sqi = sqi./100;
 
 
 
@@ -123,12 +128,6 @@ sqi = round(mean(sqimatrix_all(:,1:3),2)');
 
 function [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,windowlen,Fs)
 
-    if nargin < 5
-        Fs = 125; 
-    end
-    if nargin < 4 || isempty(windowlen)
-        windowlen=30*Fs;
-    end
     if nargin < 3 || isempty(template)
         template=[];
     end
@@ -145,7 +144,7 @@ function [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template
     sqimatrix=[];
     
     % get PPG template
-    [t t2 v]=template_pleth(wave(1:min(windowlen,length(wave))), anntime(find(anntime<min(windowlen,length(wave)))),0, Fs);
+    [t, t2, v] = template_pleth(wave(1:min(windowlen,length(wave))), anntime(anntime<min(windowlen,length(wave))),0, Fs);
 
     if v<1 && length(template)<1 % Current template invalid && no previous template available
         for j=1:length(anntime)
