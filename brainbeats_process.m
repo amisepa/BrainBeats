@@ -182,7 +182,7 @@ if contains(params.analysis, {'features' 'hep'})
         if flaggedRatio > maxThresh % more than 20% of RR series is bad
             warning("%g%% of the RR series on your best electrode are artifacts. Maximum recommendations 20%%! Aborting...", round(flaggedRatio*100,2));
         else
-            fprintf( "Keeping only the heart electrode with the best signal quality index (SQI): %g%% of the RR series is outside of the recommended threshold. \n", round(flaggedRatio,2) )
+            fprintf('%g heart beats were flagged as artifacts and interpolated. \n', sum(flagged));
         end
         sig_t = sig_t(best_elec,:);
         sig = sig(best_elec,:);

@@ -37,7 +37,7 @@ if params.heart
         error("Heart channels not defined. Please define 'heart_channels'. See help for an example")
     end
 else
-    params.heart_channels = {};
+    error("Heart channels not defined. Please define 'heart_channels'. See help for an example")
 end
 
 % Analysis to do
@@ -69,7 +69,7 @@ else
     params.clean_eeg = false;
 end
 
-% EEG features default
+% EEG features
 if strcmp(params.analysis,'features')
     idx = find(strcmpi(varargin,'eeg_features'));
     if ~isempty(idx)
