@@ -109,9 +109,9 @@ if err, return; end  % stop program if there was an error (because errdlg
 CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
 EEG = pop_select(EEG,'nochannel',params.heart_channels); 
 
-% Basic check for missed auxiliary channels that could cause issues 
+% Basic check for other auxiliary channels that could cause issues 
 % (very simplistic and limited by dataset's electrode labels)
-idx = contains(lower({EEG.chanlocs.labels}), {'ecg' 'ppg' 'aux'});
+idx = contains(lower({EEG.chanlocs.labels}), {'ecg' 'ekg' 'ppg' 'aux' 'gsr' 'eda' 'eog' 'emg'});
 if any(idx)
     auxChan = strjoin({EEG.chanlocs(idx).labels});
     opts.Interpreter = 'tex';
