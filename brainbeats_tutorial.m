@@ -1,13 +1,15 @@
 %% Welcome to the BrainBeats tutorial for command line use
 % 
 % REQUIREMENTS:
-%   1) Install EEGLAB
+%   1) MATLAB (requires a license) or Octave installed
+% 
+%   2) Install EEGLAB
 %   Download here: https://github.com/sccn/eeglab
 %   Unzip (or clone) the file on your computer and add the path to MATLAB 
 %   Home panel > Set path > Add folder > select the eeglab folder > Save >
 %   Close
 % 
-%   2) Install BrainBeats
+%   3) Install the BrainBeats plugin
 %   Download here: https://github.com/amisepa/BrainBeats
 %   Type 'eeglab' in MATLAB's command window to open EEGLAB. Go to File >
 %   Manage extensions > type 'brainbeats' in the search bar > select in the
@@ -15,7 +17,7 @@
 %   in eeglab > plugins on your computer. 
 %  
 % Sample dataset used for the tutorial:
-% raw 63-channel EEG, ECG, and PPG data during 3.8 minutes of resting state
+% Raw 64-channel EEG, ECG, and PPG data during 3.8 minutes of resting state
 % with eyes opened. This file corresponds to sub-032_task-rest_eeg.set and
 % sub-032_task-rest_ecg.set merged, downsampled to 250 hz to accelerate 
 % operations. 
@@ -30,12 +32,11 @@
 % channel for demonstration purposes since there were no bad channels in this
 % dataset. And we artifically added electrode artifacts in the beginning of
 % the file, and some muscle artifacts at 3-6 s on temporal channels, for
-% illustration of artifact removal. 
-% The script used to prepare this file can be found in "functions" >
-% "prep_sampledata.m"
+% illustration of artifact removal. The script used to prepare this file can 
+% be found in "functions" > "prep_sampledata.m"
 % 
-% You can launch each section one by one by clicking in the section and pressing:
-% CTRL/CMD + ENTER
+% You can launch each section one by one by clicking in the section and 
+% pressing CTRL (for Windows) or CMD (Mac) + ENTER
 % 
 % We hope you this tutorial and BrainBeats are useful to you too! 
 % 
@@ -150,7 +151,8 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
 
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'vis_cleaning',false);
+    'heart_channels',{'ECG'},'clean_eeg',true,'vis_cleaning',false,...
+    'conf_thresh',.8,'boost',true);
 
 %% To launch the GUI only
 

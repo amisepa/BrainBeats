@@ -83,6 +83,14 @@ if ~isempty(idx)
     params.ecg_searchback = varargin{idx+1};
 end
 
+% params for method 3:removing heart artifacts from EEG
+if isfield(params, 'conf_thresh') && ~isempty(params.conf_thresh)
+    params.conf_thresh = params.conf_thresh;
+end
+if isfield(params, 'boost') && ~isempty(params.boost)
+    params.boost = logical(params.boost);
+end
+
 
 % RR artifacts
 idx = find(strcmpi(varargin,'rr_physlimlow'));

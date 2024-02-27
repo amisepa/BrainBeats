@@ -347,7 +347,7 @@ elseif strcmp(params.analysis,'rm_heart')
         params.clean_eeg_step = 0;
         [EEG, params] = clean_eeg(EEG, params);
         
-        % EEG artifacts
+        % EEG artifacts with ASR and ICA
         params.clean_eeg_step = 1;
         [EEG, params] = clean_eeg(EEG, params);
         
