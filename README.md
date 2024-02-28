@@ -8,26 +8,23 @@
 
 The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing and analysis of EEG and cardiovascular signals (ECG/PPG). Both the general user interface (GUI) and command line are supported (see tutorial). 
 
-## Detecting RR intervals from cardiovascular signals
-
-From ECG signal
-<p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/figures/fig4.png"> 
-</p>
-
 
 ## THREE METHODS AVAILABLE
+
+<p align="center" width="100%">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/diagram.png">
+</p>
 
 1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
 
 Example of HEP at the subject level, obtained from simultaneous EEG-ECG signals:
 <p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.11.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig11.png"> 
 </p>
 
 Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals:
 <p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig1.17.png">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig17.png">
 </p>
 
 2) Extract EEG and HRV features from continuous data in the time, frequency, and nonlinear domains. 
@@ -40,19 +37,19 @@ Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals:
 
 Example of power spectral density (PSD) estimated from HRV and EEG data:
 <p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig2.4.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig21.png"> 
 </p>
 
 Example of EEG features extracted from sample dataset.
 <p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig2.5.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig22.png"> 
 </p>
 
 3) Remove heart components from EEG signals using ICA and ICLabel.
    
 Example of extraction of cardiovascular components from EEG signals
 <p width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig3.3.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig27.png"> 
 </p>
 
 ## Requirements
