@@ -1,5 +1,5 @@
 <!-- <p align="center"> -->
-# BrainBeats (Beta)
+# BrainBeats
 <!-- </p> -->
 
 <p align="center" width="100%">
@@ -7,6 +7,14 @@
 </p>
 
 The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing and analysis of EEG and cardiovascular signals (ECG/PPG). Both the general user interface (GUI) and command line are supported (see tutorial). 
+
+## Detecting RR intervals from cardiovascular signals
+
+From ECG signal
+<p width="100%">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig4.png"> 
+</p>
+
 
 ## THREE METHODS AVAILABLE
 
