@@ -146,8 +146,15 @@ if params.vis_outputs
 
     % Show mean HEP for each electrodes and allows clicking on them to see
     % more closely
+    % figure
+    % pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0,...
+    %     'ydir',1);
+    options = { 'frames' HEP.pnts 'limits' [HEP.xmin HEP.xmax 0 0]*1000 ...
+        'title' 'Heartbeat-evoked potentials (HEP)' 'chans' 1:HEP.nbchan ...
+        'chanlocs' HEP.chanlocs 'ydir' 1 'legend' {'uV' 'Time (ms)'}};
     figure
-    pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0, 'ydir',1);
+    % plottopo_mod( HEP.data, options{:} );           % single trials (long)
+    plottopo_mod( trimmean(HEP.data,20,3), options{:} );   % average across trials
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     % set(gcf,'Name','Mean HEP for EEG each channel','NumberTitle','Off')  % name

@@ -91,7 +91,7 @@ else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
 end
 win_length = 5;     % window length to scan channels (default = 5 s)
-line_thresh = 8;    % line noise threshold to remove bad channels (default = 8)
+line_thresh = 15;    % line noise threshold to remove bad channels (default = 15)
 nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
@@ -158,6 +158,7 @@ if params.clean_eeg_step == 0
     try 
         EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
     catch
+        warndlg('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.')
         warning('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.');
         EEG = clean_channels_nolocs(EEG,0.45,0.1,win_length,.4);
     end
@@ -190,14 +191,6 @@ if params.clean_eeg_step == 0
     if isfield(params,'linenoise') && params.linenoise<lowpass
         EEG = pop_eegfiltnew(EEG, 'locutoff',params.linenoise-3, ...
             'hicutoff',params.linenoise+3,'revfilt',1,'filtorder',500);
-    end
-
-    % Interpolate them
-    if EEG.nbchan>20
-        EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
-        EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
-    else
-        warning('Cannot interpolate bad EEG channels reliably with less than 30 channels')
     end
 
     % update tracker
@@ -264,6 +257,16 @@ elseif params.clean_eeg_step == 1
         end
     end
     
+    % Interpolate bad channels (after ASR as low data rank can cause bad
+    % performance with PCA used in ASR)
+    if EEG.nbchan>10
+        EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
+        EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
+    else
+        warndlg('Cannot interpolate bad EEG channels reliably with less than 10 channels')
+        warning('Cannot interpolate bad EEG channels reliably with less than 10 channels')
+    end
+
     % Run ICA at effective data rank to control for ghost ICs (Kim et al. 2023). 
     % Use Picard algorithm when possible to increase speed. 
     % use lrate=1e-5 and maxsteps=2000 to obtain reproducible ICA results
