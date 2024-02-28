@@ -8,11 +8,6 @@
 
 The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing and analysis of EEG and cardiovascular signals (ECG/PPG). Both the general user interface (GUI) and command line are supported (see tutorial). 
 
-## Requirements
-
-- MATLAB installed (https://www.mathworks.com/downloads)
-- EEGLAB installed (https://github.com/sccn/eeglab)
-- Some data containing EEG and cardiovascular signals (ECG or PPG) within the same file (i.e. recorded simultaneously). Or use the provided sample dataset. 
  
 ## THREE METHODS AVAILABLE
 
@@ -21,6 +16,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 </p>
 
 1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
+
 
 <p align="center">
     Example of HEP at the subject level, obtained from simultaneous EEG-ECG signals
@@ -44,6 +40,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     - EEG frequency domain: average band power (delta, theta, alpha, beta, gamma), individual alpha frequency (IAF), alpha asymmetry.
     - EEG nonlinear domain: fuzzy entropy, fractal dimension
 
+
 <p align="center">
     Example of power spectral density (PSD) estimated from HRV and EEG data
 </p>
@@ -59,6 +56,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 </p>
 
 3) Remove heart components from EEG signals using ICA and ICLabel.
+
    
 <p align="center">
     Example of extraction of cardiovascular components from EEG signals
@@ -67,8 +65,14 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig27.png"> 
 </p>
 
- 
-## Tutorial
+## Requirements
+
+- MATLAB installed (https://www.mathworks.com/downloads)
+- EEGLAB installed (https://github.com/sccn/eeglab)
+- Some data containing EEG and cardiovascular signals (ECG or PPG) within the same file (i.e. recorded simultaneously).
+  Or use the provided sample dataset.
+
+## Step-by-step tutorial
 
 A sample dataset is provided and located in the "sample_data" folder. 
 
