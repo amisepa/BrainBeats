@@ -23,13 +23,15 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
 
 <p align="center">
-Example of HEP at the subject level, obtained from simultaneous EEG-ECG signals
+    Example of HEP at the subject level, obtained from simultaneous EEG-ECG signals
 </p>
 <p align="center" width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig11.png"> 
 </p>
 
-Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals:
+<p align="center">
+    Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals
+</p>
 <p align="center" width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig17.png">
 </p>
@@ -42,19 +44,25 @@ Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals:
     - EEG frequency domain: average band power (delta, theta, alpha, beta, gamma), individual alpha frequency (IAF), alpha asymmetry.
     - EEG nonlinear domain: fuzzy entropy, fractal dimension
 
-Example of power spectral density (PSD) estimated from HRV and EEG data:
+<p align="center">
+    Example of power spectral density (PSD) estimated from HRV and EEG data
+</p>
 <p align="center" width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig21.png"> 
 </p>
 
-Example of EEG features extracted from sample dataset.
+<p align="center">
+    Example of EEG features extracted from sample dataset
+</p>
 <p align="center" width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig22.png"> 
 </p>
 
 3) Remove heart components from EEG signals using ICA and ICLabel.
    
-Example of extraction of cardiovascular components from EEG signals
+<p align="center">
+    Example of extraction of cardiovascular components from EEG signals
+</p>
 <p align="center" width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/v1.4/figures/fig27.png"> 
 </p>
