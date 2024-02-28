@@ -1,7 +1,7 @@
 %% prep sample data for BrainBeats tutorial
 
 clear; close all; clc
-datapath = 'C:\Users\Tracy\Downloads';
+datapath = 'C:\Users\Cedric\Downloads';
 eeglab;close
 locPath = fileparts(which('dipfitdefs.m'));
 cd(datapath)
@@ -17,10 +17,12 @@ EEG = pop_chanedit(EEG,'lookup',fullfile(locPath,'standard_BEM','elec','standard
 % Load file containing ECG and PPG data
 CARDIO = pop_loadset('filename',sprintf('%s_task-rest_ecg.set',subject),'filepath',datapath);
 
-% CARDIO data are a few seconds longer, select only common signal with EEG
+% if CARDIO data are a few seconds longer, select only common signal with EEG
 extraData = CARDIO.xmax - EEG.xmax;
-warning("Removing %g seconds of extra data from cardio signal!",round(extraData,2))
-CARDIO = pop_select(CARDIO,'point',[1 EEG.pnts]);
+if extraData ~= 0
+    warning("Removing %g seconds of extra data from cardio signal!",round(extraData,2))
+    CARDIO = pop_select(CARDIO,'point',[1 EEG.pnts]);
+end
 
 % Check time is the same for both files
 % CARDIO.times = double(CARDIO.times);
@@ -59,14 +61,14 @@ t = 0:1/EEG.srate:duration-1/EEG.srate;
 artifact = 100 .* randn(length(channels), length(t));
 EEG.data(channels, startTime:(startTime+length(t)-1)) = EEG.data(channels, startTime:(startTime+length(t)-1)) + artifact;
 
-pop_saveset(EEG, 'filename','dataset-new.set','filepath','C:\Users\Tracy\Documents\\MATLAB\BrainBeats\sample_data\');
+pop_saveset(EEG, 'filename','dataset-new.set','filepath','C:\Users\Cedric\Documents\MATLAB\BrainBeats\sample_data\');
 
 % EEG = rm_DC(EEG);
 pop_eegplot(EEG,1,1,1);
 
 %% Simulate heart artifacts for method 3 by averaging heart signal into EEG signals
 
-% EEG = pop_loadset('dataset.set','C:\Users\Tracy\Documents\\MATLAB\BrainBeats\sample_data\');
+% EEG = pop_loadset('dataset.set','C:\Users\Cedric\Documents\\MATLAB\BrainBeats\sample_data\');
 % EEG = pop_eegfiltnew(EEG,'locutoff',1);
 % EEG = pop_eegfiltnew(EEG,'hicutoff',30);
 % CARDIO = pop_select(EEG,'channel',{'ECG'}); 
@@ -87,4 +89,4 @@ pop_eegplot(EEG,1,1,1);
 % EEG.data = EEG.data - repmat(mean(EEG.data),size(EEG.data,1),1);
 % pop_eegplot(EEG,1,1,1);
 % 
-% EEG = pop_saveset(EEG, 'filename','dataset2.set','filepath','C:\Users\Tracy\Documents\MATLAB\BrainBeats\sample_data\');
+% EEG = pop_saveset(EEG, 'filename','dataset2.set','filepath','C:\Users\Cedric\Documents\MATLAB\BrainBeats\sample_data\');
