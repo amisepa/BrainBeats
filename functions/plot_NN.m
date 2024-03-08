@@ -11,6 +11,9 @@ function plot_NN(sig_t,sig,RR_t,RR,Rpeaks,NN_t,NN,flagged,sigtype)
 figure("color","w","toolbar","none","menubar","none",...
     'name','RR intervals and artifacts','numberTitle','off');
 
+% eeglab background color
+try icadefs; set(gcf, 'color', BACKCOLOR); catch; end  
+
 try
     subplot(3,1,3)
     winSize = 30/sig_t(end);

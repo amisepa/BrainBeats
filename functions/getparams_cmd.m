@@ -217,11 +217,9 @@ idx = find(strcmpi(varargin,'asr_mem'));
 if ~isempty(idx)
     params.asr_mem = varargin{idx+1};
 end
-idx = find(strcmpi(varargin,'reref'));
+idx = find(strcmpi(varargin,'ref'));
 if ~isempty(idx)
-    params.reref = varargin{idx+1};
-else
-    params.reref = 'infinity';
+    params.ref = varargin{idx+1};
 end
 idx = find(strcmpi(varargin,'linenoise'));
 if ~isempty(idx)

@@ -62,6 +62,7 @@ end
 if params.hrv_features && params.hrv_frequency
 
     figure('color','w');
+    try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
 
     % Subplot mode if EEG PSD was also extracted
     if params.eeg_features && params.eeg_frequency
@@ -146,6 +147,7 @@ if params.eeg_features && params.eeg_frequency
         nexttile([2 3])
     else
         figure('color','w')
+        try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
     end
 
     % PSD units for ylabel
@@ -247,6 +249,8 @@ if params.eeg_features && params.eeg_frequency
     % Create figure
     figure('color','w','Units','Normalized','OuterPosition', [0 0 1 1],...
         'Toolbar','none','Menu','none','Name','EEG features','NumberTitle','Off')
+
+    try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
 
     % delta, theta, alpha, beta
     warning('off','all')
@@ -363,6 +367,7 @@ end
 % 
 %     % Partial coherence
 %     figure('color','w');
+    % try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
 % %     % subplot(2,2,1)
 %       nexttile
 %     % imagesc(EEG.frequency.eeg_pcoh_delta);

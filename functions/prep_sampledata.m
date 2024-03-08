@@ -1,7 +1,7 @@
 %% prep sample data for BrainBeats tutorial
 
 clear; close all; clc
-datapath = 'C:\Users\Cedric\Downloads';
+datapath = 'C:\Users\Tracy\Downloads';
 eeglab;close
 locPath = fileparts(which('dipfitdefs.m'));
 cd(datapath)
@@ -44,31 +44,31 @@ end
 EEG = eeg_checkset(EEG);
 
 % downsample so that the repo is not too heavy and computations are fast
-EEG = pop_resample(EEG,250);
+EEG = pop_resample(EEG,125);
 
 % Artifically create a bad EEG channel
-EEG.data(10,:) = EEG.data(10,end:-1:1).*5;
+EEG.data(10,:) = EEG.data(10,end:-1:1).*3;
 
 % Simulate a large electrode disconnection artifact in the beginning of
 % file
-EEG.data(1:EEG.nbchan-length(heart_channels),1:EEG.srate) = EEG.data(1:EEG.nbchan-length(heart_channels),EEG.srate:-1:1).*3;
+EEG.data(1:EEG.nbchan-length(heart_channels),1:150) = EEG.data(1:EEG.nbchan-length(heart_channels),150:-1:1).*3;
 
 % Simulate high-frequency muscle artifacts 
-channels = [9 10 20 21 42 55];  % TP channels
-startTime = 10*EEG.srate;        % Start at 10 s
-duration = 3;                   % duration of artifact (in s)
+channels = [9 10 20 21 42 55];      % TP channels
+startTime = 10*EEG.srate;           % Start at 10 s
+duration = 3;                       % lasts 3 s
 t = 0:1/EEG.srate:duration-1/EEG.srate;
 artifact = 100 .* randn(length(channels), length(t));
 EEG.data(channels, startTime:(startTime+length(t)-1)) = EEG.data(channels, startTime:(startTime+length(t)-1)) + artifact;
 
-pop_saveset(EEG, 'filename','dataset-new.set','filepath','C:\Users\Cedric\Documents\MATLAB\BrainBeats\sample_data\');
+pop_saveset(EEG, 'filename','dataset-new.set','filepath','C:\Users\Tracy\Documents\MATLAB\BrainBeats\sample_data\');
 
 % EEG = rm_DC(EEG);
+EEG.data = EEG.data - mean(EEG.data,2);
 pop_eegplot(EEG,1,1,1);
 
 %% Simulate heart artifacts for method 3 by averaging heart signal into EEG signals
 
-% EEG = pop_loadset('dataset.set','C:\Users\Cedric\Documents\\MATLAB\BrainBeats\sample_data\');
 % EEG = pop_eegfiltnew(EEG,'locutoff',1);
 % EEG = pop_eegfiltnew(EEG,'hicutoff',30);
 % CARDIO = pop_select(EEG,'channel',{'ECG'}); 
@@ -89,4 +89,4 @@ pop_eegplot(EEG,1,1,1);
 % EEG.data = EEG.data - repmat(mean(EEG.data),size(EEG.data,1),1);
 % pop_eegplot(EEG,1,1,1);
 % 
-% EEG = pop_saveset(EEG, 'filename','dataset2.set','filepath','C:\Users\Cedric\Documents\MATLAB\BrainBeats\sample_data\');
+% EEG = pop_saveset(EEG, 'filename','dataset2.set','filepath','C:\Users\Tracy\Documents\MATLAB\BrainBeats\sample_data\');

@@ -17,50 +17,48 @@
 %                       'previous'  (previous neighbor)
 %                       'spline'    (piecewise cubic spline) 
 %                       'makima' (modified Akima cubic interpolation)
-%                    Or remove them instead with: 'remove'.
-%  'clean_eeg'      - [0|1] filter EEG data (bandpass zero-phase FIR 1-45 Hz), 
-%                       re-reference data do infinity using REST, remove
-%                       bad channels and interpolate them. For HEP, bad
-%                       trials are removed, whereas for Features, artifacts
-%                       are removed with Artifact Subspace Reconstruction
-%                       (ASR). Source separation (ICA) is performed taking
-%                       into account effective data rank (see Kim et al.
-%                       2023), before classifying and removing bad
-%                       components with ICLabel (muscle and heart with 95%
-%                       confidence, eye with 90% confidence).
-%  'parpool'        - [0|1] use paralell toolbox. Default is 0.
-%  'rm_heart'       - [0|1] remove heart channel (1, default) after processing it,
-%                     or not (0). 
-%  'hrv_features'   - [cell array of characters] HRV features to compute. See
-%                     GET_HRV_FEATURES for more information. Choices are
-%                     'time' (time-domain measures), 'frequency' (frequency
-%                     domain measures, and 'nonlinear' (nonlinear domain measures).
-%  'hrv_spec'       - ['LombScargle'|'pwelch'|'fft'] method to compute the 
-%                     HRV spectrum. Default is 'LombScargle'. pwelch and
-%                     fft implement resampling. 
-%  'eeg_features'   - [cell array of string] EEG features to compute. See
-%                     GET_EEG_FEATURES for more information. Choices are
-%                     'time' (time domain), 'frequency' (frequency domain), 
-%                     and 'nonlinear' (nonlinear domain).
-%  'norm'           - [0|1] normalize HRV and EEG spectra (Features mode).
-%                     For HRV, applied during Lomb-Scargle periodogram
-%                     estimation by scaling the total power with variance
-%                     in the time series, and in a 2nd step dy dividing
-%                     each band power by total power to provide more
-%                     intuitive measure of the relative contribution of
-%                     each frequency component to overall power. 
-%  'gpu'            - [0|1] use GPU. Default is 0.
-%  'vis_cleaning'   - [0|1] set vizualization of preprocessing plots to 
-%                     on (1) or off (0). Default is on.
-%  'vis_outputs'    - [0|1] set vizualization of outputs to on (1) or 
-%                     off (0). Default is on.
-%  'save'           - [0|1] save results into a MATLAB file (1) or not (0). Default is on.
+%                       Or remove them with 'remove' (not recommended).
+%  'clean_eeg'      - [0|1] to preprocess EEG data (1) or not (0). 
+%                       - filter EEG data (bandpass zero-phase FIR 1-45 Hz)
+%                       - re-reference data do average (default)
+%                       - remove bad channels and interpolate them. 
+%                       - remove bad epochs (HEP-mode) or bad segments 
+%                           (Features-mode), whereas for Features
+%                       - extract bad components with ICA, taking into 
+%                           account effective data rank (see Kim et al.2023)
+%                           and classifying them with ICLabel (eye with 90% 
+%                           confidence, others with 99% confidence).
+%  'rm_heart'       - [0|1] remove the heart channel (1, default) after 
+%                       operations are complete (1, default) or not (0). 
+%  'hrv_features'   - [cell array of characters] HRV features to compute. 
+%                       Choices are 'time', 'frequency', 'nonlinear'. 
+%                       See GET_HRV_FEATURES for more information. 
+%  'eeg_features'   - [cell array of string] EEG features to compute. 
+%                       Choices are 'frequency', 'nonlinear'. 
+%                       See GET_EEG_FEATURES for more information. 
+%  'parpool'        - [0|1] use parallel computing (1) or not (0, default).
+%                       Mainly useful for nonlinear EEG features.
+%  'gpu'            - [0|1] use GPU computing (1) or not (0). 
+%                       Mainly useful for cleaning EEG with ASR faster. 
+%  'vis_cleaning'   - [0|1] vizualize the preprocessing plots (1, default) 
+%                     or not (0). Strongly recommended.
+%  'vis_outputs'    - [0|1] vizualize the outputs (1, default) or not (0).
+%                       Include for example grand average HEP/HEO, EEG/HRV
+%                       power spectral density, EEG features topographies. 
+%  'save'           - [0|1] save the resulting processed EEGLAB dataset (.set 
+%                       file at the same place as loaded file but renamed).
+%                       For features-mode, also saves a .mat file containing  
+%                       the features in structure format. Set to ON (1, default)
+%                       or OFF (0).
 %
 % Outputs:
-%   EEG      - modified EEGLAB dataset. A EEG.features field is created
-%              containing all the features computed for the dataset.
+%   'EEG'           - Processed EEGLAB dataset. An EEG.brainbeats field is 
+%                   created containing the 
+%                   parameters used, some preprocessing outputs (e.g. channels
+%                   or RR artifacts removed), and the computed EEG & HRV 
+%                   features computed if using the features-mode.
 %
-% Copyright (C) - BrainBEats, Cedric Cannard, 2023
+% Copyright (C) - BrainBeats, Cedric Cannard, 2023
 
 function [EEG, com] = brainbeats_process(EEG, varargin)
 
@@ -278,6 +276,7 @@ if contains(params.analysis, {'features' 'hep'})
     % Filter, re-reference, remove bad channels
     if params.clean_eeg    
         params.clean_eeg_step = 0;
+        params.orichanlocs = EEG.chanlocs;
         [EEG, params] = clean_eeg(EEG, params);
 
         % Preprocessing outputs
@@ -439,6 +438,7 @@ end
 % end
 fprintf('\n')
 fprintf("Done! Thank you for using the BrainBeats toolbox! Please cite: \n");
-fprintf("Cannard, Wahbeh, & Delorme (2023). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. bioRxiv, 2023-06 \n")
+fprintf("Cannard, Wahbeh, & Delorme (2024). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. \n")
+fprintf("https://www.biorxiv.org/content/10.1101/2023.06.01.543272v2 \n")
 
  gong

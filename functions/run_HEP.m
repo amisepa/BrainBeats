@@ -94,8 +94,8 @@ if params.vis_outputs
     title('Interbeat intervals (IBI) after removal of outliers'); 
     xlabel('Time (ms)'); ylabel('Number of IBIs')
     legend('','','lower 95% percentile (epoch size)')
-    set(gcf,'Toolbar','none','Menu','none');                    % remove toolbobar and menu
-    set(gcf,'Name','Inter-beat intervals (IBI) distribution','NumberTitle','Off')  % name
+    try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
+    set(gcf,'Name','Inter-beat intervals (IBI) distribution','NumberTitle','Off','Toolbar','none','Menu','none')
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
 end
 
@@ -140,8 +140,7 @@ if params.vis_outputs
 
     if params.vis_cleaning
         pop_eegplot(HEP,1,1,1);
-        set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
-        set(gcf,'Name','Final output','NumberTitle','Off')  % name
+        set(gcf,'Name','Final output','NumberTitle','Off','Toolbar','none','Menu','none');  % remove toolbobar and menu
     end
 
     % Show mean HEP for each electrodes and allows clicking on them to see
@@ -153,8 +152,11 @@ if params.vis_outputs
         'title' 'Heartbeat-evoked potentials (HEP)' 'chans' 1:HEP.nbchan ...
         'chanlocs' HEP.chanlocs 'ydir' 1 'legend' {'uV' 'Time (ms)'}};
     figure
-    % plottopo_mod( HEP.data, options{:} );           % single trials (long)
-    plottopo_mod( trimmean(HEP.data,20,3), options{:} );   % average across trials
+    % plottopo( HEP.data, options{:} );           % single trials (long)
+    % plottopo_mod( trimmean(HEP.data,20,3), options{:} );   % modified version with y label
+    plottopo( trimmean(HEP.data,20,3), options{:} );   % average across trials
+    try icadefs; set(gcf, 'color', BACKCOLOR); catch; end  % eeglab color
+
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     % set(gcf,'Name','Mean HEP for EEG each channel','NumberTitle','Off')  % name

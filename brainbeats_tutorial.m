@@ -70,6 +70,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % which is expected since the toolbox is not designed to run both ECG and PPG at the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',true);
+% EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
+%     'heart_channels',{'PPG'},'clean_eeg',true);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
 %  Note that we are changing these parameters for illustraiton only, but
@@ -84,8 +86,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'heart_channels' set to 'PPG' (electrode name)
 %   - 'clean_rr' set to 'spline' to interpolate the RR artifacts instead of
 %       'pchip' (default)
-%   - 'reref' set to 'average' to rereference EEG data to average instead
-%       of infinity (default)
+%   - 'ref' set to 'infinity' to rereference EEG data to infinity instead
+%       of average (default)
 %   - 'highpass' filter set to 1 to remove EEG frequencies <1 hz (default)
 %   - 'lowpass' set to 30 to remove EEG frequencies >30 hz
 %   - 'filttype' set to 'noncausal' to use noncausal zero-phase filter
@@ -93,6 +95,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'detectMethod' set to 'median' to detect and remove bad 
 %       EEG epochs instead of the default 'grubbs'. 'mean' can also be used
 %       but it is too lax for for these data. 
+%   - 'icamethod' to 1 (fast) instead of 2 (Infomax)
 %   - 'save' set to false to not save the final 'filename_HEP.set' file
 %   - 'vis_cleaning' set to true to visualize preprocessing plots
 %   - 'vis_outputs' set to true to visualize the final outputs 
@@ -100,8 +103,9 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % which is expected since the toolbox is not designed to run both ECG and PPG at the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_rr','spline','clean_eeg',true, ...
-    'reref','average','highpass',1,'lowpass',30,'filttype','noncausal', ...
-    'detectMethod','mean','save',false,'vis_cleaning',true,'vis_outputs',true);
+    'ref','average','highpass',1,'lowpass',30,'filttype','noncausal', ...
+    'detectMethod','grubbs','icamethod',1, ...
+    'save',false,'vis_cleaning',true,'vis_outputs',true);
 
 %% METHOD 2: Extract EEG and HRV features using default parameters
 
@@ -136,7 +140,7 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 %   - 'save' to false to prevent saving
 %   - 'vis_cleaning' to 'false' since we already saw them above
 %   - 'vis_outputs' to 'true' to see the outputs
-EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_loadset('filename','dataset-new.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true, ...

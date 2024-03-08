@@ -176,8 +176,8 @@ data = reshape(data, size(data,1), size(data,2), size(data,3));
 [chans,framestotal]=size(data);           % data size
 
 try 
-    icadefs; 
-    set(gcf, 'color', BACKCOLOR); 
+    icadefs
+    set(gcf, 'color', BACKCOLOR)
 catch
 end
 
