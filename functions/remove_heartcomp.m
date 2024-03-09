@@ -18,14 +18,14 @@ else
     end
 end
 
-% Rescale Cardio signal
+% Rescale cardio signal
 idx = contains({EEG.chanlocs.labels}, params.heart_channels);
 EEG.data(idx,:) = rescale(EEG.data(idx,:), -500, 500);
 
 % smear cardio signal across EEG signals to increase accuracy
 if isfield(params,'boost') && params.boost
     % pop_eegplot(EEG,1,1,1);
-    disp('Smearing cardiovascular signal across EEG channels to increase classification performance (beta)... ')
+    disp('Boost mode selected: smearing cardiovascular signal across EEG channels to increase classification performance (beta, use with caution)... ')
     EEG.data = EEG.data - repmat(mean(EEG.data),size(EEG.data,1),1);
     % pop_eegplot(EEG,1,1,1);
 end

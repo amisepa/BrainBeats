@@ -1,58 +1,60 @@
-%% BrainBeats clean_eeg
-% When users choose to preprocess their EEG data with BrainBeats:
-% 1) If EEG data have not been filtered, a lowpass at 1 Hz and highoass at 
-%   45 Hz are applied (linear zero-phase FIR filters). 
+%% BrainBeats clean_eeg 
+% 
+% 1) Applies a lowpass at 1 Hz and highpass at 40 Hz are applied.
+%   For HEP, a nonlinear minimum-phase FIR filter is used to preserve 
+%   causality (especially important for pre-heartbeat analysis, whereas a 
+%   zero-phase noncausal FIR filter is used for continuous data.
 % 2) If data were not already referenced and have at least 30 channels, 
-%   they re-referenced to infinity (REST method). 
+%   they re-referenced to average. 
 % 3) bad EEG channels are identified and reomved using the clean_flatlines, 
 %   and clean_channels algorithms from K. Kothe (clean_artifacts). 
 %   Default parameters: 
 %       - correlation threshold = .65; 
-%       - window length = 5 s to capture low-frequency artifacts; 
-%       - line noise threshold = 5; 
+%       - window length = 5 s to capture low-frequency artifacts and increase 
+%           speed; 
+%       - line noise threshold = 15; 
 %       - maximum portion of channel to be considred a bad channel = 33%; 
 %       - 85% of available RAM to increase speed.
-%       - # of ransac samples = 500 (more computation but more accurate and 
-%       replicable)
+%       - # of ransac samples = 500 (more computation but more reliable and 
+%           replicable)
 % 4) Bad channels are interpolated using spherical splines. 
 % 5a) For continuous data, large artifacts are removed using Artifact 
 %   subspace reconstruction (ASR). SD threshold = 30 by default.
 % 5b) For epoched data (HEP), bad epochs are detected and removed using
 %   custom amplitude and SNR metrics. Default method = 'grubbs'.
-% 6) The preconditioned ICA algorithm is used to to perform fast but reliable 
-%   blind source spearation, implementing PCA-dimension reduction to control 
-%   for effective data rank and avoid ghost IC artifacts (see Kim et al. 2023). 
-%   Users can also use the standard Infomax algorithm or theh modified Infomax
-%   ('lrate' = 1e-5 and 'maxsteps' = 2000). This last option takes much longer,
-%   but allows replication/convergence of the IC maps. 
-% 7) ICLabel tags artifactual ICs with: 
-%       - muscle (95% confidence);
-%       - eye (90% confidence)
-%       - heart (99% confidence) --> NOT removed for 'hep' and 'rm_heart' 
-%           modes since we want to preserve that activity.
-%       - line noise (99% confidence)
-%       - channel noise (99% confidence)
-%   Flagged components are automatically extracted from the EEG signals. 
+% 6) The Infomax algorithm is used by default, implementing PCA-dimension 
+%   reduction to effectiv edata rank to avoid ghost ICs (see Kim et al. 2023). 
+%  Set 'icamethod' to 1 to use the PICARD algorithm (much faster but
+%  requires installation of the plugin, which does't always work automatically). 
+%   Set 'icamethod' to 3 to use the modified Infomax ('lrate' = 1e-5 and 
+%   'maxsteps' = 2000) to increase convergence/replicability (but takes
+%   much longer). 
+% 7) classify ICs with ICLabel: 
+%       - eye with 90% confidence
+%       - muscle, heart, line noise, channel noise with with 99% confidence
+%           NOTE: heart is not removed for 'hep' and 'rm_heart' methods 
+%               since we want to preserve that activity.
 % 
 % Copyright (C), BrainBeats 2023, Cedric Cannard
 
 function [EEG, params] = clean_eeg(EEG, params)
 
 % General parameters
-if isfield(params,'reref')
-    reref = params.reref;
+if isfield(params,'ref')
+    reref = params.ref;
 else
-    reref = 'infinity'; % default = 'infinity'
+    reref = 'average'; % 'average' (default), 'infinity', 'off'
 end
 if isfield(params,'highpass')
     highpass = params.highpass;
 else
-    highpass = 1; % default
+    highpass = 1; % default = 1 Hz
 end
 if isfield(params,'lowpass')
     lowpass = params.lowpass;
 else
-    lowpass = 40; % default to safely remove power line at 50/60 Hz with a low filter order (high transition bandwidth)
+    lowpass = 40;   % default = 40 hz to safely remove power line at 50/60 Hz 
+                    % with a low filter order (less ripples and faster)
 end
 if isfield(params,'filttype')
     if strcmp(params.filttype,'causal')
@@ -91,7 +93,7 @@ else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
 end
 win_length = 5;     % window length to scan channels (default = 5 s)
-line_thresh = 8;    % line noise threshold to remove bad channels (default = 8)
+line_thresh = 15;    % line noise threshold to remove bad channels (default = 15)
 nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
@@ -110,14 +112,14 @@ end
 if isfield(params,'asr_mem')
     asr_mem = params.asr_mem;
 else
-    asr_mem = .8;     % available RAM to use for ASR (.85 = 85% of available RAM)
+    asr_mem = .85;     % available RAM to use for ASR (.85 = 85% of available RAM)
 end
 
 % ICA parameters
 if isfield(params,'icamethod')
     icamethod = params.icamethod;
 else
-    icamethod = 1;  % 1 = fast ICA (picard), 2 = normal Infomax, 3 replicable Infomax (slowest but replicable)
+    icamethod = 2;  % 1 = fast ICA (picard), 2 = Infomax, 3 replicable Infomax (slowest but replicable)
 end
 
 % Filter, re-reference, and remove bad channels
@@ -126,8 +128,8 @@ if params.clean_eeg_step == 0
     % Highpass filter to remove slow frequency drifts set by user
     EEG = pop_eegfiltnew(EEG,'locutoff',highpass,'minphase',causalfilt);    
 
-    % Lowpass filter to remove very high-frequency artifacts (for ASR, lowpass set by user is later below)
-    EEG = pop_eegfiltnew(EEG,'hicutoff',100,'minphase',causalfilt);  
+    % Lowpass filter set by user
+    EEG = pop_eegfiltnew(EEG,'hicutoff',lowpass,'minphase',causalfilt);  
     
     % Reference to average or infinity/REST
     % Candia-Rivera, Catrambone, & Valenza (2021). The role of EEG reference 
@@ -139,9 +141,10 @@ if params.clean_eeg_step == 0
             warning('Cannot reference these EEG data to infinity or average, not validated with less than 30 channels.')
         else
             if strcmp(reref,'infinity')
-                fprintf('Re-referencing EEG data to infinity... \n')
+                fprintf('Re-referencing EEG data to infinity. \n')
                 EEG = ref_infinity(EEG);
             elseif strcmp(reref,'average')
+                fprintf('Re-referencing EEG data to average. \n')
                 EEG = pop_reref(EEG,[]);
             end
         end
@@ -158,6 +161,7 @@ if params.clean_eeg_step == 0
     try 
         EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
     catch
+        warndlg('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.')
         warning('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.');
         EEG = clean_channels_nolocs(EEG,0.45,0.1,win_length,.4);
     end
@@ -178,26 +182,17 @@ if params.clean_eeg_step == 0
         % EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
         % EEG.etc.clean_channel_mask(badChan) = false;
         vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+        try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
         set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
         set(gcf,'Name','EEG channels removed','NumberTitle', 'Off')  % change figure name
         % vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
     end
 
-    % Lowpass filter set by user
-    EEG = pop_eegfiltnew(EEG,'hicutoff',lowpass,'minphase',causalfilt);  
     
     % nothc filter if line noise is below lowpass filter
     if isfield(params,'linenoise') && params.linenoise<lowpass
         EEG = pop_eegfiltnew(EEG, 'locutoff',params.linenoise-3, ...
             'hicutoff',params.linenoise+3,'revfilt',1,'filtorder',500);
-    end
-
-    % Interpolate them
-    if EEG.nbchan>20
-        EEG = pop_interp(EEG, oriEEG.chanlocs, 'spherical'); % interpolate
-        EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
-    else
-        warning('Cannot interpolate bad EEG channels reliably with less than 30 channels')
     end
 
     % update tracker
@@ -216,17 +211,17 @@ elseif params.clean_eeg_step == 1
         % Detect and remove bad epochs
         badTrials = find_badTrials(EEG, detectMethod, params.vis_cleaning);
         EEG = pop_rejepoch(EEG, badTrials, 0); 
-
+        
         % Run RMS a 2nd time more conservative in case some were missed
         % badTrials = find_badTrials(EEG,'mean', params.vis_cleaning);
         % EEG = pop_rejepoch(EEG, badTrials, 0);
-
+        
         % Store in params if users want that information
         params.removed_eeg_trials = badTrials;
-
+        
         % Features
     elseif contains(params.analysis, {'features' 'rm_heart'})
-
+        
         % Identify artifacts using ASR
         oriEEG = EEG;
         m = memory; maxmem = round(asr_mem*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
@@ -259,13 +254,25 @@ elseif params.clean_eeg_step == 1
         % Plot what has been removed
         if params.vis_cleaning
             vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+            try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
             set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
             set(gcf,'Name','EEG artifacts channels removed','NumberTitle', 'Off')  % change figure name
         end
     end
     
+    % Interpolate bad channels (after ASR as low data rank can cause bad
+    % performance with PCA used in ASR. But not a problem for ICA as we
+    % input the data rank: see below). 
+    if EEG.nbchan>10
+        EEG = pop_interp(EEG, params.orichanlocs, 'spherical'); % interpolate
+        EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
+    else
+        warndlg('Cannot interpolate bad EEG channels reliably with less than 10 channels')
+        warning('Cannot interpolate bad EEG channels reliably with less than 10 channels')
+    end
+
     % Run ICA at effective data rank to control for ghost ICs (Kim et al. 2023). 
-    % Use Picard algorithm when possible to increase speed. 
+    % Use Picard algorithm by default to increase speed. 
     % use lrate=1e-5 and maxsteps=2000 to obtain reproducible ICA results
     dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
     if icamethod == 1
@@ -282,10 +289,10 @@ elseif params.clean_eeg_step == 1
     EEG = pop_iclabel(EEG,'default');
     if contains(params.analysis, {'rm_heart' 'hep'}) 
         % Do not remove heart components
-        EEG = pop_icflag(EEG,[NaN NaN; .9 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
+        EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
         % Remove components: muscle, eye, heart, line noise, channel noise
-        EEG = pop_icflag(EEG,[NaN NaN; .9 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
+        EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
     end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
@@ -295,8 +302,8 @@ elseif params.clean_eeg_step == 1
 
     % Visualize indepent components tagged as bad
     if params.vis_cleaning
-        nComps = size(EEG.icaact,1);
-        if ~isempty(nComps) || nComps>0
+        nComps = size(EEG.icaweights,1);
+        if ~isempty(nComps) && nComps>0
             if nComps >= 24
                 pop_selectcomps(EEG,1:24); 
                 set(gcf,'Toolbar','none','Menu','none','Name','Independent components','NumberTitle','Off');  % remove toolbobar and menu and name

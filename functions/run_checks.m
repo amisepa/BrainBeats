@@ -10,11 +10,6 @@ fprintf('Running basic checks... \n')
 
 err = false;
 
-if isempty(EEG.ref)
-    % warning('EEG data not referenced! Referencing is highly recommended');
-    params.reref = 'infinity';
-end
-
 % Check if data format is compatible with chosen analysis and select analysis
 % if isfield(params,'analysis')
 % switch params.analysis
@@ -50,7 +45,6 @@ end
 
 % Check if heart channels are in file (for command line mode)
 nchan = length(params.heart_channels);
-idx = [];
 for i = 1:nchan
     idx(i) = any(strcmp(params.heart_channels{i},{EEG.chanlocs.labels}));
     if idx(i) == 0
@@ -99,8 +93,20 @@ if params.eeg_features
     end
 end
 
+% Set default ICA method if not already set
+% 1 = picard (fast); 2 = infomax (default); 3 = modified infomax for replicability (long) 
+if ~isfield(params,'icamethod')
+    params.icamethod = 2;  
+end
+
+% EEG re-referencing
+if ~isfield(params,'ref')
+    params.ref = 'average';
+end
+
 % Install necessary plugins for preprocessing
 if params.clean_eeg
+
     if ~exist('clean_asr','file')
         plugin_askinstall('clean_asr','clean_asr', 1);
     end
@@ -110,7 +116,7 @@ if params.clean_eeg
     if ~exist('iclabel','file')
         plugin_askinstall('iclabel', 'iclabel', 1);
     end
-    if isfield(params,'reref') && strcmp(params.reref, 'infinity') 
+    if strcmp(params.ref, 'infinity') 
         if ~exist('ref_infinity','file')
             plugin_askinstall('REST_cmd', 'REST_cmd', 1);
         end

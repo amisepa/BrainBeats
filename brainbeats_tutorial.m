@@ -1,13 +1,15 @@
 %% Welcome to the BrainBeats tutorial for command line use
 % 
 % REQUIREMENTS:
-%   1) Install EEGLAB
+%   1) MATLAB (requires a license) or Octave installed
+% 
+%   2) Install EEGLAB
 %   Download here: https://github.com/sccn/eeglab
 %   Unzip (or clone) the file on your computer and add the path to MATLAB 
 %   Home panel > Set path > Add folder > select the eeglab folder > Save >
 %   Close
 % 
-%   2) Install BrainBeats
+%   3) Install the BrainBeats plugin
 %   Download here: https://github.com/amisepa/BrainBeats
 %   Type 'eeglab' in MATLAB's command window to open EEGLAB. Go to File >
 %   Manage extensions > type 'brainbeats' in the search bar > select in the
@@ -15,7 +17,7 @@
 %   in eeglab > plugins on your computer. 
 %  
 % Sample dataset used for the tutorial:
-% raw 63-channel EEG, ECG, and PPG data during 3.8 minutes of resting state
+% Raw 64-channel EEG, ECG, and PPG data during 3.8 minutes of resting state
 % with eyes opened. This file corresponds to sub-032_task-rest_eeg.set and
 % sub-032_task-rest_ecg.set merged, downsampled to 250 hz to accelerate 
 % operations. 
@@ -30,12 +32,11 @@
 % channel for demonstration purposes since there were no bad channels in this
 % dataset. And we artifically added electrode artifacts in the beginning of
 % the file, and some muscle artifacts at 3-6 s on temporal channels, for
-% illustration of artifact removal. 
-% The script used to prepare this file can be found in "functions" >
-% "prep_sampledata.m"
+% illustration of artifact removal. The script used to prepare this file can 
+% be found in "functions" > "prep_sampledata.m"
 % 
-% You can launch each section one by one by clicking in the section and pressing:
-% CTRL/CMD + ENTER
+% You can launch each section one by one by clicking in the section and 
+% pressing CTRL (for Windows) or CMD (Mac) + ENTER
 % 
 % We hope you this tutorial and BrainBeats are useful to you too! 
 % 
@@ -67,8 +68,10 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %       parameters.
 % Note: the toolbox automatically detects the undesired PPG channel, 
 % which is expected since the toolbox is not designed to run both ECG and PPG at the time.
+% EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
+%     'heart_channels',{'ECG'},'clean_eeg',true);
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'ref','infinity','icamethod',1);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
 %  Note that we are changing these parameters for illustraiton only, but
@@ -83,8 +86,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'heart_channels' set to 'PPG' (electrode name)
 %   - 'clean_rr' set to 'spline' to interpolate the RR artifacts instead of
 %       'pchip' (default)
-%   - 'reref' set to 'average' to rereference EEG data to average instead
-%       of infinity (default)
+%   - 'ref' set to 'infinity' to rereference EEG data to infinity instead
+%       of average (default)
 %   - 'highpass' filter set to 1 to remove EEG frequencies <1 hz (default)
 %   - 'lowpass' set to 30 to remove EEG frequencies >30 hz
 %   - 'filttype' set to 'noncausal' to use noncausal zero-phase filter
@@ -92,6 +95,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'detectMethod' set to 'median' to detect and remove bad 
 %       EEG epochs instead of the default 'grubbs'. 'mean' can also be used
 %       but it is too lax for for these data. 
+%   - 'icamethod' to 1 (fast) instead of 2 (Infomax)
 %   - 'save' set to false to not save the final 'filename_HEP.set' file
 %   - 'vis_cleaning' set to true to visualize preprocessing plots
 %   - 'vis_outputs' set to true to visualize the final outputs 
@@ -99,8 +103,9 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % which is expected since the toolbox is not designed to run both ECG and PPG at the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_rr','spline','clean_eeg',true, ...
-    'reref','average','highpass',1,'lowpass',30,'filttype','noncausal', ...
-    'detectMethod','mean','save',false,'vis_cleaning',true,'vis_outputs',true);
+    'ref','average','highpass',1,'lowpass',30,'filttype','noncausal', ...
+    'detectMethod','grubbs','icamethod',1, ...
+    'save',false,'vis_cleaning',true,'vis_outputs',true);
 
 %% METHOD 2: Extract EEG and HRV features using default parameters
 
@@ -135,7 +140,7 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 %   - 'save' to false to prevent saving
 %   - 'vis_cleaning' to 'false' since we already saw them above
 %   - 'vis_outputs' to 'true' to see the outputs
-EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_loadset('filename','dataset-new.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true, ...
@@ -150,7 +155,8 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
 
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'vis_cleaning',false);
+    'heart_channels',{'ECG'},'clean_eeg',true,'vis_cleaning',false,...
+    'conf_thresh',.8,'boost',true);
 
 %% To launch the GUI only
 

@@ -143,7 +143,7 @@ for kx = 1:nchan
         end
 
         % calculate minPower vector
-        [pfit, sig] = polyfit(f, log10(pChans(kx).pxx), 1);     % fit 1st order poly (regression line) to normalised spectra (log-scaled)
+        [pfit, sig] = polyfit(f, log(pChans(kx).pxx), 1);     % fit 1st order poly (regression line) to normalised spectra (log-scaled)
         [yval, del] = polyval(pfit, f, sig);                    % derive yval coefficients of fitted polynomial and delta (std dev) error estimate
         pChans(kx).minPow = yval + (mpow * del);                % takes [minPowThresh * Std dev] as upper error bound on background spectral noise
 
