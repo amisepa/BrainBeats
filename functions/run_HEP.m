@@ -167,15 +167,15 @@ if params.vis_outputs
     pop_timtopo(HEP, [HEP.times(1) HEP.times(end)], [300 400], ...
         'Heartbeat-evoked potentials (HEP) - all electrodes','verbose','off');
 
-    % ERPimage of known peak electrode to see change over time
-    elecName = 'Fz';
+    % ERPimage of known frontocentral electrode to see change over time
+    elecName = 'Fz';  % 'Fz' 'Oz'
     elecNum = find(strcmpi({HEP.chanlocs.labels}, elecName));
     if isempty(elecNum)
         % if Fz is not present, try Cz
-        elecName = 'Fz';
+        elecName = 'Cz';
         elecNum = find(strcmpi({HEP.chanlocs.labels}, elecName));
         if isempty(elecNum)
-            % if Cz is not present either, take 1st channel
+            % if Cz is not present either, take the 1st channel
             elecNum = 1;
             elecName = HEP.chanlocs(elecNum).labels;
         end
