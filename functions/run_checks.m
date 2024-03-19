@@ -45,36 +45,38 @@ end
 %     params.heart = false;
 % end
 
+% Check heart signal type
+if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
+    errordlg('Heart signal should be either ECG, PPG or off')
+    return
+end
+
 % Heart checks
 % Make sure Heart channel is a cell
-if ~iscell(params.heart_channels)
-    % warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
-    params.heart_channels = {params.heart_channels};
-end
-
-% Check if heart channels are in file (for command line mode)
-nchan = length(params.heart_channels);
-idx = nan(nchan,1);
-for i = 1:nchan
-    idx(i) = any(strcmp(params.heart_channels{i},{EEG.chanlocs.labels}));
-    if idx(i) == 0
-        warning("Heart channel %s not found in this dataset's channel list.",params.heart_channels{i})
+if ~strcmpi(params.heart_signal,'off')
+    if ~iscell(params.heart_channels)
+        % warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
+        params.heart_channels = {params.heart_channels};
     end
-end
-if length(idx) ~= sum(idx)
-    errordlg("At least one heart channel was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channels.")
-    err = true; return
-    % else
-    %     fprintf("%g/%g heart channels confirmed in this dataset's channel list. \n", sum(idx), length(params.heart_channels))
-    % elseif length(idx) == 1 && sum(idx) == 0
-    %     errordlg("The heart channel label you typed was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channel.");
-    %     err = true; return
-end
-
-% Check heart signal type
-if ~contains(params.heart_signal, {'ecg' 'ppg'})
-    errordlg('Heart signal should be either ECG or PPG')
-    return
+    
+    % Check if heart channels are in file (for command line mode)
+    nchan = length(params.heart_channels);
+    idx = nan(nchan,1);
+    for i = 1:nchan
+        idx(i) = any(strcmp(params.heart_channels{i},{EEG.chanlocs.labels}));
+        if idx(i) == 0
+            warning("Heart channel %s not found in this dataset's channel list.",params.heart_channels{i})
+        end
+    end
+    if length(idx) ~= sum(idx)
+        errordlg("At least one heart channel was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channels.")
+        err = true; return
+        % else
+        %     fprintf("%g/%g heart channels confirmed in this dataset's channel list. \n", sum(idx), length(params.heart_channels))
+        % elseif length(idx) == 1 && sum(idx) == 0
+        %     errordlg("The heart channel label you typed was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channel.");
+        %     err = true; return
+    end
 end
 
 % Includes HRV or not (for plotting only)

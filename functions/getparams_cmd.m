@@ -16,7 +16,7 @@ if ~isempty(idx)
     end
     if contains(params.heart_signal, 'off')
         params.heart = false;
-        params.heart_channels = [];
+        params.heart_channels = {};
     end
 else
     error("Heart signal type not defined. Please define 'heart_signal' as 'ecg', 'ppg', or 'off'. Type help in the command window for an example")
@@ -385,7 +385,7 @@ idx = find(strcmpi(varargin,'parpool'));
 if ~isempty(idx)
     params.parpool = varargin{idx+1};
     % if ~islogical(params.parpool), error("The 'parpool' input should be logical (true or false)."); end
-    if strcmpi(params.parpool,'on')
+    if strcmpi(params.parpool,'on') || params.parpool
         params.parpool = true;
     else
         params.parpool = false;

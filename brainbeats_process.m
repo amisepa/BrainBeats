@@ -129,149 +129,151 @@ if any(idx)
 end
 
 %%%%% MODE 1 & 2: RR, SQI, and NN %%%%%
-if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features') 
+if ~strcmpi(params.heart_signal,'off')
+    if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features')
 
-    % Resample CARDIO data to match EEG for HEP, when different
-    if  strcmp(params.analysis, 'hep') && EEG.srate~=CARDIO.srate
-        fprintf('Resampling cardiovascular data to match EEG sampling rate. \n')
-        CARDIO = pop_resample(CARDIO,EEG.srate);
-    end
-
-    % Get RR and NN intervals from ECG/PPG signals
-    % note: when several electrodes are provided, use the elec with best
-    % quality for subsequent analysis. Structures are used to avoid issues
-    % when outputs have different lengths across electrodes.
-    signal = CARDIO.data;
-    sqi = [];
-    nElec = size(signal,1);
-    for iElec = 1:nElec
-        elec = sprintf('elec%g',iElec);
-        fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-        [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:)',params);
-
-        % % Fix values if PPG had a different sampling rate than EEG (this
-        % should now be avoided by resampling above)
-        factor = EEG.srate / CARDIO.srate;
-        if factor ~= 1
-            errordlg("Your EEG and cardiovascular data must have the same sampling rate.")
-            %     RR.(elec) = RR.(elec) .* factor;
-            %     RR_t.(elec) = (Rpeaks.(elec) .* factor) / EEG.srate;
-            %     % RR_t.(elec) = (Rpeaks(1:end-1) .* factor) / EEG.srate;
-            %     CARDIO = pop_resample(CARDIO,EEG.srate);
-            %     % sig = CARDIO.data(iElec,:);
-            %     sig_t(iElec,:) = sig_t(iElec,:) .* factor;
-            %     params.fs = CARDIO.srate;
+        % Resample CARDIO data to match EEG for HEP, when different
+        if  strcmp(params.analysis, 'hep') && EEG.srate~=CARDIO.srate
+            fprintf('Resampling cardiovascular data to match EEG sampling rate. \n')
+            CARDIO = pop_resample(CARDIO,EEG.srate);
         end
 
-        % SQI
-        SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
-        maxThresh = 20; % max portion of artifacts (20% default from Vest et al. 2019)
-        if strcmpi(params.heart_signal, 'ecg')
-            sqi(iElec,:) = get_sqi_ecg(Rpeaks.(elec), signal(iElec,:), params.fs);
-        elseif strcmpi(params.heart_signal, 'ppg')
-            [sqi(iElec,:),~,annot] = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs);
-        else
-            errdlg("Heart channel should be either 'ECG' or 'PPG' ")
+        % Get RR and NN intervals from ECG/PPG signals
+        % note: when several electrodes are provided, use the elec with best
+        % quality for subsequent analysis. Structures are used to avoid issues
+        % when outputs have different lengths across electrodes.
+        signal = CARDIO.data;
+        sqi = [];
+        nElec = size(signal,1);
+        for iElec = 1:nElec
+            elec = sprintf('elec%g',iElec);
+            fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
+            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:)',params);
+
+            % % Fix values if PPG had a different sampling rate than EEG (this
+            % should now be avoided by resampling above)
+            factor = EEG.srate / CARDIO.srate;
+            if factor ~= 1
+                errordlg("Your EEG and cardiovascular data must have the same sampling rate.")
+                %     RR.(elec) = RR.(elec) .* factor;
+                %     RR_t.(elec) = (Rpeaks.(elec) .* factor) / EEG.srate;
+                %     % RR_t.(elec) = (Rpeaks(1:end-1) .* factor) / EEG.srate;
+                %     CARDIO = pop_resample(CARDIO,EEG.srate);
+                %     % sig = CARDIO.data(iElec,:);
+                %     sig_t(iElec,:) = sig_t(iElec,:) .* factor;
+                %     params.fs = CARDIO.srate;
+            end
+
+            % SQI
+            SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
+            maxThresh = 20; % max portion of artifacts (20% default from Vest et al. 2019)
+            if strcmpi(params.heart_signal, 'ecg')
+                sqi(iElec,:) = get_sqi_ecg(Rpeaks.(elec), signal(iElec,:), params.fs);
+            elseif strcmpi(params.heart_signal, 'ppg')
+                [sqi(iElec,:),~,annot] = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs);
+            else
+                errdlg("Heart channel should be either 'ECG' or 'PPG' ")
+            end
+            SQI_mu(iElec,:) = round(mean(sqi(iElec,:), 'omitnan'),2);
+            SQI_badRatio(iElec,:) = round(sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:))*100,1);
+            % if SQI_mu(iElec,:) < .9
+            %     warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
+            % else
+            % end
+            % if SQI_badRatio(iElec,:) > 20
+            %     warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+            %     warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh),'Signal quality warning 1')
+            % else
+            %     fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+            % end
+
+            % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
+            disp("Correcting RR artifacts...")
+            warning off
+            [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
+            flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec)) *100;
+            warning on
+
         end
-        SQI_mu(iElec,:) = round(mean(sqi(iElec,:), 'omitnan'),2);
-        SQI_badRatio(iElec,:) = round(sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:))*100,1);
-        % if SQI_mu(iElec,:) < .9
-        %     warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
+
+        % Keep only ECG data of electrode with the lowest number of RR
+        % artifacts
+        [~,best_elec] = min(struct2array(flaggedRatio));
+        elec = sprintf('elec%g',best_elec);
+        flaggedRatio = flaggedRatio.(elec);
+        flagged = flagged.(elec);
+        if sum(flagged) > 0
+            fprintf('%g/%g (%g%%) of heart beats were flagged as artifacts and interpolated (or removed if you chose to remove them). \n', sum(flagged),length(flagged),round(flaggedRatio,2));
+        end
+        if flaggedRatio > maxThresh % more than 20% of RR series is bad file
+            warning("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
+            warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
+        end
+        sig_t = sig_t(best_elec,:);
+        sig = sig(best_elec,:);
+        RR = RR.(elec);
+        RR_t = RR_t.(elec);
+        RR_t(1) = [];       % always ignore 1st hearbeat
+        Rpeaks = Rpeaks.(elec);
+        Rpeaks(1) = [];     % always ignore 1st hearbeat
+        NN_t = NN_t.(elec);
+        NN = NN.(elec);
+        pol = pol.(elec); % ECG signal polarity
+        SQI_mu = SQI_mu(best_elec,:);
+        SQI_badRatio = SQI_badRatio(best_elec,:);
+
+        % Print average SQI
+        fprintf("Overall signal quality index (SQI): %g. Note: SQI > 0.9 is considered good.\n", SQI_mu)
+
+        % Plot filtered ECG and RR series of best electrode and interpolated
+        % RR artifacts (if any)
+        if params.vis_cleaning
+            plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, flagged, params.heart_signal)
+            pause(0.1)  % to avoid waiting for EEG preprocessing to appear
+        end
+
+        % Preprocessing outputs
+        % EEG.brainbeats.preprocessing.RR_times = RR_t;
+        % EEG.brainbeats.preprocessing.RR = RR;
+        EEG.brainbeats.preprocessings.interpolated_heartbeats = sum(flagged);
+        if exist('sqi','var')
+            EEG.brainbeats.preprocessings.heart_SQI_mean = SQI_mu;
+            EEG.brainbeats.preprocessings.heart_SQI_badportion = SQI_badRatio;
+        end
+        EEG.brainbeats.preprocessings.NN = NN;
+        EEG.brainbeats.preprocessings.NN_times = NN_t;
+
+        % % Take filtered cardio signal
+        % if strcmp(params.heart_signal,'ecg') && pol<0
+        %     CARDIO.data = -sig; % reverse to positive polarity
         % else
-        % end
-        % if SQI_badRatio(iElec,:) > 20
-        %     warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
-        %     warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh),'Signal quality warning 1')
-        % else
-        %     fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+        %     CARDIO.data = sig;
         % end
 
-        % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
-        disp("Correcting RR artifacts...")
-        warning off
-        [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
-        flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec)) *100;
-        warning on
+        %%%%% MODE 2: HRV features %%%%%
+        if ~isempty(params.hrv_features) && params.hrv_features ~= 0
 
-    end
+            % File length (we take the whole series for now to allow ULF and VLF as much as possible)
+            file_length = floor(EEG.xmax)-1;
+            if file_length < 300
+                warning('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+                warndlg('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+            end
+            params.file_length = file_length;
 
-    % Keep only ECG data of electrode with the lowest number of RR
-    % artifacts
-    [~,best_elec] = min(struct2array(flaggedRatio));
-    elec = sprintf('elec%g',best_elec);
-    flaggedRatio = flaggedRatio.(elec);
-    flagged = flagged.(elec);
-    if sum(flagged) > 0
-        fprintf('%g/%g (%g%%) of heart beats were flagged as artifacts and interpolated (or removed if you chose to remove them). \n', sum(flagged),length(flagged),round(flaggedRatio,2));
-    end
-    if flaggedRatio > maxThresh % more than 20% of RR series is bad file
-        warning("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
-        warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
-    end
-    sig_t = sig_t(best_elec,:);
-    sig = sig(best_elec,:);
-    RR = RR.(elec);
-    RR_t = RR_t.(elec);
-    RR_t(1) = [];       % always ignore 1st hearbeat
-    Rpeaks = Rpeaks.(elec);
-    Rpeaks(1) = [];     % always ignore 1st hearbeat
-    NN_t = NN_t.(elec);
-    NN = NN.(elec);
-    pol = pol.(elec); % ECG signal polarity
-    SQI_mu = SQI_mu(best_elec,:);
-    SQI_badRatio = SQI_badRatio(best_elec,:);
+            % Extract HRV measures
+            [features_hrv, params] = get_hrv_features(NN, NN_t, params);
 
-    % Print average SQI
-    fprintf("Overall signal quality index (SQI): %g. Note: SQI > 0.9 is considered good.\n", SQI_mu)
+            % Final output with everything
+            Features.HRV = features_hrv;
+            Features.HRV.time.heart_rate = round(mean(HR,'omitnan'),1);
 
-    % Plot filtered ECG and RR series of best electrode and interpolated
-    % RR artifacts (if any)
-    if params.vis_cleaning
-        plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, flagged, params.heart_signal)
-        pause(0.1)  % to avoid waiting for EEG preprocessing to appear
-    end
-
-    % Preprocessing outputs
-    % EEG.brainbeats.preprocessing.RR_times = RR_t;
-    % EEG.brainbeats.preprocessing.RR = RR;
-    EEG.brainbeats.preprocessings.interpolated_heartbeats = sum(flagged);
-    if exist('sqi','var')
-        EEG.brainbeats.preprocessings.heart_SQI_mean = SQI_mu;
-        EEG.brainbeats.preprocessings.heart_SQI_badportion = SQI_badRatio;
-    end
-    EEG.brainbeats.preprocessings.NN = NN;
-    EEG.brainbeats.preprocessings.NN_times = NN_t;
-
-    % % Take filtered cardio signal
-    % if strcmp(params.heart_signal,'ecg') && pol<0
-    %     CARDIO.data = -sig; % reverse to positive polarity
-    % else
-    %     CARDIO.data = sig;
-    % end
-
-    %%%%% MODE 2: HRV features %%%%%
-    if ~isempty(params.hrv_features) && params.hrv_features ~= 0
-
-        % File length (we take the whole series for now to allow ULF and VLF as much as possible)
-        file_length = floor(EEG.xmax)-1;
-        if file_length < 300
-            warning('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
-            warndlg('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
-        end
-        params.file_length = file_length;
-
-        % Extract HRV measures
-        [features_hrv, params] = get_hrv_features(NN, NN_t, params);
-
-        % Final output with everything
-        Features.HRV = features_hrv;
-        Features.HRV.time.heart_rate = round(mean(HR,'omitnan'),1);
-
-        % Exit BrainBeats if user only wants to work with cardiovascular data
-        if strcmp(params.analysis,'features') && ~params.eeg_features
-            EEG.brainbeats.features = Features;
-            disp('Done processing cardiovascular signals'); gong
-            % return
+            % Exit BrainBeats if user only wants to work with cardiovascular data
+            if strcmp(params.analysis,'features') && ~params.eeg_features
+                EEG.brainbeats.features = Features;
+                disp('Done processing cardiovascular signals'); gong
+                % return
+            end
         end
     end
 end
@@ -409,7 +411,7 @@ end
 fprintf('\n')
 fprintf("Done! Thank you for using the BrainBeats toolbox! Please cite: \n");
 fprintf("Cannard, Wahbeh, & Delorme (2024). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. \n")
-fprintf("https://www.biorxiv.org/content/10.1101/2023.06.01.543272v2 \n")
+fprintf("https://www.biorxiv.org/content/10.1101/2023.06.01.543272v3 \n")
 
 if params.gong
     gong
