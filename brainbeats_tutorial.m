@@ -71,7 +71,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
 %     'heart_channels',{'ECG'},'clean_eeg',true);
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ref','infinity','icamethod',1);
+    'heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
 %  Note that we are changing these parameters for illustraiton only, but
@@ -88,14 +88,14 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %       'pchip' (default)
 %   - 'ref' set to 'infinity' to rereference EEG data to infinity instead
 %       of average (default)
-%   - 'highpass' filter set to 1 to remove EEG frequencies <1 hz (default)
-%   - 'lowpass' set to 30 to remove EEG frequencies >30 hz
+%   - 'highpass' filter set to .5 to remove EEG frequencies <0.5 hz 
+%   - 'lowpass' set to 20 to remove EEG frequencies >20 hz
 %   - 'filttype' set to 'noncausal' to use noncausal zero-phase filter
 %       instead of the default causal minimum-phase filter
 %   - 'detectMethod' set to 'median' to detect and remove bad 
-%       EEG epochs instead of the default 'grubbs'. 'mean' can also be used
-%       but it is too lax for for these data. 
-%   - 'icamethod' to 1 (fast) instead of 2 (Infomax)
+%       EEG epochs instead of the default 'grubbs'. 
+%   - 'icamethod' to 1 (fast) instead of 2 (Infomax) or 3 (modified
+%       Infomax, very slow but replicable)
 %   - 'save' set to false to not save the final 'filename_HEP.set' file
 %   - 'vis_cleaning' set to true to visualize preprocessing plots
 %   - 'vis_outputs' set to true to visualize the final outputs 
@@ -103,8 +103,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % which is expected since the toolbox is not designed to run both ECG and PPG at the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_rr','spline','clean_eeg',true, ...
-    'ref','average','highpass',1,'lowpass',30,'filttype','noncausal', ...
-    'detectMethod','grubbs','icamethod',1, ...
+    'ref','infinity','highpass',.5,'lowpass',20,'filttype','noncausal', ...
+    'detectMethod','median','icamethod',1, ...
     'save',false,'vis_cleaning',true,'vis_outputs',true);
 
 %% METHOD 2: Extract EEG and HRV features using default parameters
@@ -140,12 +140,12 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 %   - 'save' to false to prevent saving
 %   - 'vis_cleaning' to 'false' since we already saw them above
 %   - 'vis_outputs' to 'true' to see the outputs
-EEG = pop_loadset('filename','dataset-new.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',true, ...
+    'heart_channels',{'PPG'},'clean_eeg',false, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','LombScargle', ...
-    'eeg_features', {'frequency'},'eeg_norm',0,...
+    'eeg_features', {'time' 'frequency'},'eeg_norm',0,...
     'parpool',false,'save',false,'vis_cleaning',false,'vis_outputs',true);
 
 
@@ -155,41 +155,59 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
 
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'vis_cleaning',false,...
+    'heart_channels',{'ECG'},'clean_eeg',false,'vis_cleaning',false,...
     'conf_thresh',.8,'boost',true);
 
 %% To launch the GUI only
 
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = brainbeats_process(EEG);
+[EEG, com] = brainbeats_process(EEG);
 
-% Type 'eegh' at the end of the operations to output the command line with
+% Type <com> at the end of the operations to output the command line with
 % the parameters that were selected manually in the GUI
-eegh
+com
 
-%% To process only cardiovascular signals and extract HRV features.
+%% HRV features only
 % To turn OFF all EEG operations, the input 'eeg_features' is set to 'false'.
 
-% % ECG
-% EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-% EEG = pop_select(EEG,'nochannel',{'PPG'}); 
-EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'eeg_features','off',...
+% ECG
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'PPG'}); 
+EEG = brainbeats_process(EEG,'analysis','features','eeg','off',...
+    'heart_signal','ECG', 'heart_channels',{'ECG'}, ...
     'hrv_features',{'time' 'frequency' 'nonlinear'},...
     'vis_cleaning',true,'vis_outputs',true);
+
+% Same but without any EEG data (we remove all EEG channels)
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'channel',{'ECG'}); 
+EEG = brainbeats_process(EEG,'analysis','features','eeg','off',...
+    'heart_signal','ECG','heart_channels',{'ECG'});
 
 % PPG
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = pop_select(EEG,'nochannel',{'ECG'}); 
-EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'eeg_features','off',...
-    'hrv_features',{'time' 'frequency' 'nonlinear'},...
-    'vis_cleaning',true,'vis_outputs',true);
+EEG = pop_select(EEG,'channel',{'PPG'}); 
+EEG = brainbeats_process(EEG,'analysis','features','eeg','off', ...
+    'heart_signal','PPG','heart_channels',{'PPG'});
 
-% Cardiovascular preprocessing outputs can be found in:
+% Preprocessing outputs can be found in:
 EEG.brainbeats.preprocessings
 
-% Cardiovascular preprocessing outputs can be found in:
+% HRV features can be found in:
 EEG.brainbeats.features.HRV
 
+%% Extract EEG features only
+% To turn OFF all HEART operations, the input 'heart_signal' is set to 'off'.
+
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'PPG' 'ECG'}); 
+EEG = brainbeats_process(EEG,'analysis','features','heart_signal','off', ...
+    'eeg_features',{'time' 'frequency'}, 'clean_eeg', true, ...
+    'vis_cleaning',false,'vis_outputs',true);
+
+% Preprocessing outputs can be found in:
+EEG.brainbeats.preprocessings
+
+% EEG features can be found in:
+EEG.brainbeats.features.EEG
 

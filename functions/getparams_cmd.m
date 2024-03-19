@@ -1,5 +1,5 @@
 %% Extract all the inputs and parameters specified by user via command line
-% 
+%
 % Cedric Cannard, April 2023
 
 function params = getparams_cmd(varargin)
@@ -9,24 +9,28 @@ function params = getparams_cmd(varargin)
 % Extract user parameters
 idx = find(strcmpi(varargin,'heart_signal'));
 if ~isempty(idx)
+    params.heart = true;
     params.heart_signal = lower(varargin{idx+1});
     if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
         error("Heart signal not recognized. Should be 'ecg' or 'ppg' or 'off'.")
     end
     if contains(params.heart_signal, 'off')
         params.heart = false;
+        params.heart_channels = [];
     end
 else
     error("Heart signal type not defined. Please define 'heart_signal' as 'ecg', 'ppg', or 'off'. Type help in the command window for an example")
 end
 
 % Detect if there are 1 or multiple heart channel(s)
-idx = find(strcmpi(varargin,'heart_channels'));
-if ~isempty(idx)
-    params.heart_channels = varargin{idx+1};
-    fprintf('Number of heart channels selected: %g \n', length(params.heart_channels));
-else
-    error("Heart channels not defined. Please define 'heart_channels'. See help for an example")
+if params.heart
+    idx = find(strcmpi(varargin,'heart_channels'));
+    if ~isempty(idx)
+        params.heart_channels = varargin{idx+1};
+        fprintf('Number of heart channels selected: %g \n', length(params.heart_channels));
+    else
+        error("Heart channels not defined. Please define 'heart_channels'. See help for an example")
+    end
 end
 
 % Analysis to do
@@ -40,84 +44,85 @@ end
 
 %% Cardiovascular signal preprocessing
 
-idx = find(strcmpi(varargin,'clean_heart'));
-if ~isempty(idx)
-    params.clean_heart = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'keep_heart'));
-if ~isempty(idx)
-    params.keep_heart = varargin{idx+1};
-else
-    params.keep_heart = false;
-end    
+if params.heart
+    idx = find(strcmpi(varargin,'clean_heart'));
+    if ~isempty(idx)
+        params.clean_heart = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'keep_heart'));
+    if ~isempty(idx)
+        params.keep_heart = varargin{idx+1};
+    else
+        params.keep_heart = false;
+    end
 
-% get_RR on PPG signal
-idx = find(strcmpi(varargin,'ppg_learnperiod'));
-if ~isempty(idx)
-    params.ppg_learnperiod = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'ppg_buffer'));
-if ~isempty(idx)
-    params.ppg_buffer = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'ppg_learnthresh'));
-if ~isempty(idx)
-    params.ppg_learnthresh = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'ppg_eyeclosing'));
-if ~isempty(idx)
-    params.ppg_eyeclosing = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'ppg_expctperiod'));
-if ~isempty(idx)
-    params.ppg_expctperiod = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'ppg_slopewindow'));
-if ~isempty(idx)
-    params.ppg_slopewindow = varargin{idx+1};
-end
+    % get_RR on PPG signal
+    idx = find(strcmpi(varargin,'ppg_learnperiod'));
+    if ~isempty(idx)
+        params.ppg_learnperiod = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'ppg_buffer'));
+    if ~isempty(idx)
+        params.ppg_buffer = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'ppg_learnthresh'));
+    if ~isempty(idx)
+        params.ppg_learnthresh = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'ppg_eyeclosing'));
+    if ~isempty(idx)
+        params.ppg_eyeclosing = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'ppg_expctperiod'));
+    if ~isempty(idx)
+        params.ppg_expctperiod = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'ppg_slopewindow'));
+    if ~isempty(idx)
+        params.ppg_slopewindow = varargin{idx+1};
+    end
 
-% get_RR on ECG signal
-idx = find(strcmpi(varargin,'ecg_searchback'));
-if ~isempty(idx)
-    params.ecg_searchback = varargin{idx+1};
-end
+    % get_RR on ECG signal
+    idx = find(strcmpi(varargin,'ecg_searchback'));
+    if ~isempty(idx)
+        params.ecg_searchback = varargin{idx+1};
+    end
 
-% params for method 3:removing heart artifacts from EEG
-if isfield(params, 'conf_thresh') && ~isempty(params.conf_thresh)
-    params.conf_thresh = params.conf_thresh;
-end
-if isfield(params, 'boost') && ~isempty(params.boost)
-    params.boost = logical(params.boost);
-end
+    % params for method 3:removing heart artifacts from EEG
+    if isfield(params, 'conf_thresh') && ~isempty(params.conf_thresh)
+        params.conf_thresh = params.conf_thresh;
+    end
+    if isfield(params, 'boost') && ~isempty(params.boost)
+        params.boost = logical(params.boost);
+    end
 
 
-% RR artifacts
-idx = find(strcmpi(varargin,'rr_physlimlow'));
-if ~isempty(idx)
-    params.rr_physlimlow = varargin{idx+1};
+    % RR artifacts
+    idx = find(strcmpi(varargin,'rr_physlimlow'));
+    if ~isempty(idx)
+        params.rr_physlimlow = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'rr_physlimhigh'));
+    if ~isempty(idx)
+        params.rr_physlimhigh = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'rr_gaplim'));
+    if ~isempty(idx)
+        params.rr_gaplim = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'rr_changelim'));
+    if ~isempty(idx)
+        params.rr_changelim = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'rr_correct'));
+    if ~isempty(idx)
+        params.rr_correct = varargin{idx+1};
+    end
 end
-idx = find(strcmpi(varargin,'rr_physlimhigh'));
-if ~isempty(idx)
-    params.rr_physlimhigh = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'rr_gaplim'));
-if ~isempty(idx)
-    params.rr_gaplim = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'rr_changelim'));
-if ~isempty(idx)
-    params.rr_changelim = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'rr_correct'));
-if ~isempty(idx)
-    params.rr_correct = varargin{idx+1};
-end
-
 
 %% HRV features
 
-if strcmp(params.analysis,'features')
+if params.heart && strcmp(params.analysis,'features')
     idx = find(strcmpi(varargin,'hrv_features'));
     if ~isempty(idx)
         if ~isfield(params,'hrv_features')
@@ -138,7 +143,7 @@ if strcmp(params.analysis,'features')
             params.hrv_nonlinear = true;
         else
             params.hrv_nonlinear = false;
-        end 
+        end
     else
         % run all domains by default if not set
         disp('HRV features not defined. Setting all domains by default (time, frequency, and nonlinear)')
@@ -153,102 +158,119 @@ else
     params.hrv_frequency = false;
     params.hrv_nonlinear = false;
 end
-idx = find(strcmpi(varargin,'hrv_norm'));
-if ~isempty(idx)
-    params.hrv_norm = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'hrv_spec'));
-if ~isempty(idx)
-    params.hrv_spec = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'hrv_overlap'));
-if ~isempty(idx)
-    params.hrv_overlap = varargin{idx+1};
+
+if params.hrv_frequency
+    idx = find(strcmpi(varargin,'hrv_norm'));
+    if ~isempty(idx)
+        params.hrv_norm = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'hrv_spec'));
+    if ~isempty(idx)
+        params.hrv_spec = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'hrv_overlap'));
+    if ~isempty(idx)
+        params.hrv_overlap = varargin{idx+1};
+    end
 end
 
 %% EEG parameters
 
-% Exclude all EEG operations (set to false) 
+% Any EEG operations?
 idx = find(strcmpi(varargin,'eeg'));
 if ~isempty(idx)
-    params.eeg = varargin{idx+1};
+    params.eeg = varargin{idx+1};  % set 'eeg' to false to turn off all EEG operations
+    if strcmpi(params.eeg,'off')
+        params.eeg = false;
+        fprintf('Turning OFF all EEG operations. \n')
+    end
+else
+    params.eeg = true;  % for any input containing 'eeg' 
 end
 
 % Preprocess EEG
-idx = find(strcmpi(varargin,'clean_eeg'));
-if ~isempty(idx)
-    params.clean_eeg = varargin{idx+1};
-    % if ~islogical(params.clean_eeg), error("The 'clean_eeg' input should be logical (true or false)."); end
-else
-    warning("'clean_eeg' input not defined. Using default: NO preprocessing (i.e., assuming you have already preprocessed your EEG data. If you wish to preprocess your EEG data with BrainBeats, set 'clean_eeg' to true.")
-    params.clean_eeg = false;
-end
+if params.eeg
+    idx = find(strcmpi(varargin,'clean_eeg'));
+    if ~isempty(idx)
+        params.clean_eeg = varargin{idx+1};
+        % if ~islogical(params.clean_eeg), error("The 'clean_eeg' input should be logical (true or false)."); end
+    else
+        warning("'clean_eeg' input not defined. Using default: NO preprocessing (i.e., assuming you have already preprocessed your EEG data. If you wish to preprocess your EEG data with BrainBeats, set 'clean_eeg' to true.")
+        params.clean_eeg = false;
+    end
 
-% EEG preprocessing
-idx = find(strcmpi(varargin,'highpass'));
-if ~isempty(idx)
-    params.highpass = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'lowpass'));
-if ~isempty(idx)
-    params.lowpass = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'flatline'));
-if ~isempty(idx)
-    params.flatline = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'corrThresh'));
-if ~isempty(idx)
-    params.corrThresh = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'maxBad'));
-if ~isempty(idx)
-    params.maxBad = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'eeg_interp'));
-if ~isempty(idx)
-    params.eeg_interp = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'asr_cutoff'));
-if ~isempty(idx)
-    params.asr_cutoff = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'asr_mem'));
-if ~isempty(idx)
-    params.asr_mem = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'ref'));
-if ~isempty(idx)
-    params.ref = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'linenoise'));
-if ~isempty(idx)
-    params.linenoise = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'filttype'));
-if ~isempty(idx)
-    params.filttype = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'detectMethod'));
-if ~isempty(idx)
-    params.detectMethod = varargin{idx+1};
+    % EEG preprocessing
+    idx = find(strcmpi(varargin,'highpass'));
+    if ~isempty(idx)
+        params.highpass = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'lowpass'));
+    if ~isempty(idx)
+        params.lowpass = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'flatline'));
+    if ~isempty(idx)
+        params.flatline = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'corrThresh'));
+    if ~isempty(idx)
+        params.corrThresh = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'maxBad'));
+    if ~isempty(idx)
+        params.maxBad = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'eeg_interp'));
+    if ~isempty(idx)
+        params.eeg_interp = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'asr_cutoff'));
+    if ~isempty(idx)
+        params.asr_cutoff = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'asr_mem'));
+    if ~isempty(idx)
+        params.asr_mem = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'ref'));
+    if ~isempty(idx)
+        params.ref = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'linenoise'));
+    if ~isempty(idx)
+        params.linenoise = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'filttype'));
+    if ~isempty(idx)
+        params.filttype = varargin{idx+1};
+    end
+    idx = find(strcmpi(varargin,'detectMethod'));
+    if ~isempty(idx)
+        params.detectMethod = varargin{idx+1};
+    end
 end
 
 %% EEG features
 
-if strcmp(params.analysis,'features')
-    idx = find(strcmpi(varargin,'eeg_features'));
-    if ~isempty(idx)
+% Turn OFF all EEG features
+if ~params.eeg
+    params.eeg_features = false;
+    params.eeg_time = false;
+    params.eeg_frequency = false;
+    params.eeg_nonlinear = false;
+    params.clean_eeg = false;
+end
 
-        if strcmp(varargin{idx+1},'off') % EEG features are turned off entirely by user
-            params.eeg_features = false;
-            params.eeg_time = false;
-            params.eeg_frequency = false;
-            params.eeg_nonlinear = false;
+if params.eeg
+    if strcmpi(params.analysis,'features')
 
-        else
-            params.eeg_features = true;  % EEG features turned ON
+        params.eeg_features = true;  % EEG features turned ON
 
+        % which features to compute
+        idx = find(strcmpi(varargin,'eeg_features'));
+        if ~isempty(idx)
+    
+    
             % which features to compute
             eeg_features = varargin{idx+1};
             if sum(contains(eeg_features,{'time'})) > 0
@@ -265,55 +287,49 @@ if strcmp(params.analysis,'features')
                 params.eeg_nonlinear = true;
             else
                 params.eeg_nonlinear = false;
-            end 
+            end
+    
+        else
+            disp('EEG features not specified. Setting all EEG features (time, frequency, nonlinear) to ON. ')
+            params.eeg_features = true;
+            params.eeg_time = true;
+            params.eeg_frequency = true;
+            params.eeg_nonlinear = true;
         end
-        
-    % run all domains by default if not set
-    else
-        disp('EEG features not defined. Setting all domains by default (time, frequency, and nonlinear)')
-        params.eeg_features = true;
-        params.eeg_time = true;
-        params.eeg_frequency = true;
-        params.eeg_nonlinear = true;
+
+        % EEG frequency-domain parameters
+        if params.eeg_frequency
+            idx = find(strcmpi(varargin,'eeg_frange'));
+            if ~isempty(idx)
+                params.eeg_frange = varargin{idx+1};
+            end
+            idx = find(strcmpi(varargin,'eeg_wintype'));
+            if ~isempty(idx)
+                params.eeg_wintype = varargin{idx+1};
+            end
+            idx = find(strcmpi(varargin,'eeg_winoverlap'));
+            if ~isempty(idx)
+                params.eeg_winoverlap = varargin{idx+1};
+            end
+            idx = find(strcmpi(varargin,'eeg_winlen'));
+            if ~isempty(idx)
+                params.eeg_winlen = varargin{idx+1};
+            end
+            idx = find(strcmpi(varargin,'eeg_freqbounds'));
+            if ~isempty(idx)
+                params.eeg_freqbounds = varargin{idx+1};
+            end
+            idx = find(strcmpi(varargin,'eeg_norm'));
+            if ~isempty(idx)
+                params.eeg_norm = varargin{idx+1};
+            end
+            idx = find(strcmpi(varargin,'asy_norm'));
+            if ~isempty(idx)
+                params.asy_norm = varargin{idx+1};
+            end
+        end
     end
-% else
-%     params.eeg_features = false;
-%     params.eeg_time = false;
-%     params.eeg_frequency = false;
-%     params.eeg_nonlinear = false;
-%     fprintf('You chose NOT to extract EEG features on these data. \n')
-end
-
-% EEG frequency-domain parameters
-idx = find(strcmpi(varargin,'eeg_frange'));
-if ~isempty(idx)
-    params.eeg_frange = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'eeg_wintype'));
-if ~isempty(idx)
-    params.eeg_wintype = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'eeg_winoverlap'));
-if ~isempty(idx)
-    params.eeg_winoverlap = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'eeg_winlen'));
-if ~isempty(idx)
-    params.eeg_winlen = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'eeg_freqbounds'));
-if ~isempty(idx)
-    params.eeg_freqbounds = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'eeg_norm'));
-if ~isempty(idx)
-    params.eeg_norm = varargin{idx+1};
-end
-idx = find(strcmpi(varargin,'asy_norm'));
-if ~isempty(idx)
-    params.asy_norm = varargin{idx+1};
-end
-
+end % if params.eeg
 
 %% Visualization and saving
 
@@ -362,25 +378,25 @@ else
     disp("Saving outputs not defined. Set to ON by default. If you wish to turn it OFF, set input 'save' to false");
 end
 
-%% Computing 
+%% Parallel & GPU computing
 
 % Parallel computing
 idx = find(strcmpi(varargin,'parpool'));
 if ~isempty(idx)
     params.parpool = varargin{idx+1};
     % if ~islogical(params.parpool), error("The 'parpool' input should be logical (true or false)."); end
-else
-    if strcmp(params.analysis,'features')
+    if strcmpi(params.parpool,'on')
         params.parpool = true;
-        fprintf('Parallel computing not defined: set to ON by default for feature-mode. \n')
     else
         params.parpool = false;
-        fprintf('Parallel computing not defined: set to OFF by default. \n')
     end
+else
+    params.parpool = false;
+    fprintf('Parallel computing not defined: set to OFF by default. \n')
 end
 
 
-% GPU computing 
+% GPU computing
 idx = find(strcmpi(varargin,'gpu'));
 if ~isempty(idx)
     params.gpu = varargin{idx+1};
@@ -388,4 +404,11 @@ if ~isempty(idx)
 else
     params.gpu = false;
     fprintf('GPU computing not defined: set to OFF by default. \n')
+end
+
+idx = find(strcmpi(varargin,'gong'));
+if ~isempty(idx)
+    params.gong = varargin{idx+1};
+else
+    params.gong = true;
 end

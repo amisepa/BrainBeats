@@ -57,18 +57,14 @@ else
                     % with a low filter order (less ripples and faster)
 end
 if isfield(params,'filttype')
-    if strcmp(params.filttype,'causal')
+    if strcmpi(params.filttype,'causal')
         causalfilt = true;  % causal (nonlinear) minimum-phase filter
     else 
         causalfilt = false; % zero-phase (linear) noncausal filter
     end
 else
     % default filter depending on analysis
-    if strcmp(params.analysis,'hep')
-        causalfilt = true; % causal minimum-phase filter should be used for HEP to avoid group delays or other filter artifacts
-    else
-        causalfilt = false; % zero-phase noncausal filter for continuous data
-    end
+    causalfilt = false; % zero-phase noncausal filter
 end
 if isfield(params,'gpu')
     usegpu = params.gpu;
