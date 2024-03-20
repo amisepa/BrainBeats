@@ -410,8 +410,8 @@ end
 % Final message with ref to cite
 fprintf('\n')
 fprintf("Done! Thank you for using the BrainBeats toolbox! Please cite: \n");
-fprintf("Cannard, Wahbeh, & Delorme (2024). BrainBeats: an open-source EEGLAB plugin to jointly analyze EEG and cardiovascular (ECG/PPG) signals. \n")
-fprintf("https://www.biorxiv.org/content/10.1101/2023.06.01.543272v3 \n")
+fprintf("Cannard, C., Wahbeh, H., Delorme, A. BrainBeats as an Open-Source EEGLAB Plugin to Jointly Analyze EEG and Cardiovascular Signals. J. Vis. Exp. (2024). \n")
+fprintf("https://review.jove.com/t/65829/brainbeats-as-an-open-source-eeglab-plugin-to-jointly-analyze-eeg?status=a67835k \n")
 
 if params.gong
     gong
