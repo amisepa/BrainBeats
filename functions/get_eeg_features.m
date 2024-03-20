@@ -135,8 +135,8 @@ if params.eeg_frequency
     samplesPerWindow = fs * winlen;
     nfft = 2^nextpow2(samplesPerWindow);
     freqResolution = fs / nfft;
-    numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution) + 1;
-    % numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution);
+    % numFrequencyBins = ceil((fRange(2) - fRange(1)) / freqResolution) + 1;
+    numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution);
 
     % preallocate memory
     PWR = nan(nChan,numFrequencyBins);
@@ -303,7 +303,7 @@ if params.eeg_frequency
     end
 
     %%%%% Alpha asymmetry %%%%%
-    alpha_pwr = mean(PWR(:,f >= 8 & f <= 13),2);  % IMPORTANT: use power in μV^2/Hz NOT in db
+    alpha_pwr = mean(PWR(:,f >= 8 & f <= 13),2,'omitnan');  % IMPORTANT: use power in μV^2/Hz here, NOT in log or decibels
     [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, asy_norm, chanlocs, false);
     eeg_features.frequency.asymmetry = round(asy,3);
     eeg_features.frequency.asymmetry_pairs_labels = pairLabels;

@@ -204,7 +204,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 EEG = pop_select(EEG,'nochannel',{'PPG' 'ECG'}); 
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','off', ...
     'eeg_features',{'time' 'frequency'},'clean_eeg',true,'parpool','on', ...
-    'vis_cleaning',false,'vis_outputs',true);
+    'vis_cleaning',false,'vis_outputs',true,'save',true);
 
 % Preprocessing outputs can be found in:
 EEG.brainbeats.preprocessings

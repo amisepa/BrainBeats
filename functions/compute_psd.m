@@ -20,7 +20,7 @@
 
 % Cedric Cannard, 2021
 
-function [pxx, pxx_dB, f] = compute_psd(eegData,winSize,taperM,overlap,nfft,Fs,fRange,type,useGPU)
+function [pwr, pwr_db, f] = compute_psd(eegData,winSize,taperM,overlap,nfft,Fs,fRange,type,useGPU)
 
 % Error if no sampling rate provided
 if ~exist('Fs', 'var') || isempty(Fs)
@@ -57,8 +57,9 @@ if ~exist('type', 'var')
 end
 
 % nfft
-if ~exist('nfft', 'var') 
-    nfft = [];
+if ~exist('nfft', 'var') || isempty(nfft)
+    samplesPerWindow = (winSize/Fs)*Fs;
+    nfft = 2^nextpow2(samplesPerWindow);
 end
 
 % Power spectral density (PSD)
@@ -68,19 +69,19 @@ for iChan = 1:size(eegData,1)
     else
         signal = eegData(iChan,:);
     end
-    [pxx(iChan,:), f] = pwelch(signal,fh(winSize),overlap,nfft,Fs,type);
+    [pwr(iChan,:), f] = pwelch(signal,fh(winSize),overlap,nfft,Fs,type);
 end
 
 % Calculate frequency resolution
 % exp_tlen = nextpow2(tlen);
 % fres = Fs/2.^exp_tlen;
 
-% Truncate PSD to frequency range of interest (ignore freq 0)
-freq = dsearchn(f,fRange(1)):dsearchn(f, fRange(2));
-f = f(freq(2:end))';
-pxx = pxx(:,freq(2:end));     
+% Truncate PSD to frequency range of interest 
+% freq = dsearchn(f,fRange(1)):dsearchn(f, fRange(2)); 
+freq = f>= fRange(1) & f<=fRange(2);
+f = f(freq);
+pwr = pwr(:,freq);
 
 % Normalize to deciBels (dB)
-pxx_dB = 10*log10(pxx);
+pwr_db = 10*log10(pwr);
 
-end
