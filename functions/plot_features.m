@@ -165,7 +165,7 @@ if params.eeg_features && params.eeg_frequency
 
     hold on
     pwr = trimmean(EEG.frequency.pwr,20,1); % 20% trimmed mean across channels
-    freqs = EEG.frequency.freqs(1,:);
+    freqs = EEG.frequency.freqs;
     bands = [0 3; 3 7; 7 13; 13 30; 30 max(freqs)];
     baseval = min(pwr);
 
@@ -209,7 +209,7 @@ if params.eeg_features && params.eeg_frequency
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
     set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold'); % font
-
+    pause(0.1)  % to allow plot before next plot
 end
 
 % Multiscale fuzzy entropy (MFE) - EEG
