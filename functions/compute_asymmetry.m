@@ -68,6 +68,9 @@ pairLabels(cellfun(@isempty,pairLabels)) = [];
 % Remove pairNums with midline electrodes if any made it by mistake
 pairNums(contains(pairLabels, 'z'),:) = [];
 pairLabels(contains(pairLabels, 'z')) = [];
+if size(pairNums,1)~=length(pairLabels)
+    warning("Different number of pairs between electroe numbers and labels. There may be an error or NaNs")
+end
 
 % Remove errors/duplicate
 % pairLabels(pairNums(:,1) == 0) = [];
@@ -76,16 +79,17 @@ pairLabels(contains(pairLabels, 'z')) = [];
 % pairNums = pairNums(idx,:);
 
 % logarithm alpha power
-alpha_pwr = log(alpha_pwr);
+alpha_pwr = log(alpha_pwr);         % standard formula
+% alpha_pwr = 10*log10(alpha_pwr);  % in decibels
 
-asy = nan(length(pairNums),1);
-for iPair = 1:size(pairNums,1)
+nPairs = length(pairLabels);
+asy = nan(nPairs,1);
+for iPair = 1:nPairs
 
-    % Z-normalize by correcting for overall alpha power (see Allen et al. 2004 and Smith et al. 2017)
     alpha_left = alpha_pwr(pairNums(iPair,1));
     alpha_right = alpha_pwr(pairNums(iPair,2));
 
-    % Normalize (see Smith et al. 2017)
+    % Normalize by correcting for overall alpha power (see Allen et al. 2004 and Smith et al. 2017)
     if norm
         alpha_left = alpha_left / sum(mean(alpha_pwr,2));
         alpha_right = alpha_right / sum(mean(alpha_pwr,2));
