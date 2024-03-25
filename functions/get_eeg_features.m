@@ -131,16 +131,20 @@ if params.eeg_frequency
 
     %%%%% Band power %%%%%
 
-    % number of frequency bins to preallocate memory
-    samplesPerWindow = fs * winlen;
-    nfft = 2^nextpow2(samplesPerWindow);
-    freqResolution = fs / nfft;
-    % numFrequencyBins = ceil((fRange(2) - fRange(1)) / freqResolution) + 1;
-    numFrequencyBins = floor((fRange(2) - fRange(1)) / freqResolution);
+    % Get freqs once here to avoid parloop issue
+    [~, ~, f] = compute_psd(signals(1,:),fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
+
+    % % number of frequency bins to preallocate memory
+    % samplesPerWindow = fs * winlen;
+    % nfft = 2^nextpow2(samplesPerWindow);
+    % freqRes = fs / nfft;
+    % % nFreqBins = ceil((fRange(2) - fRange(1)) / freqRes) + 1;
+    % nFreqBins = floor((fRange(2) - fRange(1)) / freqRes);
+    nFreqBins = length(f);
 
     % preallocate memory
-    PWR = nan(nChan,numFrequencyBins);
-    PWR_DB = nan(nChan,numFrequencyBins);
+    PWR = nan(nChan,nFreqBins);
+    PWR_DB = nan(nChan,nFreqBins);
     DELTA = nan(nChan,1);
     THETA = nan(nChan,1);
     ALPHA = nan(nChan,1);
@@ -149,8 +153,6 @@ if params.eeg_frequency
 
     disp('Calculating band-power on each EEG channel:')
 
-    % Get freqs once here to avoid parloop issue
-    [~, ~, f] = compute_psd(signals(1,:),fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
 
     % tic
     parfor iChan = 1:nChan
