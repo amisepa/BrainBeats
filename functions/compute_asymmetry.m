@@ -1,10 +1,26 @@
-%% Compute alpha asymmetry on all symmetric pairNums of electrodes, using
-% log(alpha_pwr_left)-log(alpha_pwr_right). The labels of the pairNums of
-% electrodes are printed in command window for visual check, and a 3D head
-% plot displays the asymmetry output (left side only since it's a relative
-% difference).
+%% Compute alpha asymmetry on all symmetric pairs of electrodes, using
+% log(alpha_pwr_left + constant) - log(alpha_pwr_right + constant). The
+% constant (eps) is to avoid issues when computing log of zero or negative 
+% power values. The labels of the pairNums of electrodes are printed in 
+% command window for visual check, and a 3D head plot displays the asymmetry 
+% output (left side only since it's a relative difference).
 %
-%
+% INPUTS:
+%   alpha_pwr   - mean aplha power spectral density (PSD) in μV^2/Hz for 
+%               each EEG channel (channel x power)
+%   norm        - normalize (1) or not (0) by dividing channel alpha power 
+%               by total alpha power
+%   chanlocs    - EEG electrode locations in the EEGLAB format
+%   vis         - visualize the outputs on a 3D head image (1) or not (0)
+% 
+% OUTPUTS:
+%   asy         - asymmetry values for each pair
+%   pairLabels  - electrode labels of each pair
+%   pairNums    - electrode number of each pair
+% 
+% EXAMPLE:
+%   [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, norm, chanlocs, vis)
+% 
 % Copyright (C) - BrainBeats - Cedric Cannard - 2023
 
 function [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, norm, chanlocs, vis)
@@ -78,14 +94,16 @@ end
 % [pairLabels, idx] = unique(pairLabels);
 % pairNums = pairNums(idx,:);
 
-% logarithm alpha power
-alpha_pwr = log(alpha_pwr);         % standard formula
-% alpha_pwr = 10*log10(alpha_pwr);  % in decibels
+% natural logarithm alpha power + eps constant to avoid issues with zero or 
+% negative values
+alpha_pwr = log(alpha_pwr + eps);           % standard formula
+% alpha_pwr = 10*log10(alpha_pwr + eps);      % decibels
 
 nPairs = length(pairLabels);
 asy = nan(nPairs,1);
 for iPair = 1:nPairs
-
+    
+    % alpha power for each side of the pair
     alpha_left = alpha_pwr(pairNums(iPair,1));
     alpha_right = alpha_pwr(pairNums(iPair,2));
 
@@ -100,21 +118,20 @@ for iPair = 1:nPairs
 
 end
 
-% Deal with complex numbers from negative logarithms?
-% if ~isreal(asy)
-%     asy = real(asy);
-% end
-
 % 3D plot showing asymmetry on left side of head
 if vis
-    figure('color','w')
-    headplotparams = { 'meshfile','mheadnew.mat','transform',[0.664455 -3.39403 -14.2521 -0.00241453 0.015519 -1.55584 11 10.1455 12],'material','metal' };
-    % headplotparams = {'meshfile','colin27headmesh.mat','transform',[0 -13 0 0.1 0 -1.57 11.7 12.5 12],'material','metal' };
-    headplot('setup',chanlocs(pairNums(:,1)),'tmp.spl',headplotparams{:}); % Generate temporary spline file
-    headplot(asy,'tmp.spl','view',[-85 20],headplotparams{:});  % 3D headplot of asymmetry
-    % headplot('setup',chanlocs,'tmp.spl',headplotparams{:}); % Generate temporary spline file
-    % headplot(log(alpha_pwr),'tmp.spl','view',[-85 20],headplotparams{:});  % 3D headplot of asymmetry
-    title('Alpha asymmetry')
+    try
+        figure('color','w')
+        headplotparams = { 'meshfile','mheadnew.mat','transform',[0.664455 -3.39403 -14.2521 -0.00241453 0.015519 -1.55584 11 10.1455 12],'material','metal' };
+        % headplotparams = {'meshfile','colin27headmesh.mat','transform',[0 -13 0 0.1 0 -1.57 11.7 12.5 12],'material','metal' };
+        headplot('setup',chanlocs(pairNums(:,1)),'tmp.spl',headplotparams{:}); % Generate temporary spline file
+        headplot(asy,'tmp.spl','view',[-85 20],headplotparams{:});  % 3D headplot of asymmetry
+        % headplot('setup',chanlocs,'tmp.spl',headplotparams{:}); % Generate temporary spline file
+        % headplot(log(alpha_pwr),'tmp.spl','view',[-85 20],headplotparams{:});  % 3D headplot of asymmetry
+        title('Alpha asymmetry')
+    catch
+        warning("Sorry, 3D headplot failed. Could be because the mesh file was not on the path if using this function outside of BrainBeats.")
+    end
 end
 
 % Print electrode pairs in command window if some are present
