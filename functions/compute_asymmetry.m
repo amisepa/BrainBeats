@@ -6,8 +6,9 @@
 % output (left side only since it's a relative difference).
 %
 % INPUTS:
-%   alpha_pwr   - mean aplha power spectral density (PSD) in μV^2/Hz for 
-%               each EEG channel (channel x power)
+%   alpha_pwr   - mean aplha power spectral density (PSD) for each EEG 
+%               channel (channel x power). Warning: Must be in μV^2/Hz to avoid log
+%               of already log power. 
 %   norm        - normalize (1) or not (0) by dividing channel alpha power 
 %               by total alpha power
 %   chanlocs    - EEG electrode locations in the EEGLAB format
