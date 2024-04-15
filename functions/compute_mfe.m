@@ -18,6 +18,10 @@
 %   scales: scale factors
 %   scales_bounds: lower and upper frequency bounds of each time scale
 % 
+% EXAMPLE:
+%   [mfe, scales, scale_bounds] = compute_mfe(signal, m, r, tau, coarseType, nScales, filtData, fs, n, useGPU)
+%   [mfe, scales, scale_bounds] = compute_mfe(EEG.data(iChan,:), [], [], [], 'SD', 30, 0, EEG.srate, [], 0)
+% 
 % Please cite:
 %   [1] Azami & Escudero (2016), "Refined Multiscale Fuzzy Entropy based on
 %   Standard Deviation for Biomedical Signal Analysis", Medical & Biological
@@ -49,11 +53,35 @@ function [mfe, scales, scale_bounds] = compute_mfe(signal, m, r, tau, coarseType
 % highest_freq = fs / (2*nScales)
 scale_bounds = {};
 
-if ~exist('m','var'), m = 2; end
-if ~exist('r','var'), r = .15; end
-if ~exist('n','var'), n = 2; end
-if ~exist('tau','var'), tau = 1; end
-if tau > 1, signal = downsample(signal, tau); end
+if ~exist('m','var') || isempty(m)
+    m = 2; 
+end
+if ~exist('r','var')|| isempty(r)
+    r = .15; 
+end
+if ~exist('tau','var') || isempty(tau) 
+    tau = 1; 
+end
+if ~exist('coarseType','var') || isempty(coarseType)
+    coarseType = 'SD'; 
+end
+if ~exist('nScales','var') || isempty(nScales)
+    nScales = 20; 
+end
+if ~exist('filtData','var') || isempty(filtData)
+    filtData = 0; 
+end
+if ~exist('n','var') || isempty(n)
+    n = 2; 
+end
+if ~exist('useGPU','var') || isempty(useGPU)
+    useGPU = 0; 
+end
+
+% Downsample signal if tau is > 1
+if tau > 1
+    signal = downsample(signal, tau); 
+end
 
 % Max scale factor cannot be greater than Nyquist frequency (for EEG)
 if exist('fs','var')
@@ -94,15 +122,17 @@ parfor iScale = 1:nScales
     end
 
     % Corresponding scale frequency bounds
-    if iScale == 1
-        upperBound = nf;
-    else
-        upperBound = (1/iScale).*nf + .05*((1./iScale).*nf);
+    if exist('fs','var')
+        if iScale == 1
+            upperBound = nf;
+        else
+            upperBound = (1/iScale).*nf + .05*((1./iScale).*nf);
+        end
+        lowerBound = (1/(iScale+1)).*nf - .05*((1./(iScale+1)).*nf);
+        
+        % scale_bounds(iScale,:) = {round(lowerBound,3) round(upperBound,3) };
+        scale_bounds(iScale,:) = {sprintf('scale %g: %g - %g',iScale, round(lowerBound,1), round(upperBound,1))} ;
     end
-    lowerBound = (1/(iScale+1)).*nf - .05*((1./(iScale+1)).*nf);
-    
-    % scale_bounds(iScale,:) = {round(lowerBound,3) round(upperBound,3) };
-    scale_bounds(iScale,:) = {sprintf('scale %g: %g - %g',iScale, round(lowerBound,1), round(upperBound,1))} ;
 
     % Control for broadband spectral contributions using a bandpass filter at each scale factor (see Kosciessa et al 2020)
     if filtData
@@ -162,5 +192,10 @@ scales = 1:nScales;
 
 % Remove NaN scales
 scales(isnan(mfe)) = [];
-scale_bounds(isnan(mfe),:) = [];
 mfe(isnan(mfe)) = [];
+if exist('fs','var')
+    scale_bounds(isnan(mfe),:) = [];
+end
+
+% Plot
+figure; plot(scales,mfe)

@@ -158,29 +158,31 @@ params.fs = EEG.srate;
 % Initiate or block parallel computing
 if params.parpool
 
-    % check if user has parallel toolbox
-    try
-        ver('parallel')
-    catch
-        warning("You do not have the parallel toolbox. Turning parallel computing OFF.")
-        warningdlg("You do not have the parallel toolbox. Turning parallel computing OFF.")
+    % Check if user has parallel toolbox installed
+    % ver('parallel')
+    addons = ver;
+    if any(contains({addons.Name}, 'Parallel'))
+        ps = parallel.Settings;
+        fprintf('Parallel computing set to ON. \n')
+        ps.Pool.AutoCreate = true;
+        p = gcp('nocreate');
+        % delete(gcp('nocreate')) % shut down opened parpool
+        if isempty(p) % if not already on, launch it
+            disp('Initiating parrallel computing (all cores and threads -1)...')
+            c = parcluster; % cluster profile
+            % N = feature('numcores');          % only physical cores
+            N = getenv('NUMBER_OF_PROCESSORS'); % all processor (cores + threads)
+            if ischar(N), N = str2double(N); end
+            c.NumWorkers = N-2;  % update cluster profile to include all workers
+            c.parpool();
+        end
+
+    else
+        warning("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
+        warningdlg("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
         params.parpool = false;
     end
 
-    ps = parallel.Settings;
-    fprintf('Parallel computing set to ON. \n')
-    ps.Pool.AutoCreate = true;
-    p = gcp('nocreate');
-    % delete(gcp('nocreate')) % shut down opened parpool
-    if isempty(p) % if not already on, launch it
-        disp('Initiating parrallel computing (all cores and threads -1)...')
-        c = parcluster; % cluster profile
-        % N = feature('numcores');          % only physical cores
-        N = getenv('NUMBER_OF_PROCESSORS'); % all processor (cores + threads)
-        if ischar(N), N = str2double(N); end
-        c.NumWorkers = N-2;  % update cluster profile to include all workers
-        c.parpool();
-    end
 else
     fprintf('Parallel computing set to OFF. \n')
 

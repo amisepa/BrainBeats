@@ -63,7 +63,7 @@ if ~isempty(heart_comp)
             pop_selectcomps(EEG,1:max(heart_comp)); 
         end
         set(gcf,'Name','Heart component(s) removed','NumberTitle','Off')  % name
-        colormap("parula"); pause(0.1)
+        colormap('parula'); pause(0.1)
     end
     
     % Substract heart component from signal

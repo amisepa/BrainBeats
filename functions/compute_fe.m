@@ -27,6 +27,8 @@ if ~exist('m','var'), m = 2; end
 if ~exist('r','var'), r = .15; end
 if ~exist('n','var'), n = 2; end
 if ~exist('tau','var'), tau = 1; end
+if ~exist('useGPU','var'), useGPU = 0; end
+
 if tau > 1, signal = downsample(signal, tau); end
 
 if useGPU
