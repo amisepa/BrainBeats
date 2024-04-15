@@ -124,13 +124,6 @@ if params.eeg_frequency
 
     nChan = size(signals,1);
 
-    % progressbar (only when not in parpool)
-    if ~useparpool
-        progressbar('Estimating EEG power spectral density on each channel')
-    end
-
-    %%%%% Band power %%%%%
-
     % Get freqs once here to avoid parloop issue
     [~, ~, f] = compute_psd(signals(1,:),fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
 
@@ -151,10 +144,12 @@ if params.eeg_frequency
     BETA = nan(nChan,1);
     GAMMA = nan(nChan,1);
 
-    disp('Calculating band-power on each EEG channel:')
-
-
+    % progressbar (only when not in parpool)
+    if ~useparpool
+        progressbar('Computing power spectral density for each EEG channel')
+    end
     % tic
+    disp('Calculating band-power on each EEG channel:')
     parfor iChan = 1:nChan
 
         delta = [];

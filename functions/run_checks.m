@@ -156,12 +156,12 @@ params.fs = EEG.srate;
 
 
 % Initiate or block parallel computing
-if params.parpool
+addons = ver;
+% ver('parallel')
+parpool_installed = any(contains({addons.Name}, 'Parallel'));
+if params.parpool 
 
-    % Check if user has parallel toolbox installed
-    % ver('parallel')
-    addons = ver;
-    if any(contains({addons.Name}, 'Parallel'))
+    if parpool_installed
         ps = parallel.Settings;
         fprintf('Parallel computing set to ON. \n')
         ps.Pool.AutoCreate = true;
@@ -176,7 +176,6 @@ if params.parpool
             c.NumWorkers = N-2;  % update cluster profile to include all workers
             c.parpool();
         end
-
     else
         warning("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
         warningdlg("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
@@ -186,15 +185,17 @@ if params.parpool
 else
     fprintf('Parallel computing set to OFF. \n')
 
-    % Shut down parallel pool if already opened
-    p = gcp('nocreate');
-    if ~isempty(p)
-        delete(gcp('nocreate'));
+    % Block parallel pool if installed but user does not want to use it
+    if parpool_installed
+        p = gcp('nocreate');
+        if ~isempty(p)
+            delete(gcp('nocreate'));
+        end
+    
+        % Prevent parfor loops from launching parpool mode
+        ps = parallel.Settings;
+        ps.Pool.AutoCreate = false;  
     end
-
-    % Prevent parfor loops from launching parpool mode
-    ps = parallel.Settings;
-    ps.Pool.AutoCreate = false;  
 end
 
 if ~isfield(params,'gong')
