@@ -3,7 +3,7 @@
 <!-- </p> -->
 
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/brainbeats_logo2.png">
+    <img width="30%" src="https://github.com/amisepa/BrainBeats/blob/main/brainbeats_logo2.png">
 </p>
 
 The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing and analysis of EEG and cardiovascular signals (ECG/PPG). Both the general user interface (GUI) and command line are supported (see tutorial). 
@@ -70,11 +70,9 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 - MATLAB installed (https://www.mathworks.com/downloads)
 - EEGLAB installed (https://github.com/sccn/eeglab)
 - Some data containing EEG and cardiovascular signals (ECG or PPG) within the same file (i.e. recorded simultaneously).
-  Or use the provided sample dataset.
+  Or use the tutorial dataset provided in this repository located in the "sample_data" folder.
 
 ## Step-by-step tutorial
 
-A sample dataset is provided and located in the "sample_data" folder. 
-
-See the JoVE preprint for a step-by-step tutorial using the sample dataset: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v2.full
+See the JoVE article for a step-by-step tutorial using the sample dataset: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v3.full
 
