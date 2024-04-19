@@ -45,15 +45,15 @@ try
         % Find matching right electrode using X distance
         for iChan2 = 1:nChan
             if iChan2 ~= iChan
-                % elec_dist(iChan2,:) = abs( abs(theta(iChan)) - abs(theta(iChan2)) );
-                elec_dist(iChan2,:) = abs( abs(chanlocs(iChan).X) - abs(chanlocs(iChan2).X) );
+                elec_dist(iChan2,:) = abs( abs(theta(iChan)) - abs(theta(iChan2)) );
+                % elec_dist(iChan2,:) = abs( abs(chanlocs(iChan).X) - abs(chanlocs(iChan2).X) );
             end
         end
         [~, match] = mink(elec_dist,2);
     
         % Fix: remove match that have distance greater than 1, useful for 
         % low-density montages or to prevent errors below with labels like TP9-TP10
-        % match(elec_dist(match) > 1) = [];
+        match(elec_dist(match) > 1) = [];
     
         % Fix: sometimes get the wrong one depending on montage where some
         % other electrodes have shorter distance
