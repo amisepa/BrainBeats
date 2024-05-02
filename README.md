@@ -76,3 +76,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 
 See the JoVE article for a step-by-step tutorial using the sample dataset: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v3.full
 
+## history
+
+v1.5 (5/2/2024) - METHOD 4 (brain-heart coherence) added
+v1.4 (4/1/2024) - publication JoVE (methods 1, 2, 3)
