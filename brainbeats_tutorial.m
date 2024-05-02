@@ -116,7 +116,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % Note that 'analysis' is set to 'features' to extract EEG and HRV features
 % parpool set to ON to accelerate computation of EEG features
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',false,'parpool',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'parpool',true);
 
 % All features can be found in EEG.brainbeats.features or in a .mat file
 % saved in the same place as the .set file loaded in EEGLAB
@@ -158,6 +158,22 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,'vis_cleaning',false,...
     'conf_thresh',.8,'boost',true);
+
+%% METHOD 4: Brain-heart coherence (beta, command line only)
+
+% ECG
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'PPG'});  % remove ECG channel to avoid warning
+EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'ref','infinity','ica_method',1,...
+    'parpool',false,'vis_outputs',true);
+
+% PPG
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
+EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'clean_eeg',true,'ref','infinity','ica_method',1,...
+    'parpool',false,'vis_outputs',true);
 
 %% To launch the GUI only
 
@@ -203,7 +219,8 @@ EEG.brainbeats.features.HRV
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG' 'ECG'}); 
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','off', ...
-    'eeg_features',{'time' 'frequency'},'clean_eeg',true,'parpool','on', ...
+    'eeg_features',{'time' 'frequency'},'clean_eeg',true,'ref','infinity',...
+    'parpool','on', ...
     'vis_cleaning',false,'vis_outputs',true,'save',true);
 
 % Preprocessing outputs can be found in:
@@ -211,4 +228,3 @@ EEG.brainbeats.preprocessings
 
 % EEG features can be found in:
 EEG.brainbeats.features.EEG
-

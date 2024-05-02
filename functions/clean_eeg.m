@@ -44,17 +44,20 @@ if isfield(params,'ref')
     reref = params.ref;
 else
     reref = 'average'; % 'average' (default), 'infinity', 'off'
+    params.ref = 'average';    % for user
 end
 if isfield(params,'highpass')
     highpass = params.highpass;
 else
     highpass = 1; % default = 1 Hz
+    params.highpass = 1;    % for user
 end
 if isfield(params,'lowpass')
     lowpass = params.lowpass;
 else
     lowpass = 40;   % default = 40 hz to safely remove power line at 50/60 Hz 
                     % with a low filter order (less ripples and faster)
+    params.lowpass = 40;    % for user
 end
 if isfield(params,'filttype')
     if strcmpi(params.filttype,'causal')
@@ -65,11 +68,13 @@ if isfield(params,'filttype')
 else
     % default filter depending on analysis
     causalfilt = false; % zero-phase noncausal filter
+    params.causalfilt = 0;    % for user
 end
 if isfield(params,'gpu')
     usegpu = params.gpu;
 else
     usegpu = false; % default
+    params.gpu = 0;    % for user
 end
 
 % Channel removal parameters
@@ -77,16 +82,19 @@ if isfield(params,'flatline')
     flatline = params.flatline;
 else
     flatline = 5; % max flat segment to remove channel (default = 5 s)
+    params.flatline = 5;    % for user
 end
 if isfield(params,'corrThresh')
     corrThresh = params.corrThresh;
 else
     corrThresh = .65;   % correlation threshold to be considered bad (default = .65)
+    params.corrThresh = .65;    % for user
 end
 if isfield(params,'maxBad')
     maxBad = params.maxBad;
 else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
+    params.maxBad = .33;    % for user
 end
 win_length = 5;     % window length to scan channels (default = 5 s)
 line_thresh = 15;    % line noise threshold to remove bad channels (default = 15)
@@ -201,7 +209,7 @@ elseif params.clean_eeg_step == 1
     fprintf('              Cleaning EEG data \n')
     disp('----------------------------------------------')
 
-    % HEP
+    % HEP (remove bad epochs)
     if strcmp(params.analysis, 'hep')
         
         % Detect and remove bad epochs
@@ -215,8 +223,8 @@ elseif params.clean_eeg_step == 1
         % Store in params if users want that information
         params.removed_eeg_trials = badTrials;
         
-        % Features
-    elseif contains(params.analysis, {'features' 'rm_heart'})
+    % ASR on continuous data
+    elseif contains(params.analysis, {'features' 'rm_heart' 'coherence'})
         
         % Identify artifacts using ASR
         oriEEG = EEG;

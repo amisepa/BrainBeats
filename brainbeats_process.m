@@ -128,9 +128,17 @@ if any(idx)
     end
 end
 
+% to skip MODE 1 for coherence
+if strcmpi(params.analysis,'coherence')
+    coh = true;
+else
+    coh = false;
+end
+
 %%%%% MODE 1 & 2: RR, SQI, and NN %%%%%
-if ~strcmpi(params.heart_signal,'off')
-    if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features')
+if ~strcmpi(params.heart_signal,'off') && ~coh
+
+    if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features') 
 
         % Resample CARDIO data to match EEG for HEP, when different
         if  strcmp(params.analysis, 'hep') && EEG.srate~=CARDIO.srate
@@ -288,21 +296,24 @@ if params.clean_eeg
     EEG.brainbeats.preprocessings.removed_eeg_channels = params.removed_eeg_channels;
 end
 
-%%%%% Heartbeat-evoked potentials (HEP) %%%%%
+%%%%% MODE 1: Heartbeat-evoked potentials (HEP) %%%%%
 if strcmp(params.analysis,'hep')
     EEG = run_HEP(EEG, CARDIO, params, Rpeaks); % CARDIO input is for adding cardio channel back in final output
-end
 
-%%%%% EEG features %%%%%
-if isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params.eeg_features~=0
+%%%%% MODE 2: EEG features %%%%%
+elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params.eeg_features~=0
 
     % Remove EEG artifacts with ASR and bad components with ICLabel
     if params.clean_eeg
         [EEG, params] = clean_eeg(EEG, params);
 
-        % Preprocessing outputs
-        EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
-        EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
+        % Preprocessing outputs to export for reporting
+        if isfield(params,'removed_eeg_segments')
+            EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
+        end
+        if isfield(params,'removed_eeg_components')
+            EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
+        end
     end
 
     % Extract EEG features and store in EEGLAB structure
@@ -311,7 +322,301 @@ if isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params.eeg
 
     % Final output with everything
     Features.EEG = features_eeg;
+
+%%%%% MODE 3: BRAIN-HEART COHERENCE %%%%%
+elseif strcmpi(params.analysis,'coherence')
+    disp("Computing brain-heart coupling...")
+
+    params.chanlocs = EEG.chanlocs;
+
+    % Remove EEG artifacts with ASR and bad components with ICLabel
+    if params.clean_eeg
+        [EEG, params] = clean_eeg(EEG, params);
+
+        % Remove bad segments from cardio signal to match EEG time
+        if isfield(params,'removed_eeg_segments')
+            CARDIO = pop_select(CARDIO,'nopoint',params.removed_eeg_segments);
+        end
+
+        % Preprocessing outputs to export for reporting
+        if isfield(params,'removed_eeg_segments')
+            EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
+        end
+        if isfield(params,'removed_eeg_components')
+            EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
+        end
+    end
+    
+    % filter cardio data
+    % CARDIO = pop_eegfiltnew(CARDIO,'locutoff',params.highpass,'hicutoff',params.lowpass); 
+    CARDIO = pop_eegfiltnew(CARDIO,'locutoff',0.5,'hicutoff',40); 
+
+    % Rescale cardio data to match EEG scale
+    disp("Rescaling heart signal to match EEG scale...")
+    for iChan = 1:CARDIO.nbchan
+        CARDIO.data(iChan,:) = rescale( CARDIO.data(iChan,:), quantile(mean(EEG.data,1),.01)*2, quantile(mean(EEG.data,1),.99)*2 );
+        % CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -150, 150);
+    end
+
+    % Reverse polarity of ECG if negative
+    if strcmpi(params.heart_signal,'ecg') & pol <0
+        CARDIO.data = -CARDIO.data;
+    end
+
+    % Merge Cardio and EEG
+    if EEG.pnts == CARDIO.pnts
+        EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
+        EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
+        for iChan = 1:CARDIO.nbchan
+            EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+        end
+        EEG = eeg_checkset(EEG);
+        % pop_eegplot(EEG,1,1,1);
+    else
+        % EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data(:,1:end-1); % for PPG
+        error('Trying to merge EEG and Cardiovascular signals back together, but they have different lengths')
+    end
+
+    % Run multivariate analysis of causal interactions
+    fprintf('Running multivariate analysis of causal interactions between brain and heart signals.. \n')
+    fs = EEG.srate;
+    nfft = fs*2;  % 2-s windows
+    Su = eye(EEG.nbchan,EEG.nbchan);
+    [dc,~,pdc,gpdc,~,coh,pcoh,~,~,~,~,f] = fdMVAR_5order(EEG.data,Su,nfft,fs);
+
+    % abs to convert everything to positive, real to preserve polarity
+    if ~isreal(coh), coh = abs(coh); end
+    if ~isreal(pcoh),pcoh = abs(pcoh); end
+    if ~isreal(dc), dc = abs(dc); end
+    if ~isreal(pdc), pdc = abs(pdc); end
+    if ~isreal(gpdc), gpdc = abs(gpdc); end
+    
+    % Save
+    % if params.save
+    EEG.brainbeats.coherence.freqs = f;
+    EEG.brainbeats.coherence.coh = coh;
+    EEG.brainbeats.coherence.pcoh = pcoh;
+    EEG.brainbeats.coherence.dc = dc;
+    EEG.brainbeats.coherence.pdc = pdc;
+    EEG.brainbeats.coherence.gpdc = gpdc;
+    EEG.brainbeats.coherence.channels = {EEG.chanlocs.labels};
+    disp("Brain-heart coherence exported into EEG.brainbeats.coherence")
+    % end
+    
+    % Plot
+    if params.vis_outputs
+        cardio_chan = strcmpi({EEG.chanlocs.labels},params.heart_channels);
+
+        % Delta
+        % idx = f<=3;
+        % fc = mean(coh(:,:,idx),3,'omitnan');  % mean for the band
+        % coh_delta(logical(eye(size(coh_delta)))) = 1;           % one diagonal
+        % imagesc(coh_delta); colorbar; clim([0 1])
+        % fc = fc(cardio_chan,~cardio_chan);  % cardio in row, EEG in columns
+
+        % % course plot
+        % subplot(2,2,1)
+        % plot(coh_delta,'linewidth',2)
+        % labels = {EEG.chanlocs(~cardio_chan).labels};
+        % xticks(gca, 1:length(labels));
+        % xticklabels(gca, labels);
+        % % set(gca, 'XTickLabelRotation', 45);
+        % % yticks(gca, mean(get(gca, 'YLim'))); % Position the tick at the middle of the y-axis range
+        % % yticklabels(gca, {'ECG'});
+        % yticks([]);
+        % ylabel('Coherence','FontWeight','bold','FontSize',11)
+        % % set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
+        % title('Delta band (<3 hz)','fontSize',12,'FontWeight','bold'); 
+        % box off; grid off
+    
+        maxfreq = 40;
+        figure('color','w'); 
+        % COHERENCE (ALL FREQS)
+        subplot(2,2,1)
+        fc = squeeze(coh(cardio_chan,~cardio_chan,f<maxfreq));  % mean for the band
+        imagesc(f(f<maxfreq),1:size(fc,1),fc);  % cardio in row, EEG in columns
+        clim([0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
+        Ylabels = {EEG.chanlocs.labels};
+        newticks = 1:2:length(Ylabels);
+        newticks = unique(newticks);
+        Ylabels  = Ylabels(newticks);
+        set(gca,'YTick',newticks);
+        set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
+        xlabel('Frequency (Hz)'); title("Brain-heart coherence")
+    
+        % PARTIAL OHERENCE (ALL FREQS)
+        subplot(2,2,2)
+        fc = squeeze(pcoh(cardio_chan,~cardio_chan,f<maxfreq));  % mean for the band
+        imagesc(f(f<maxfreq),1:size(fc,1),fc);  % cardio in row, EEG in columns
+        clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
+        Ylabels = {EEG.chanlocs.labels};
+        newticks = 1:2:length(Ylabels);
+        newticks = unique(newticks);
+        Ylabels  = Ylabels(newticks);
+        set(gca,'YTick',newticks);
+        set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
+        xlabel('Frequency (Hz)'); title("Brain-heart partial coherence")
+    
+        % DIRECTED OHERENCE (ALL FREQS)
+        subplot(2,2,3)
+        fc = squeeze(dc(cardio_chan,~cardio_chan,f<40));  % mean for the band
+        imagesc(f(f<40),1:size(fc,1),fc);  % cardio in row, EEG in columns
+        clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','Rotation',270)
+        Ylabels = {EEG.chanlocs.labels};
+        newticks = 1:2:length(Ylabels);
+        newticks = unique(newticks);
+        Ylabels  = Ylabels(newticks);
+        set(gca,'YTick',newticks);
+        set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
+        xlabel('Frequency (Hz)'); title("Directed coherence")
+    
+        % PARTIAL DIRECTED OHERENCE (ALL FREQS)
+        subplot(2,2,4)
+        fc = squeeze(pdc(cardio_chan,~cardio_chan,f<40));  % mean for the band
+        imagesc(f(f<40),1:size(fc,1),fc);  % cardio in row, EEG in columns
+        clim([0 1]); colorbar;  
+        Ylabels = {EEG.chanlocs.labels};
+        newticks = 1:2:length(Ylabels);
+        newticks = unique(newticks);
+        Ylabels  = Ylabels(newticks);
+        set(gca,'YTick',newticks);
+        set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
+        xlabel('Frequency (Hz)'); title("Partial directed coherence")
+    
+        set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
+    
+    
+        % COHERENCE (TOPO of EACH BAND)
+        figure('color','w')
+        subplot(2,1,1)  % coherence
+        fc = mean(coh(:,:,f<=10),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Coherence','Rotation',270,'fontSize',12,'fontweight','bold')
+        title('Scalp topography (1-10 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,1,2)  % partial coherence
+        fc = mean(pcoh(:,:,f<=10),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Partial coherence','Rotation',270,'fontSize',12,'fontweight','bold')
+        title('Scalp topography (1-10 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        % subplot(2,2,2)  % theta
+        % fc = mean(coh(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
+        % plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        % cb = colorbar; clim([0 1])
+        % ylabel(cb,'Coherence','Rotation',270,'fontSize',11,'fontweight','bold')
+        % title('Theta (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,3)  % alpha
+        fc = mean(coh(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        clim([0 1])
+        title('Alpha (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,4)  % beta
+        fc = mean(coh(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Coherence','Rotation',270,'fontSize',12,'fontweight','bold')
+        title('Beta (13-30 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        % PARTIAL COHERENCE
+        figure('color','w')
+        subplot(2,2,1)  % delta
+        fc = mean(pcoh(:,:,f<=3),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        clim([0 1])
+        title('Delta (<3 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,2)  % theta
+        fc = mean(pcoh(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Partial coherence','Rotation',270,'fontSize',11,'fontweight','bold')
+        title('Theta (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,3)  % alpha
+        fc = mean(pcoh(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        clim([0 1])
+        title('Alpha (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,4)  % beta
+        fc = mean(pcoh(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Partial coherence','Rotation',270,'fontSize',12,'fontweight','bold')
+        title('Beta (13-30 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
+    
+        % DIRECTED COHERENCE
+        figure('color','w')
+        subplot(2,2,1)  % delta
+        fc = mean(dc(:,:,f<=3),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        clim([0 1])
+        title('Delta (<3 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,2)  % theta
+        fc = mean(dc(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Directed coherence','Rotation',270,'fontSize',11,'fontweight','bold')
+        title('Theta (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,3)  % alpha
+        fc = mean(dc(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        clim([0 1])
+        title('Alpha (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,4)  % beta
+        fc = mean(dc(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Directed coherence','Rotation',270,'fontSize',12,'fontweight','bold')
+        title('Beta (13-30 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
+    
+        % PARTIAL DIRECTED COHERENCE
+        figure('color','w')
+        subplot(2,2,1)  % delta
+        fc = mean(pdc(:,:,f<=3),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        clim([0 1])
+        title('Delta (<3 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,2)  % theta
+        fc = mean(pdc(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Partial directed coherence','Rotation',270,'fontSize',11,'fontweight','bold')
+        title('Theta (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,3)  % alpha
+        fc = mean(pdc(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        clim([0 1])
+        title('Alpha (3-7 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        subplot(2,2,4)  % beta
+        fc = mean(pdc(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
+        plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
+        cb = colorbar; clim([0 1])
+        ylabel(cb,'Partial directed coherence','Rotation',270,'fontSize',12,'fontweight','bold')
+        title('Beta (13-30 Hz)','fontSize',12,'FontWeight','bold'); 
+    
+        set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
+    end
 end
+
+
+
+
 
 % Store parameters in EEG structure for reporting
 EEG.brainbeats.parameters = params;
@@ -334,7 +639,7 @@ if strcmp(params.analysis,'features')
     end
 end
 
-%%%%% MODE 3: remove heart components from EEG signals %%%%%
+%%%%% MODE 4: remove heart components from EEG signals %%%%%
 if strcmp(params.analysis,'rm_heart')
 
     % Preprocess EEG

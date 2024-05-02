@@ -120,14 +120,17 @@ if params.hrv_frequency
             winLength = minLength(iBand);
             stepSize = winLength * (1 - overlap);
             nWindows = floor((NN_times(end) - winLength) / stepSize) + 1;
+            % winLength = NN_times(end);   % USE WHOLE SIGNAL INSTEAD OF WINDOWS
+            % nWindows = NN_times(end) / winLength;
             
-            fprintf('Frequency band: %s \n', bandNames{iBand})
+            fprintf('HRV frequency band: %s \n', bandNames{iBand})
 
             % Compute PSD on each sliding window
             for iWin = 1:nWindows
                 fprintf(' - window %g \n', iWin)
 
                 start_idx = (iWin - 1) * stepSize + 1;
+                % start_idx = 1;  % USE WHOLE SIGNAL
                 end_idx = start_idx + winLength - 1;
                 win_idx = NN_times >= start_idx & NN_times <= end_idx;
 
@@ -135,7 +138,7 @@ if params.hrv_frequency
                 % nfft = 2^nextpow2(length(NN(win_idx)));    % dynamic nfft based on window length
                 nfft = max(2^nextpow2(length(NN(win_idx))), 512);  % use 512 as minimum value for smaller windows
                 fvec = bands(iBand,1):1/nfft:bands(iBand,2);
-                                
+                
                 % Lomb-Scargle Periodogram (no resampling required and best method)
                 if strcmp(hrv_spec, 'LombScargle_norm')
                         [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized'); 

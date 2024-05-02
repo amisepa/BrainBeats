@@ -53,7 +53,7 @@ if mode == 1
     %     colormap('hot');
     % end
     c = colorbar;
-    %ylabel(c,'Power spectral difference (log)','FontSize',12)
+    % ylabel(c,'Coherence','FontSize',12)
     % title('Entropy','FontSize',10);
     % if strcmpi(dataType,'psd')
     % c.Label.String = 'Power';
@@ -62,7 +62,7 @@ if mode == 1
     % elseif strcmpi(dataType,'entropy')
     %     c.Label.String = 'Entropy';
     % end
-    c.Label.FontSize = 10;
+    c.Label.FontSize = 12;
     c.Label.FontWeight = 'bold';
     % end
 end
