@@ -55,14 +55,31 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/fig22.png"> 
 </p>
 
-3) Remove heart components from EEG signals using ICA and ICLabel.
 
+3) Remove heart components from EEG signals using ICA and ICLabel.
    
 <p align="center">
     Example of extraction of cardiovascular components from EEG signals
 </p>
 <p align="center" width="100%">
     <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/fig27.png"> 
+</p>
+
+
+4) Compute brain-heart coherence (beta)
+   
+<p align="center">
+    Example of several brain-heart coherence measures computed with BrainBeats from simultaneous EEG and ECG signals
+</p>
+<p align="center" width="100%">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/coherence_allfreqs.png"> 
+</p>
+
+<p align="center">
+    Scalp topography showing scalp regions coherent with ECG signal for each frequency band
+</p>
+<p align="center" width="100%">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/coherence_topo.png"> 
 </p>
 
 ## Requirements
