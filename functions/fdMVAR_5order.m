@@ -1,29 +1,32 @@
 %% FREQUENCY DOMAIN MVAR ANALYSIS
-% REFERENCE: Luca Faes and Giandomenico Nollo (2011). Multivariate Frequency Domain Analysis of Causal Interactions in Physiological Time Series,
-% Biomedical Engineering, Trends in Electronics, Communications and Software, Anthony N. Laskovski (Ed.), ISBN: 978-953-307-475-7, InTech,
-% Available from: http://www.intechopen.com/articles/show/title/multivariate-frequency-domain-analysis-of-causal-interactions-in-physiological-time-series
-
-%%% inputs:
-% Am=[A(1)...A(p)]: M*pM matrix of the MVAR model coefficients (strictly causal model)
-% Su: M*M covariance matrix of the input noises
-% N= number of points for calculation of the spectral functions (nfft)
-% Fs= sampling frequency
-
-%%% outputs:
-% DC= Directed Coherence (Eq. 11)
-% DTF= Directed Transfer Function (Eq. 11 but with sigma_i=sigma_j for each i,j)
-% PDC= Partial Directed Coherence (Eq. 15 but with sigma_i=sigma_j for each i,j)
-% GPDC= Generalized Partial Directed Coherence (Eq. 15)
-% COH= Coherence (Eq. 3)
-% PCOH= Partial Coherence (Eq. 3)
-% H= Tranfer Function Matrix (Eq. 6)
-% S= Spectral Matrix (Eq. 7)
-% P= Inverse Spectral Matrix (Eq. 7)
-% f= frequency vector
+% 
+% 
+% INPUTS:
+%   Am = [A(1)...A(p)]: M*pM matrix of the MVAR model coefficients (strictly causal model)
+%   Su = M*M covariance matrix of the input noises
+%   N  = number of points for calculation of the spectral functions (nfft)
+%   Fs = sampling frequency
+% 
+% OUTPUTS:
+%   DC  = Directed Coherence (Eq. 11)
+%   DTF = Directed Transfer Function (Eq. 11 but with sigma_i=sigma_j for each i,j)
+%   PDC = Partial Directed Coherence (Eq. 15 but with sigma_i=sigma_j for each i,j)
+%   GPDC= Generalized Partial Directed Coherence (Eq. 15)
+%   COH = Coherence (Eq. 3)
+%   PCOH= Partial Coherence (Eq. 3)
+%   H   = Tranfer Function Matrix (Eq. 6)
+%   S   = Spectral Matrix (Eq. 7)
+%   P   = Inverse Spectral Matrix (Eq. 7)
+%   f   = frequency vector
+% 
+% Copyright (C), Cedric Cannard, BrainBeats 2024
+% 
+% PLEASE CITE THE FOLLOWING REFERENCE WHEN USING THIS CODE:
+%   Faes & Nollo (2011). Multivariate Frequency Domain Analysis of Causal Interactions in Physiological Time Series, Biomedical Engineering, Trends in Electronics, Communications and Software
 
 function [DC,DTF,PDC,GPDC,IPDC,COH,PCOH,PCOH2,H,S,P,f] = fdMVAR_5order(Am,Su,N,Fs)
 
-M= size(Am,1); % Am has dim M*pM
+M = size(Am,1); % Am has dim M*pM
 p = 5; % p is the order of the MVAR model
 
 if nargin<2, Su = eye(M,M); end % if not specified, we assume uncorrelated noises with unit variance as inputs
@@ -35,8 +38,8 @@ else            % if N is a vector, we assume that it is the vector of the frequ
     f = N; N = length(N);
 end
 
-s = exp(i*2*pi*f/Fs); % vector of complex exponentials
-z = i*2*pi/Fs;
+% s = exp(1i*2*pi*f/Fs); % vector of complex exponentials
+z = 1i*2*pi/Fs;
 
 
 %% Initializations: spectral matrices have M rows, M columns and are calculated at each of the N frequencies
@@ -56,15 +59,16 @@ tmp2=tmp1; %denominator for DC (column!)
 tmp3=tmp1'; tmp4=tmp1'; %denominators for PDC (row!)
 
 A = [eye(M) -Am]; % matrix from which M*M blocks are selected to calculate spectral functions
-invSu=inv(Su);
+% invSu = inv(Su);
 
-% I define the following matrices forced to be diagonal even when the original Su is not diagonal (this because DC and PDC/GPDC do not use off-diag terms)
-Cd=diag(diag(Su)); % Cd is useful for calculation of DC
-invCd=inv(Cd);% invCd is useful for calculation of GPDC
+% Define the following matrices forced to be diagonal even when the original Su is not diagonal (this because DC and PDC/GPDC do not use off-diag terms)
+Cd      = diag(diag(Su));   % Cd is useful for calculation of DC
+invCd   = inv(Cd);          % invCd is useful for calculation of GPDC
 %note: in the definition of the DC here (without inst.eff.) the denominator is not the spectrum because the actual Su is not diagonal
 
-%% computation of spectral functions
-for n=1:N % at each frequency
+%% Computation of spectral functions
+
+for n = 1:N % at each frequency
 
     %%% Coefficient matrix in the frequency domain
     As = zeros(M,M); % matrix As(z)=I-sum(A(k))
@@ -90,7 +94,7 @@ for n=1:N % at each frequency
         tmp4(m) = sqrt(tmpp1'*invCd*tmpp1); % for the GPDC - uses diagonal covariance information
         % for the GPDC - uses diagonal covariance information
 
-    end;
+    end
 
     %%% Directed Coherence (Eq. 11)
     DC(:,:,n) = H(:,:,n)*sqrt(Cd) ./ tmp1(:,ones(M,1));
