@@ -90,8 +90,9 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %       of average (default)
 %   - 'highpass' filter set to .5 to remove EEG frequencies <0.5 hz 
 %   - 'lowpass' set to 20 to remove EEG frequencies >20 hz
-%   - 'filttype' set to 'noncausal' to use noncausal zero-phase filter
-%       instead of the default causal minimum-phase filter
+%   - 'filttype' set to 'causal' to use causal minimum-phase FIR filter
+%       instead of the default noncausal zero-phase FIR filter (useful if
+%       examining the pre-heartbeat period)
 %   - 'detectMethod' set to 'median' to detect and remove bad 
 %       EEG epochs instead of the default 'grubbs'. 
 %   - 'icamethod' to 1 (fast picard) instead of 2 (Infomax) or 3 (modified
@@ -103,7 +104,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % which is expected since the toolbox is not designed to run both ECG and PPG at the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_rr','spline','clean_eeg',true, ...
-    'ref','infinity','highpass',.5,'lowpass',20,'filttype','noncausal', ...
+    'ref','infinity','highpass',.5,'lowpass',20,'filttype','causal', ...
     'detectMethod','median','icamethod',1, ...
     'save',false,'vis_cleaning',true,'vis_outputs',true);
 
@@ -149,7 +150,6 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
     'eeg_features', {'time' 'frequency'},'eeg_norm',0,...
     'parpool','on','save',false,'vis_cleaning',false,'vis_outputs',true);
 
-
 %% METHOD 3: Remove heart components from EEG signals
 % to avoid preprocessing the whole file again, remove PPG channel and the
 % first 10 s that contain simulated artifacts (that were added for illustration). 
@@ -159,7 +159,9 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,'vis_cleaning',false,...
     'conf_thresh',.8,'boost',true);
 
-%% METHOD 4: Brain-heart coherence (beta, command line only)
+%% METHOD 4: Brain-heart coherence (NEW: BETA; command line only)
+% This method has not been tested much yet. Please use with caution and
+% report any errors at: https://github.com/amisepa/BrainBeats/issues
 
 % ECG
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));

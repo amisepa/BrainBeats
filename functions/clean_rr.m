@@ -170,12 +170,12 @@ numOutliers = numOutliers + length(idx_outliers_2ndPass);
 if strcmp(interpMeth, 'remove')
     flagged_beats = numOutliers;
     NN_TooFastBeats(idx_outliers_2ndPass) = [];
-    t_TooFasyBeats = t_NonPhysBeats;
-    t_TooFasyBeats(idx_outliers_2ndPass) = [];
+    t_TooFastBeats = t_NonPhysBeats;
+    t_TooFastBeats(idx_outliers_2ndPass) = [];
 else
     NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,'spline','extrap');
     % NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,interpMeth,'extrap');
-    t_TooFasyBeats = t_NonPhysBeats;
+    t_TooFastBeats = t_NonPhysBeats;
 end
 
 % if params.vis_cleaning
@@ -195,11 +195,11 @@ end
 % Remove erroneous data at the end of a record (i.e. a un-physiologic point
 % caused by removing data at the end of a record)
 while NN_TooFastBeats(end) > upperphysiolim
-    NN_TooFastBeats(end) = [];  t_TooFasyBeats(end) = [];
+    NN_TooFastBeats(end) = [];  t_TooFastBeats(end) = [];
 end
 
 NN = NN_TooFastBeats;
-t_NN = t_TooFasyBeats;
+t_NN = t_TooFastBeats;
 
 end
 

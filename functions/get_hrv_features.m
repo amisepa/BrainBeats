@@ -1,41 +1,41 @@
-%% Compute HRV measures on NN time series. 
+%% Compute HRV measures on NN time series.
 % 1) Time domain: NN stats, SDNN, RMSSD, pNN50
-% 
-% 2) Frequency domain: ULF, VLF, LF, HF, LF/HF ratio, TTLPWR.
-%   Options: PSD can be calculated using the normalized Lomb-Scargle 
-%   periodogram (default), standard Lomb-Scargle periodogram, 
-%   Welch, or FFT. Lomb-Scargle periodogram does not require 
-%   interpolation or resampling of the data (contrary to welch or FFT), thus 
-%   preserving the original information. The Lomb-Scargle method is
-%   recommended as it better deals with non-uniformly sampled data, missing 
-%   data, noise (common with NN intervals), and does not require resampling. 
-%   The normalized version is selected by default (although users can choose 
-%   the standard version) by scaling the power by the variance of the signal, 
-%   making results more comparable across different recordings or subjects. 
-%   If users set hrv_norm to ON, a 2nd level normalization is applied
-%   by dividing each band-power by the total power, to provide a more 
-%   intuitive measure of the relative contribution of each frequency 
-%   component to the overall power. Preferable to do this option when VLF
-%   and ULF are available (long time-series required). 
 %
-% 3) Nonlinear domain: Poincare, fuzzy entropy, fractal dimension, 
+% 2) Frequency domain: ULF, VLF, LF, HF, LF/HF ratio, TTLPWR.
+%   Options: PSD can be calculated using the normalized Lomb-Scargle
+%   periodogram (default), standard Lomb-Scargle periodogram,
+%   Welch, or FFT. Lomb-Scargle periodogram does not require
+%   interpolation or resampling of the data (contrary to welch or FFT), thus
+%   preserving the original information. The Lomb-Scargle method is
+%   recommended as it better deals with non-uniformly sampled data, missing
+%   data, noise (common with NN intervals), and does not require resampling.
+%   The normalized version is selected by default (although users can choose
+%   the standard version) by scaling the power by the variance of the signal,
+%   making results more comparable across different recordings or subjects.
+%   If users set hrv_norm to ON, a 2nd level normalization is applied
+%   by dividing each band-power by the total power, to provide a more
+%   intuitive measure of the relative contribution of each frequency
+%   component to the overall power. Preferable to do this option when VLF
+%   and ULF are available (long time-series required).
+%
+% 3) Nonlinear domain: Poincare, fuzzy entropy, fractal dimension,
 %   phase-rectified signal amplitude (PRSA).
 %
-% Following recommendations by the Task Force of the European Society of 
+% Following recommendations by the Task Force of the European Society of
 % Cardiology and the North American Society of Pacing and Electrophysiology
 % (1996), minimum data length for each band is 5-10 cycles.
 %   - ULF (0-0.003 Hz): at least 24 hours
 %   - VLF (0.003-0.04 Hz): at least 28 minutes
 %   - LF (0.04-0.15 Hz): at least 125 s
 %   - HF (0.15-0.40 Hz): at least 34 s
-% 
+%
 % To maximize trade-off between time resolution and frequency resolution,
 % sliding time windows using these minimum lengths are used for each band.
-% Warnings are printed when length is smaller than minimum recommended. 
-% 
-% Time and nonlinear HRV features are computed over the whole time-series 
-% for faster computation and higher reliability. 
-% 
+% Warnings are printed when length is smaller than minimum recommended.
+%
+% Time and nonlinear HRV features are computed over the whole time-series
+% for faster computation and higher reliability.
+%
 % Copyright (C) - Cedric Cannard, 2023
 
 function [HRV, params] = get_hrv_features(NN, NN_times, params)
@@ -111,84 +111,88 @@ if params.hrv_frequency
     % minLF = 5/0.04;       % 5 cycles/0.04 hz  (in s)
     % minHF = 5/0.15;       % 5 cycles/0.15 hz  (in s)
     minLength = ceil([ 86400  5/0.003 5/0.04 5/0.15 ]);
-    
+
     for iBand = 1:size(bands,1)
 
-        if NN_times(end) >= minLength(iBand)
-    
-            % Determine best sliding window length and indices
-            winLength = minLength(iBand);
-            stepSize = winLength * (1 - overlap);
-            nWindows = floor((NN_times(end) - winLength) / stepSize) + 1;
-            % winLength = NN_times(end);   % USE WHOLE SIGNAL INSTEAD OF WINDOWS
-            % nWindows = NN_times(end) / winLength;
-            
-            fprintf('HRV frequency band: %s \n', bandNames{iBand})
+        if NN_times(end) < minLength(iBand)
+            warning('File length is too short for estimating %s power reliably. At least %1.1f minutes are required. Cannot export this variable.', bandNames{iBand},minLength(iBand)/60)
+            continue
+        end
 
-            % Compute PSD on each sliding window
-            for iWin = 1:nWindows
-                fprintf(' - window %g \n', iWin)
+        % Determine best sliding window length and indices
+        winLength = minLength(iBand);  % in sec
+        stepSize = floor(winLength * (1 - overlap));
+        nWindows = floor((NN_times(end) - winLength) / stepSize) + 1;
 
-                start_idx = (iWin - 1) * stepSize + 1;
-                % start_idx = 1;  % USE WHOLE SIGNAL
-                end_idx = start_idx + winLength - 1;
-                win_idx = NN_times >= start_idx & NN_times <= end_idx;
+        fprintf('HRV frequency band: %s \n', bandNames{iBand})
 
-                % Frequency resolution and vector for this window
-                % nfft = 2^nextpow2(length(NN(win_idx)));    % dynamic nfft based on window length
-                nfft = max(2^nextpow2(length(NN(win_idx))), 512);  % use 512 as minimum value for smaller windows
-                fvec = bands(iBand,1):1/nfft:bands(iBand,2);
-                
-                % Lomb-Scargle Periodogram (no resampling required and best method)
-                if strcmp(hrv_spec, 'LombScargle_norm')
-                        [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized'); 
-                        fprintf('Computing normalized Lomb-Scargle periodogram on the NN series... \n')
-                elseif strcmp(hrv_spec, 'LombScargle')
-                        [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'psd'); 
-                        fprintf('Computing standard Lomb-Scargle periodogram on the NN series... \n')
-                
+        % Compute PSD on each sliding window
+        for iWin = 1:nWindows
+            fprintf(' - window %g \n', iWin)
+
+            start_idx = (iWin - 1) * stepSize + 1;
+            % start_idx = 1;  % USE WHOLE SIGNAL
+            end_idx = start_idx + winLength - 1;
+            win_idx = NN_times>=start_idx & NN_times<=end_idx;
+
+            % skip if wind_idx is empty or less than half the size of winLenth (I believe this is a removed window from clean_rr?)
+            if sum(win_idx)<.85*winLength
+                warning("This window contains a gap in timepoints greater than 25% of the minimum window required for this band (likely from cleaning of RR artifacts by clean_rr). Skipping it")
+                continue
+            end
+
+            % Frequency resolution and vector for this window
+            % nfft = 2^nextpow2(length(NN(win_idx)));    % dynamic nfft based on window length
+            nfft = max(2^nextpow2(length(NN(win_idx))), 512);  % 512 makes distrib nicer and rounder
+            fvec = bands(iBand,1):1/nfft:bands(iBand,2);
+
+            % Lomb-Scargle Periodogram (no resampling required and best method)
+            if strcmp(hrv_spec, 'LombScargle_norm')
+                [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized');
+                fprintf('Computing normalized Lomb-Scargle periodogram on the NN series... \n')
+            elseif strcmp(hrv_spec, 'LombScargle')
+                [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'psd');
+                fprintf('Computing standard Lomb-Scargle periodogram on the NN series... \n')
+
                 % Welch or FFT (require resampling)
-                else
-                    % Resample
-                    resamp_freq = 7;
-                    NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR 
-            
-                    % Pwelch
-                    if strcmp(hrv_spec, 'welch')
-                        [pwr,freqs] = pwelch(NN_resamp,minLength(iBand),[],[],resamp_freq);
-                        fprintf('Computing pwelch on the NN series... \n')
+            else
+                % Resample
+                resamp_freq = 7;
+                NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub'); % resample RR
+
+                % Pwelch
+                if strcmp(hrv_spec, 'welch')
+                    [pwr,freqs] = pwelch(NN_resamp,minLength(iBand),[],[],resamp_freq);
+                    fprintf('Computing pwelch on the NN series... \n')
 
                     % FFT
-                    elseif strcmp(hrv_spec, 'fft')
-                        pwr = fft(NN_resamp).*conj(fft(NN_resamp))/length(NN_resamp);
-                        freqs = resamp_freq*(0:floor(length(NN_resamp)/2)+1)/length(NN_resamp);
-                        pwr = pwr(1:length(freqs));
-                        fprintf('Computing FFT on the NN series... \n')
-                    end
-                end 
-                
-                % Freq index
-                freq_idx = bands(iBand,1) <= freqs & freqs <= bands(iBand,2);
-                freq_res = freqs(2)-freqs(1); % resolution
-
-                % Power for each band in ms^2
-                if iBand == 1
-                    HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % ULF
-                elseif iBand == 2
-                    HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % VLF
-                elseif iBand == 3
-                    HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % LF
-                elseif iBand == 4
-                    HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % HF
+                elseif strcmp(hrv_spec, 'fft')
+                    pwr = fft(NN_resamp).*conj(fft(NN_resamp))/length(NN_resamp);
+                    freqs = resamp_freq*(0:floor(length(NN_resamp)/2)+1)/length(NN_resamp);
+                    pwr = pwr(1:length(freqs));
+                    fprintf('Computing FFT on the NN series... \n')
                 end
-                
-                % Overal power spectra
-                PWR{iBand,:} = pwr;         % for exporting overall power spectra
-                PWR_freqs{iBand,:} = freqs;  % for exporting overall power spectra
-
             end
-        else
-            warning('File length is too short for estimating %s power reliably. At least %1.1f minutes are required. Cannot export this variable.', bandNames{iBand},minLength(iBand)/60)
+
+            % Freq index
+            freq_idx = bands(iBand,1) <= freqs & freqs <= bands(iBand,2);
+            freq_res = freqs(2)-freqs(1); % resolution
+
+            % Power for each band in ms^2
+            if iBand == 1
+                HRV.frequency.ulf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % ULF
+            elseif iBand == 2
+                HRV.frequency.vlf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;      % VLF
+            elseif iBand == 3
+                HRV.frequency.lf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % LF
+            elseif iBand == 4
+                HRV.frequency.hf(iWin,:) = sum(pwr(freq_idx)*freq_res) * 1e6;       % HF
+            end
+
+            % Overal power spectra
+            PWR{iBand,:} = pwr;         % for exporting overall power spectra
+            PWR_freqs{iBand,:} = freqs;  % for exporting overall power spectra
+
         end
     end
 
@@ -196,14 +200,14 @@ if params.hrv_frequency
     if isfield(HRV.frequency,'lf') && isfield(HRV.frequency,'hf')
         HRV.frequency.lfhf = round(mean(HRV.frequency.lf) / mean(HRV.frequency.hf) * 100)/100;
     end
-    
+
     % Total power and normalize if all bands are present (average across windows)
     % if isfield(HRV.frequency,'ulf') && isfield(HRV.frequency,'vlf') ...
     %         && isfield(HRV.frequency,'lf') && isfield(HRV.frequency,'hf')
     if norm
         try
             HRV.frequency.ttlpwr = sum([mean(HRV.frequency.ulf) mean(HRV.frequency.vlf) ...
-                    mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
+                mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
         catch
             warndlg('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
             warning('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
@@ -221,7 +225,7 @@ if params.hrv_frequency
                 end
             end
         end
-        
+
         % Normalize 2nd level (capture contribution of each band to overall
         % power)
         % if norm
@@ -243,34 +247,34 @@ if params.hrv_frequency
                 HRV.frequency.lfhf = round(mean(HRV.frequency.lf) / mean(HRV.frequency.hf) * 100)/100;
             end
         end
-    % else
-    %     warndlg('Sorry, HRV power could not be normalized to total power because ULF and VLF could not be estimated due to the short length of the cardiovascular time series.')
-    %     warning('Sorry, HRV power could not be normalized to total power because ULF and VLF could not be estimated due to the short length of the cardiovascular time series.')
+        % else
+        %     warndlg('Sorry, HRV power could not be normalized to total power because ULF and VLF could not be estimated due to the short length of the cardiovascular time series.')
+        %     warning('Sorry, HRV power could not be normalized to total power because ULF and VLF could not be estimated due to the short length of the cardiovascular time series.')
     end
 
     % remove empty cells
-    PWR(cellfun(@isempty,PWR)) = []; 
-    PWR_freqs(cellfun(@isempty,PWR_freqs)) = []; 
+    PWR(cellfun(@isempty,PWR)) = [];
+    PWR_freqs(cellfun(@isempty,PWR_freqs)) = [];
 
     % Merge spectra from each band and export
     HRV.frequency.pwr_freqs = [cat(1, PWR_freqs{:})];
     HRV.frequency.pwr = [cat(1, PWR{:})];
     HRV.frequency.bands = bands;
-    
+
     % Average across time windows
-    if isfield(HRV.frequency,'ulf') 
+    if isfield(HRV.frequency,'ulf')
         HRV.frequency.ulf = round(mean(HRV.frequency.ulf,'omitnan'),2);
     end
-    if isfield(HRV.frequency,'vlf') 
+    if isfield(HRV.frequency,'vlf')
         HRV.frequency.vlf = round(mean(HRV.frequency.vlf,'omitnan'),2);
     end
-    if isfield(HRV.frequency,'lf') 
+    if isfield(HRV.frequency,'lf')
         HRV.frequency.lf = round(mean(HRV.frequency.lf,'omitnan'),2);
     end
-    if isfield(HRV.frequency,'hf') 
+    if isfield(HRV.frequency,'hf')
         HRV.frequency.hf = round(mean(HRV.frequency.hf,'omitnan'),2);
     end
-    
+
     % if params.vis_outputs
     %     subplot(2,2,2+iWin); hold on;
     %     x = find(ulf_idx); y = pwr(ulf_idx);
@@ -291,7 +295,7 @@ end
 
 %% Nonlinear domain
 if params.hrv_nonlinear
-    
+
     disp('Extracting HRV features in the nonlinear domain (Poincare, Sample entropy, Fractal dimension, PRSA)...')
 
     % Poincare
@@ -331,7 +335,7 @@ if params.hrv_nonlinear
 
     % Fractal dimension
     HRV.nonlinear.FD = fractal_volatility(NN);
-    
+
     % Phase rectified signal averaging (PRSA)
     fprintf('Computing phase rectified signal averaging (PRSA)... \n')
     thresh = 20;
@@ -345,7 +349,7 @@ if params.hrv_nonlinear
     dc_anchor(1) = false; % ignore 1st heartbeat
     HRV.nonlinear.PRSA_AC = round(mean(1000*NN(ac_anchor)),1);  % acceleration capacity (in ms)
     HRV.nonlinear.PRSA_DC = round(mean(1000*NN(dc_anchor)),1);  % deceleration capacity (in ms)
-    
+
 end
 
 
@@ -356,14 +360,14 @@ end
 %       NN              - vector of NN intervals to be resampled
 %       sf              - 7
 %       interp_method   - 'cub' or 'spline' recommended
-% 
+%
 %   OUTPUT
 %       NN_resamp      - resampled NN intervals
 
 function NN_resamp = resample_NN(NN_times,NN,sf,interp_method)
 
 % time index
-ti = NN_times(1):1/sf:NN_times(end);     
+ti = NN_times(1):1/sf:NN_times(end);
 
 % Resample with interpolation method of choice
 switch interp_method
