@@ -323,10 +323,14 @@ elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params
     % Final output with everything
     Features.EEG = features_eeg;
 
-%%%%% MODE 3: BRAIN-HEART COHERENCE %%%%%
+%%%%%%%%%%%%%%% MODE 3: BRAIN-HEART COHERENCE %%%%%%%%%%%%%%%
 elseif strcmpi(params.analysis,'coherence')
     disp("Computing brain-heart coupling...")
 
+    if length(params.heart_channels)>1
+        error("Sorry, this method only supports one hear channel at the moment. Please select only one of your heart channels and try again.")
+    end
+    
     params.chanlocs = EEG.chanlocs;
 
     % Remove EEG artifacts with ASR and bad components with ICLabel
@@ -404,7 +408,7 @@ if strcmp(params.analysis,'features')
     end
 end
 
-%%%%% MODE 4: remove heart components from EEG signals %%%%%
+%%%%%%%%%%%%%%% MODE 4: extract heart components from EEG %%%%%%%%%%%%%%%
 if strcmp(params.analysis,'rm_heart')
 
     % Preprocess EEG
