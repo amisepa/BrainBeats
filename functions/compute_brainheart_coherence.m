@@ -1,3 +1,51 @@
+% Compute brain-heart coherence (i.e., causal interactions)
+%
+% INPUTS:
+%   EEG - EEGLAB structure containing EEG data (can be many channels) and
+%       one cardiovascular channel (ECG or PPG). Both should be already
+%       preprossed to remove noise and artifacts.
+%
+%   params  - BrainBeats param structure. Only fields used by this function
+%       are params.fs (sample rate), params.heart_channels (indicating the
+%       name of the heart channel, e.g. {'ECG'}, for plots),
+%       params.chanlocs (EEG channel locations for topo plots),
+%       params.vis_outputs (to generate the plots or not).
+%
+% OUTPUTS:
+%   coherence structure, containing frequency vector and several measures
+%       of causal interactions between EEG and heart signal including:
+%       - COH (Coherence): correlation between two signals in the frequency
+%       domain, a measure of their phase and amplitude synchronization.
+%       - PCOH (Partial Coherence): direct correlation between two signals
+%       after removing the influence of additional variables, highlighting
+%       their unique interaction amidst complex network dynamics.
+%       - DC (Directed coherence): directional relationship indicating how
+%       one signal influences the other over the frequency spectrum, providing
+%       insight into signal transmission directionality.
+%       - PDC (Partial Directed Coherence): quantifies direct interactions
+%       between signals while controlling for the influence of other signals,
+%       enabling the identification of unique directional relationships in
+%       complex multivariate networks.
+%       - GPDC (Generalized Partial Directed Coherence): extends PDC to handle
+%       networks with varying data types, ensuring that each directed connection
+%       between the signals is accurately isolated and measured.
+%       - DTF (Directed Transfer Function): identifies the direction of
+%       information flow in multivariate data by estimating how much one
+%       signal contributes to another at different frequencies.
+%
+% EXAMPLE USAGE:
+%
+%   params.fs = EEG.srate;
+%   params.vis_outputs = 1;
+%   params.chanlocs = EEG.chanlocs;
+%   params.heart_channels = {'ECG'};
+%   coherence = compute_brainheart_coherence(EEG,params)
+%
+% Copyright (C), Cedric Cannard, BrainBeats 2024
+%
+% PLEASE CITE THE FOLLOWING REFERENCE WHEN USING THIS CODE:
+%   Faes & Nollo (2011). Multivariate Frequency Domain Analysis of Causal Interactions in Physiological Time Series. Biomedical Engineering, Trends in Electronics, Communications and Software.
+
 function coherence = compute_brainheart_coherence(EEG,params)
 
 disp('Computing brain-heart coherence measures...')
@@ -28,10 +76,10 @@ coherence.channels = {EEG.chanlocs.labels};
 if params.vis_outputs
 
     disp("Plotting brain-heart coherence outputs...")
-    
+
     cardio_chan = strcmpi({EEG.chanlocs.labels},params.heart_channels);
     maxfreq = 40;
-    
+
     % PLOT ALL FREQS AND CHANNELS FOR EACH MEASURE
     figure('color','w')
 
@@ -49,23 +97,23 @@ if params.vis_outputs
     clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
     Ylabels = {EEG.chanlocs.labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
-    xlabel('Frequency (Hz)'); 
-    
+    xlabel('Frequency (Hz)');
+
     subplot(2,2,3)  % DIRECTED COHERENCE
     fc = squeeze(dc(cardio_chan,~cardio_chan,f<=maxfreq));  % mean for the band
     imagesc(f(f<maxfreq),1:size(fc,1),fc);  % cardio in row, EEG in columns
     clim([0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     Ylabels = {EEG.chanlocs.labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
-    xlabel('Frequency (Hz)'); 
-    
+    xlabel('Frequency (Hz)');
+
     subplot(2,2,4)  % PARTIAL DIRECTED COHERENCE
     fc = squeeze(pdc(cardio_chan,~cardio_chan,f<=maxfreq));  % mean for the band
     imagesc(f(f<maxfreq),1:size(fc,1),fc);  % cardio in row, EEG in columns
     clim([0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     Ylabels = {EEG.chanlocs.labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
-    xlabel('Frequency (Hz)'); 
+    xlabel('Frequency (Hz)');
 
     % subplot(2,3,5)  % GENERALIZED PARTIAL DIRECTED COHERENCE
     % fc = squeeze(gpdc(cardio_chan,~cardio_chan,f<=maxfreq));  % mean for the band
@@ -73,9 +121,9 @@ if params.vis_outputs
     % clim([0 1]); cb = colorbar; ylabel(cb,'Generalized partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     % Ylabels = {EEG.chanlocs.labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     % Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
-    % xlabel('Frequency (Hz)'); 
-    % 
-    % subplot(2,3,6)  % DIRECTED TRANSFER FUNCTION 
+    % xlabel('Frequency (Hz)');
+    %
+    % subplot(2,3,6)  % DIRECTED TRANSFER FUNCTION
     % fc = squeeze(dtf(cardio_chan,~cardio_chan,f<=maxfreq));  % mean for the band
     % imagesc(f(f<maxfreq),1:size(fc,1),fc);  % cardio in row, EEG in columns
     % clim([0 1]); cb = colorbar; ylabel(cb,'Directed transfer function','fontsize',12,'fontweight','bold','Rotation',270)

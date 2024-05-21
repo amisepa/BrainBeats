@@ -300,12 +300,15 @@ if params.eeg_frequency
     end
 
     %%%%% Alpha asymmetry %%%%%
-    alpha_pwr = mean(PWR(:,f >= 8 & f <= 13),2,'omitnan');  % IMPORTANT: use power in μV^2/Hz here, NOT in log or decibels
-    [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, asy_norm, chanlocs, false);
-    eeg_features.frequency.asymmetry = round(asy,3);
-    eeg_features.frequency.asymmetry_pairs_labels = pairLabels;
-    eeg_features.frequency.asymmetry_pairs_num = pairNums;
-
+    if length(chanlocs)>1
+        alpha_pwr = mean(PWR(:,f >= 8 & f <= 13),2,'omitnan');  % IMPORTANT: use power in μV^2/Hz here, NOT in log or decibels
+        [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, asy_norm, chanlocs, false);
+        eeg_features.frequency.asymmetry = round(asy,3);
+        eeg_features.frequency.asymmetry_pairs_labels = pairLabels;
+        eeg_features.frequency.asymmetry_pairs_num = pairNums;
+    else
+        warning("Only one EEG channel detected. Cannot compute alpha asymmetry.")
+    end
 end
 
 %% Entropy

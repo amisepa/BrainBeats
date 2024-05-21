@@ -35,8 +35,9 @@ if useGPU
     signal = gpuArray(signal);
 end
 
-% z-score signal
-signal = zscore(signal);  % remove mean and divide by sd
+% z-score signal (ignoring NaNs)
+zscor_xnan = @(x) bsxfun(@rdivide, bsxfun(@minus, x, mean(x,'omitnan')), std(x,'omitnan'));
+signal = zscor_xnan(signal);   
 
 N = length(signal);
 p = zeros(1,2);
@@ -50,10 +51,11 @@ for k = m:m+1
     tmp = xMat(1:k,:);
 
     % calculate Chebyshev distance without counting self-matches
-    parfor i = 1:N-k
+    for i = 1:N-k
         dist = max(abs(tmp(:,i+1:N-m) - repmat(tmp(:,i),1,N-m-i)));
+        % if sum(isnan(dist))>0, disp("NaN detected"); break; end
         df = exp((-dist.^n)/r);
-        count(i) = sum(df)/(N-m);
+        count(i) = sum(df,'omitnan')/(N-m);
     end
     p(k-m+1) = sum(count)/(N-m);
 end

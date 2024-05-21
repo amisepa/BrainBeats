@@ -387,7 +387,7 @@ if ~isempty(idx)
     % if ~islogical(params.parpool), error("The 'parpool' input should be logical (true or false)."); end
     if strcmpi(params.parpool,'on') || params.parpool
         params.parpool = true;
-    else
+    elseif strcmpi(params.parpool,'off') || ~params.parpool
         params.parpool = false;
     end
 else

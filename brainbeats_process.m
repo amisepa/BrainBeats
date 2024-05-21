@@ -1,9 +1,10 @@
-% BRAINBEATS_PROCESS - Process single EEGLAB files containg EEG and cardiovascular (ECG or PPG) signals.
+% BRAINBEATS_PROCESS - Process single EEGLAB files containg EEG and 
+% cardiovascular (ECG or PPG) signals.
 %
-% Usage:
+% USAGE:
 %    [EEG, com] = brainbeats_process(EEG, 'key', 'val')
 %
-% Inputs:
+% INPUTS:
 %  'analysis'       - 'hep' (heartbeat-evoked potentials) | 'features' (extract EEG and HRV features) |
 %                       'rm_heart' | extract heart components from EEG signals.
 %  'heart_signal'   - [ppg'|'ecg'] define if cardiovascular signal to process is PPG or ECG.
@@ -51,7 +52,7 @@
 %                       the features in structure format. Set to ON (1, default)
 %                       or OFF (0).
 %
-% Outputs:
+% OUTPUT:
 %   'EEG'           - Processed EEGLAB dataset. An EEG.brainbeats field is
 %                   created containing the
 %                   parameters used, some preprocessing outputs (e.g. channels
@@ -136,7 +137,7 @@ else
 end
 
 %%%%% MODE 1 & 2: RR, SQI, and NN %%%%%
-if ~strcmpi(params.heart_signal,'off') && ~coh
+if ~strcmpi(params.heart_signal,'off') %&& ~coh
 
     if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features') 
 
@@ -331,6 +332,32 @@ elseif strcmpi(params.analysis,'coherence')
         error("Sorry, this method only supports one hear channel at the moment. Please select only one of your heart channels and try again.")
     end
     
+    % Coherence with NN time series instead of ECG/PPG signal
+    % Since NN intervals have different number of data points, and are 
+    % unevenly spaced, we need to do interpolation to match EEG sample rate. 
+    % CARDIO.fs = 1 / mean(diff(NN_t)); % estimated the sampling rate of the NN time series
+    [NN_resamp, t_resamp] = resample_NN(NN_t,NN,EEG.srate,'cub');
+    t_resamp = t_resamp*1000; % convert to ms
+    % figure;plot(t_resamp,NN_resamp);
+    CARDIO = eeg_emptyset();
+    CARDIO.chanlocs.labels = 'HRV';
+    CARDIO.data = NN_resamp;
+    CARDIO.times = t_resamp;
+    CARDIO.srate = EEG.srate;
+    CARDIO.pnts = size(CARDIO.data,2);
+    CARDIO.xmax = CARDIO.times(end)/1000;
+    CARDIO = eeg_checkset(CARDIO);
+    CARDIO.data = bsxfun(@minus, CARDIO.data, trimmean(CARDIO.data,20,2)); % demean to remove offset
+    pop_eegplot(CARDIO,1,1,1);
+
+    % Common times
+    idx = EEG.times >= t_resamp(1) & EEG.times <= t_resamp(end);
+    EEG.times = EEG.times(idx);
+    EEG.data = EEG.data(:,idx);
+    EEG.pnts = size(EEG.data,2);
+    EEG.xmax = EEG.times(end)/1000;
+    EEG = eeg_checkset(EEG);
+    
     params.chanlocs = EEG.chanlocs;
 
     % Remove EEG artifacts with ASR and bad components with ICLabel
@@ -364,6 +391,7 @@ elseif strcmpi(params.analysis,'coherence')
 
     % Reverse polarity of ECG if negative
     if strcmpi(params.heart_signal,'ecg') %& pol<0
+        warning("Detected negative polarity of ECG signal. Flipping polarity.")
         CARDIO.data = -CARDIO.data;
     end
 

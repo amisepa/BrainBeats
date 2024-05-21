@@ -100,7 +100,7 @@ if ~isfield(params,'eeg_features')
 end
 
 % Check for channel locations
-if params.eeg_features~=0
+if params.eeg_features~=0 && params.vis_outputs
     if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
         errordlg("Electrode location coordinates must be loaded for visualizing outputs.")
         err = true; return

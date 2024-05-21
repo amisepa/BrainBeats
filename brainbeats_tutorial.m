@@ -5,7 +5,7 @@
 % 
 %   2) Install EEGLAB
 %   Download here: https://github.com/sccn/eeglab
-%   Unzip (or clone) the file on your computer and add the path to MATLAB 
+%   Unzip (or clone) the file on your computer and add the path to MATLAB: 
 %   Home panel > Set path > Add folder > select the eeglab folder > Save >
 %   Close
 % 
@@ -117,7 +117,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % Note that 'analysis' is set to 'features' to extract EEG and HRV features
 % parpool set to ON to accelerate computation of EEG features
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'parpool',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'parpool',false);
 
 % All features can be found in EEG.brainbeats.features or in a .mat file
 % saved in the same place as the .set file loaded in EEGLAB
@@ -167,14 +167,14 @@ EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',1,'ref','infinity','ica_method',1,...
+    'heart_channels',{'ECG'},'clean_eeg',0,'ref','infinity','ica_method',1,...
     'parpool',0,'vis_outputs',1);
 
 % PPG
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',true,'ref','infinity','ica_method',1,...
+    'heart_channels',{'PPG'},'coh_signal','hrv','clean_eeg',true,'ref','infinity','ica_method',1,...
     'parpool',false,'vis_outputs',true);
 
 
@@ -222,9 +222,8 @@ EEG.brainbeats.features.HRV
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG' 'ECG'});  % remove heart channels
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','off', ...
-    'eeg_features',{'time' 'frequency'},'clean_eeg',true,'ref','infinity',...
-    'parpool','on', ...
-    'vis_cleaning',false,'vis_outputs',true,'save',true);
+    'eeg_features',{'time'},'clean_eeg',1,'linenoise',50,'ref','infinity','ica_method',1, ...
+    'parpool',0,'vis_cleaning',1,'vis_outputs',1,'save',1);
 
 % Preprocessing outputs can be found in:
 EEG.brainbeats.preprocessings

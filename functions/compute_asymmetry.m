@@ -76,7 +76,7 @@ try
         end
     end
 catch
-    errordlg(sprintf("'get_eef_features.m' failed to find all channel pairs to compute alpha asymmetry. \n\nThis is likely because your dataset still contains a non-EEG electrode with a label other than ECG, PPG, or AUX (which would have been detected). \n\nPlease inspect your electrode labels and remove any electrode that should not be there prior to launching BrainBeats."))
+    warndlg(sprintf("'get_eef_features.m' failed to find all channel pairs to compute alpha asymmetry. \n\nThis can occur if your dataset contains auxiliary (non-EEG) electrodes or if your dataset has only one EEG channel. \n\n Please inspect your electrode labels and remove any electrode that should not be there prior to launching BrainBeats."))
 end
 
 % Remove empty pairNums

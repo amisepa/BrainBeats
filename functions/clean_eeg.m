@@ -185,7 +185,16 @@ if params.clean_eeg_step == 0
     if params.vis_cleaning
         % EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
         % EEG.etc.clean_channel_mask(badChan) = false;
-        vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+        try
+            vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+        catch
+            warning('failed to plot bad channels or artifacts with vis_artifacts(). Setting show_events to off and trying againg')
+            try
+                vis_artifacts(EEG,oriEEG,'ShowSetname',false,'ShowEvents',false);
+            catch
+                warning("vis_artifacts failed to plot the removed channels or artifacts. Please submit an issue on EEGLAB's page: https://github.com/sccn/eeglab/issues")
+            end
+        end
         try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
         set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
         set(gcf,'Name','EEG channels removed','NumberTitle', 'Off')  % change figure name
