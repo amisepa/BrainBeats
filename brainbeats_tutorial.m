@@ -71,7 +71,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
 %     'heart_channels',{'ECG'},'clean_eeg',true);
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
 %  Note that we are changing these parameters for illustraiton only, but
@@ -103,7 +103,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % Note: the toolbox automatically detects the undesired ECG channel, 
 % which is expected since the toolbox is not designed to run both ECG and PPG at the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_rr','spline','clean_eeg',true, ...
+    'heart_channels',{'PPG'},'clean_rr','spline','clean_eeg',true,'linenoise',50, ...
     'ref','infinity','highpass',.5,'lowpass',20,'filttype','causal', ...
     'detectMethod','median','icamethod',1, ...
     'save',false,'vis_cleaning',true,'vis_outputs',true);
@@ -117,7 +117,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % Note that 'analysis' is set to 'features' to extract EEG and HRV features
 % parpool set to ON to accelerate computation of EEG features
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'parpool',false);
+    'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50,'parpool',true);
 
 % All features can be found in EEG.brainbeats.features or in a .mat file
 % saved in the same place as the .set file loaded in EEGLAB
@@ -145,47 +145,11 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',false, ...
+    'heart_channels',{'PPG'},'clean_eeg',false,'linenoise',50, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','LombScargle', ...
     'eeg_features', {'time' 'frequency'},'eeg_norm',0,...
     'parpool','on','save',false,'vis_cleaning',false,'vis_outputs',true);
 
-%% METHOD 3: Remove heart components from EEG signals
-% to avoid preprocessing the whole file again, remove PPG channel and the
-% first 10 s that contain simulated artifacts (that were added for illustration). 
-
-EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',false,'vis_cleaning',false,...
-    'conf_thresh',.8,'boost',true);
-
-%% METHOD 4: Brain-heart coherence (NEW: BETA; command line only)
-% This method has not been tested much yet. Please use with caution and
-% report any errors at: https://github.com/amisepa/BrainBeats/issues
-
-% ECG
-EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = pop_select(EEG,'nochannel',{'PPG'});  % remove ECG channel to avoid warning
-EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',0,'ref','infinity','ica_method',1,...
-    'parpool',0,'vis_outputs',1);
-
-% PPG
-EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
-EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'coh_signal','hrv','clean_eeg',true,'ref','infinity','ica_method',1,...
-    'parpool',false,'vis_outputs',true);
-
-
-%% To launch the GUI only
-
-EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-[EEG, com] = brainbeats_process(EEG);
-
-% Type <com> at the end of the operations to output the command line with
-% the parameters that were selected manually in the GUI
-com
 
 %% HRV features only
 % To turn OFF all EEG operations, the input 'eeg_features' is set to 'false'.
@@ -222,11 +186,51 @@ EEG.brainbeats.features.HRV
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG' 'ECG'});  % remove heart channels
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','off', ...
-    'eeg_features',{'time'},'clean_eeg',1,'linenoise',50,'ref','infinity','ica_method',1, ...
-    'parpool',0,'vis_cleaning',1,'vis_outputs',1,'save',1);
+    'eeg_features',{'time' 'frequency','nonlinear'},'clean_eeg',1,'linenoise',50, ...
+    'ref','infinity','ica_method',1,'parpool',1,'vis_cleaning',1,'vis_outputs',1,'save',1);
 
 % Preprocessing outputs can be found in:
 EEG.brainbeats.preprocessings
 
 % EEG features can be found in:
 EEG.brainbeats.features.EEG
+
+
+%% METHOD 3: Remove heart components from EEG signals
+% to avoid preprocessing the whole file again, remove PPG channel and the
+% first 10 s that contain simulated artifacts (that were added for illustration). 
+
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',false,'linenoise',50,'vis_cleaning',false,...
+    'conf_thresh',.8,'boost',true);
+
+
+%% METHOD 4: Brain-heart coherence (NEW: BETA; command line only)
+% This method has not been tested much yet. Please use with caution and
+% report any errors at: https://github.com/amisepa/BrainBeats/issues
+
+% ECG
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'PPG'});  % remove ECG channel to avoid warning
+EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',0,'linenoise',50,'ref','infinity','ica_method',1,...
+    'parpool',0,'vis_outputs',1);
+
+% PPG
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
+EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'coh_signal','hrv','clean_eeg',true,'linenoise',50, ...
+    'ref','infinity','ica_method',1,'parpool',false,'vis_outputs',true);
+
+
+%% To launch the main GUI via command line
+
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+[EEG, com] = brainbeats_process(EEG);
+
+% Type <com> at the end of the operations to output the command line with
+% the parameters that were selected manually in the GUI
+com
+
