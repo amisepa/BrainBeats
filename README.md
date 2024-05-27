@@ -66,7 +66,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 </p>
 
 
-4) Compute brain-heart coherence (beta)
+4) Compute brain-heart coherence (beta version, please test and give feedback)
    
 <p align="center">
     Example of several brain-heart coherence measures computed with BrainBeats from simultaneous EEG and ECG signals
@@ -95,7 +95,8 @@ See our publication for a step-by-step tutorial using the sample dataset: https:
 
 Full-text preprint: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v3.full
 
-## history
+## Version history
 
 v1.5 (5/2/2024) - METHOD 4 (brain-heart coherence) added
+
 v1.4 (4/1/2024) - publication JoVE (methods 1, 2, 3)
