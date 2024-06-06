@@ -28,7 +28,8 @@
 %       complex multivariate networks.
 %       - GPDC (Generalized Partial Directed Coherence): extends PDC to handle
 %       networks with varying data types, ensuring that each directed connection
-%       between the signals is accurately isolated and measured.
+%       between the signals is accurately isolated and measured. 
+%       Also called isolated effective coherence (iCoh): https://www.frontiersin.org/articles/10.3389/fnhum.2014.00448/full
 %       - DTF (Directed Transfer Function): identifies the direction of
 %       information flow in multivariate data by estimating how much one
 %       signal contributes to another at different frequencies.
