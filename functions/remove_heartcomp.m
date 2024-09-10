@@ -18,6 +18,8 @@ else
     end
 end
 
+% ecg_signal_rescaled = ecg_signal * 1000; % Convert mV to µV?
+
 % Rescale cardio signal
 idx = contains({EEG.chanlocs.labels}, params.heart_channels);
 EEG.data(idx,:) = rescale(EEG.data(idx,:), -500, 500);

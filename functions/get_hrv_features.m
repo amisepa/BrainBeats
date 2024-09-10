@@ -225,7 +225,7 @@ if params.hrv_frequency
                 end
             end
         end
-
+        
         % Normalize 2nd level (capture contribution of each band to overall
         % power)
         % if norm
@@ -244,7 +244,7 @@ if params.hrv_frequency
                 HRV.frequency.hf = mean(HRV.frequency.hf) / HRV.frequency.ttlpwr;
             end
             if isfield(HRV.frequency,'lfhf')
-                HRV.frequency.lfhf = round(mean(HRV.frequency.lf) / mean(HRV.frequency.hf) * 100)/100;
+                HRV.frequency.lfhf = mean(HRV.frequency.lfhf) / HRV.frequency.ttlpwr;
             end
         end
         % else

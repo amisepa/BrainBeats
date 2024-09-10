@@ -24,8 +24,8 @@
 %
 % INPUTS:
 %   signal      - raw ECG or PPG signal
-%   fs          - sampling rate
-%   sig_type    - heart signal type: 'ecg' or 'ppg'
+%   params      - params structure containing the following fields:
+%                   fs (sample rate) and heart_signal ('ecg' or 'ppg')
 %
 % OUTPUTS:
 %   RR          - RR intervals
@@ -47,9 +47,14 @@ function [RR, RR_t, Rpeaks, sig, tm, sign, HR] = get_RR(signal, params)
 fs = params.fs;
 sig_type = params.heart_signal;
 
+if size(signal,1) < size(signal,2)
+    signal = signal';
+end
+
 sign = [];
 nSamp = size(signal,1);
-tm = 1/fs:1/fs:nSamp/fs;   % tm = 1/fs:1/fs:ceil(nSamp/fs);
+tm = 1/fs:1/fs:nSamp/fs;   
+% tm = 1/fs:1/fs:ceil(nSamp/fs);
 
 %% ECG
 if strcmpi(sig_type, 'ecg')
@@ -229,22 +234,22 @@ if strcmpi(sig_type, 'ecg')
     HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
 
     % Visualize
-    % if params.vis_cleaning
-    %     figure('color','w');
-    %     subplot(2,1,1);
-    %     plot(tm,sig,'color','#0072BD'); hold on;
-    %     plot(r_t,sig(r_pos),'.','MarkerSize',10,'color','#D95319');
-    %     % plot(r_t,r_amp,'.','MarkerSize',10,'color','#D95319');
-    %     title('Filtered ECG signal + R peaks');
-    %     ylabel('mV'); xlim([0 tm(end)]); set(gca,'XTick',[])
-    %
-    %     subplot(2,1,2);
-    %     plot(r_t(1:length(hr)),hr,'--','color','#A2142F','linewidth',1);
-    %     xlim([0 tm(end)]);
-    %     title('Heart Rate'); xlabel('Time (s)'); ylabel('bpm');
-    %
-    %     set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
-    % end
+    if params.vis_cleaning
+        figure('color','w');
+        subplot(2,1,1);
+        plot(tm,sig,'color','#0072BD'); hold on;
+        plot(r_t,sig(r_pos),'.','MarkerSize',10,'color','#D95319');
+        % plot(r_t,r_amp,'.','MarkerSize',10,'color','#D95319');
+        title('Filtered ECG signal + R peaks');
+        ylabel('mV'); xlim([0 tm(end)]); set(gca,'XTick',[])
+
+        subplot(2,1,2);
+        plot(r_t(1:length(hr)),hr,'--','color','#A2142F','linewidth',1);
+        xlim([0 tm(end)]);
+        title('Heart Rate'); xlabel('Time (s)'); ylabel('bpm');
+
+        set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
+    end
 
     %%  PPG
 elseif strcmpi(sig_type, 'ppg')
@@ -312,7 +317,7 @@ elseif strcmpi(sig_type, 'ppg')
     if isfield(params,'ppg_slopewindow')
         SLPwindow = round(fs*params.ppg_slopewindow);
     else
-        SLPwindow = round(fs*0.1);   % default = 0.1 s (range: .05-.3).
+        SLPwindow = round(fs*0.1);   % default = 0.1 s (range: .05-.4).
     end
 
     % INVALID signal (constant)
@@ -369,17 +374,17 @@ elseif strcmpi(sig_type, 'ppg')
         end
     end
     T0 = T0/n; % T0=T0/(t1-from);
-    Ta = 3 * T0;
+    Ta = 3*T0;
 
-    learning=1;
+    learning = 1;  % turn learning mode ON
 
     % Main loop
     t = from;
     while t <= to
 
         if learning
-            if t > from + LPERIOD
-                learning = 0;
+            if t > from + LPERIOD  % end of learning period
+                learning = 0;  % turn learning mode OFF
                 T1 = T0;
                 t = from;	% start over
             else
