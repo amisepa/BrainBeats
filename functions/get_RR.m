@@ -360,14 +360,13 @@ elseif strcmpi(sig_type, 'ppg')
     else
         tt_2 = 0;
     end
-    aet = 0;
 
     t1 = 8*fs;
     t1 = t1+from;
     T0 = 0;
     n = 0;
     for t = from:t1
-        [temp,ebuf,lbuf,tt_2, aet] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow);
+        [temp,ebuf,lbuf,tt_2] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
         if temp > INVALID_signal
             T0 = T0+temp;
             n=n+1;
@@ -392,7 +391,7 @@ elseif strcmpi(sig_type, 'ppg')
             end
         end
 
-        [temp,ebuf,lbuf,tt_2, aet] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow);
+        [temp,ebuf,lbuf,tt_2] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
 
         if temp > T1    % possible pulse near t
             timer = 0;
@@ -401,7 +400,7 @@ elseif strcmpi(sig_type, 'ppg')
             mind = maxd;
             tmax = t;
             for tt = t + 1: t + EyeClosing-1
-                [temp2 ,ebuf,lbuf,tt_2, aet] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow);
+                [temp2 ,ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
                 if temp2 > maxd
                     maxd=temp2;
                     tmax=tt;
@@ -413,7 +412,7 @@ elseif strcmpi(sig_type, 'ppg')
             end
 
             for tt = tmax :-1: t-EyeClosing/2+1
-                [temp2 ,ebuf,lbuf,tt_2, aet] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow);
+                [temp2 ,ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
                 if temp2< mind
                     mind=temp2;
                 end
@@ -423,14 +422,14 @@ elseif strcmpi(sig_type, 'ppg')
                 tpq = t-round(0.04*fs);
                 maxmin_2_3_threshold=(maxd-mind)*2.0/3;
                 for tt = tmax:-1:t-EyeClosing/2+1
-                    [temp2, ebuf,lbuf,tt_2, aet] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow);
+                    [temp2, ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
                     if temp2 < maxmin_2_3_threshold
                         break
                     end
                 end
                 for tt = tt:-1:t - EyeClosing / 2 + round(0.024*fs)
-                    [temp2 ,ebuf,lbuf,tt_2, aet] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow);
-                    [temp3 ,ebuf,lbuf,tt_2, aet] = slpsamp(tt-round(0.024*fs),signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow);
+                    [temp2 ,ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
+                    [temp3 ,ebuf,lbuf,tt_2] = slpsamp(tt-round(0.024*fs),signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
                     if temp2 - temp3<onset
                         tpq = tt-round(0.016*fs);
                         break
@@ -504,7 +503,7 @@ end
 
 %% Subfunction
 
-function [beat1,ebuf,lbuf,tt_2, aet] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2, aet,SLPwindow)
+function [beat1,ebuf,lbuf,tt_2] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2, SLPwindow)
 
 while t > tt_2
     prevVal = 0;
@@ -516,7 +515,7 @@ while t > tt_2
         val2 = prevVal;
         val1 = val2;
     end
-    prevVal = val2;
+
     dy =  val1-val2;
     if dy < 0
         dy = 0;

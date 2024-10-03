@@ -87,7 +87,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 - MATLAB installed (https://www.mathworks.com/downloads)
 - EEGLAB installed (https://github.com/sccn/eeglab)
 - Some data containing EEG and cardiovascular signals (ECG or PPG) within the same file (i.e. recorded simultaneously).
-  Or use the tutorial dataset provided in this repository located in the "sample_data" folder.
+  Or use the tutorial dataset provided in this repository located in the "sample_data" folder. Source: sub-32 in https://nemar.org/dataexplorer/detail?dataset_id=ds003838
 
 ## Step-by-step tutorial
 
