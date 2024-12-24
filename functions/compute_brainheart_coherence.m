@@ -273,3 +273,5 @@ if params.vis_outputs
     % box off; grid off
 
 end
+
+disp("Done computing Coherence measures.")

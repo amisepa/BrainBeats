@@ -1,4 +1,3 @@
-
 % Detect R peaks from raw ECG signals and heartbeat onsets (pulse
 % waveforms) from PPG signals.
 %
@@ -215,10 +214,10 @@ if strcmpi(sig_type, 'ecg')
         end
     end
 
-    % r_pos = Rpeaks;       % QRS datapoint positions
-    % r_t = tm(Rpeaks);     % QRS timestamp positions
+    r_pos = Rpeaks;       % QRS datapoint positions
+    r_t = tm(Rpeaks);     % QRS timestamp positions
     % r_amp = maxval;       % amplitude at QRS positions
-    % hr = 60./diff(r_t);   % heart rate
+    hr = 60./diff(r_t);   % heart rate
 
     if sign < 0
         fprintf(" - Peaks' polarity: negative \n");

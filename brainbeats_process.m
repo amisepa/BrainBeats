@@ -216,7 +216,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         end
         if flaggedRatio > maxThresh % more than 20% of RR series is bad file
             warning("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
-            warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
+            % warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
         end
         sig_t = sig_t(best_elec,:);
         sig = sig(best_elec,:);

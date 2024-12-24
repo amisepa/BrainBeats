@@ -28,7 +28,7 @@
 function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs)
 
 % Window length 
-winlength = 30*fs; % default = 30 s
+winlength = 10*fs; % default = 30 s
 
 % Initialize
 template = [];
@@ -65,13 +65,18 @@ for j = 1:nWind
 
     % PPG SQI analysis
     [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,winlength*fs,fs);
-    sqimatrix_all = nan(length(beats),size(sqimatrix,2));
-    for k = 1:length(annot)
-        annot(annf(k)) = annot(k);
-        sqimatrix_all(annf(k),:) = sqimatrix(k,:);
-        beat_i=beat_i+1;
+    if ~isempty(sqimatrix)
+        sqimatrix_all = nan(length(beats),size(sqimatrix,2));
+        for k = 1:length(annot)
+            annot(annf(k)) = annot(k);
+            sqimatrix_all(annf(k),:) = sqimatrix(k,:);
+            beat_i=beat_i+1;
+        end
+        sqi_mu(j) = mean(mean(sqimatrix_all,2,'omitnan'),'omitnan');
+    else
+        warning("PPG_SQI_buf failed for this window.")
+        continue
     end
-    sqi_mu(j) = mean(mean(sqimatrix_all,2,'omitnan'),'omitnan');
 
     progressbar(j/nWind)
 end

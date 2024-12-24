@@ -116,7 +116,6 @@ if params.hrv_frequency
 
         if NN_times(end) < minLength(iBand)
             warning('File length is too short for estimating %s power reliably. At least %1.1f minutes are required. Cannot export this variable.', bandNames{iBand},minLength(iBand)/60)
-            continue
         end
 
         % Determine best sliding window length and indices
@@ -138,7 +137,7 @@ if params.hrv_frequency
             % skip if wind_idx is empty or less than half the size of winLenth (I believe this is a removed window from clean_rr?)
             if sum(win_idx)<.85*winLength
                 warning("This window contains a gap in timepoints greater than 25% of the minimum window required for this band (likely from cleaning of RR artifacts by clean_rr). Skipping it")
-                continue
+                % continue
             end
 
             % Frequency resolution and vector for this window

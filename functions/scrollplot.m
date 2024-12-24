@@ -1,57 +1,55 @@
-% Plot with scrollbar to inspect time series more closely.
-%
-% Examples:
-%   scrollplot({x,y,'color','k'},{'X'})  % horizontal scroll
-%   scrollplot({x,y,'color','k'},{'Y'})  % vertical scroll
-%   scrollplot({sig_t,sig_filt,'color','#0072BD'},{RR_t,sig_filt(Rpeaks),'.','MarkerSize',10,'color','#D95319'}, {'X'},{''},.2);
-%
-% Modified by Cedric Cannard (2023) to adjust colors, add markers, and
-% percentage of data to plot in each sliding window.
-%
-% Copyright (c) 2016, Ellen Zakreski
-
 function scrollplot(varargin)
 
-% extract inputs
-toPlot1 = varargin{1};      % data to plot
-toPlot2 = varargin{2};      % additional data to plot on top (e.g., markers)
-scrollOrient = varargin{3}; % Z for horizontal and Y for vertical
-xLabel = varargin{4};       % label for x-axis
-toDisplay = varargin{5};    % % of data to display in each window
+% Extract inputs
+toPlot1 = varargin{1};      % Data to plot
+scrollOrient = varargin{2}; % 'X' for horizontal and 'Y' for vertical
+toDisplay = varargin{3};    % Window size (in s)
 
-% Plot handle (data to plot)
+% Additional data to plot on top (e.g., markers)
+toPlot2 = [];
+toPlot3 = [];
+
+if nargin >= 4
+    toPlot2 = varargin{4};
+end
+if nargin == 5
+    toPlot3 = varargin{5};
+end
+
+% Convert window size to percentage
+toDisplay = toDisplay / toPlot1{1}(end);
+
+% Plot primary data
 p = plot(toPlot1{:});
-
 ax = p.Parent;
 
-% Set initial axes limits to a portion of the total plotted X Data
-% (unless the plot is empty or all NaN's)
+% Set initial axes limits to a portion of the total plotted X data
 XX = p.XData;
 if ~isempty(XX)
     YY = p.YData;
     if ~all(isnan(XX))
-        totxlim = [min(XX,[],'omitnan'),max(XX,[],'omitnan')];
-        xlim = [totxlim(1),totxlim(1)+toDisplay*diff(totxlim)]; % arbitrarily show first 20%
+        totxlim = [min(XX, [], 'omitnan'), max(XX, [], 'omitnan')];
+        xlim = [totxlim(1), totxlim(1) + toDisplay * diff(totxlim)]; % Arbitrarily show first segment
     end
-
-    % make all the Y data visible (unless Y data is all NaN's)
     if ~all(isnan(YY))
-        ylim = [min(YY,[],'omitnan'),max(YY,[],'omitnan')];
+        ylim = [min(YY, [], 'omitnan'), max(YY, [], 'omitnan')];
     end
 end
-set(ax,'xlim',xlim,'ylim',ylim);
+set(ax, 'xlim', xlim, 'ylim', ylim);
 
-if ~isempty(xLabel)
-    xlabel(xLabel)
-end
-
-% plot additional data (if any, e.g. markers)
+% Plot additional data (e.g., markers)
+hold on
 if ~isempty(toPlot2)
-    hold on; p = plot(toPlot2{:});
+    plot(toPlot2{:});
+end
+if ~isempty(toPlot3)
+    plot(toPlot3{:});
 end
 
-superscroll_obj = superscroll(ax,scrollOrient);
+% Initialize scrolling behavior
+superscroll_obj = superscroll(ax, scrollOrient);
 
-% build scrollbars here
-autoscrollbar(superscroll_obj,p)
+% Build scrollbars
+autoscrollbar(superscroll_obj, p);
 
+end

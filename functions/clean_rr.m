@@ -63,7 +63,7 @@ end
 %% Run
 
 % prep
-t_rr(1) = [];  % remove 1st heartbeat
+% t_rr(1) = [];  % remove 1st heartbeat
 Rpeaks = repmat('N', [length(rr) 1]);
 
 % Remove data that are too close together (not counted in total signal removed)
