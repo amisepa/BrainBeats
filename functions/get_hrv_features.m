@@ -322,7 +322,7 @@ if params.hrv_nonlinear
     params.entropy_n = n;  % for exportation for users
 
     % Run Fuzzy entropy
-    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau, false);
+    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau);
 
     % Multiscale fuzzy entropy (MFE)
     % coarseType = 'Standard deviation';

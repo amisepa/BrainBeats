@@ -110,8 +110,8 @@ if params.clean_eeg
     [HEP, params] = clean_eeg(HEP,params);
 
     % Preprocessing outputs
-    EEG.brainbeats.preprocessing.removed_eeg_trials = params.removed_eeg_trials;
-    EEG.brainbeats.preprocessing.removed_eeg_components = params.removed_eeg_components;
+    HEP.brainbeats.preprocessing.removed_eeg_trials = params.removed_eeg_trials;
+    HEP.brainbeats.preprocessing.removed_eeg_components = params.removed_eeg_components;
 end
 
 % Only keep 1st marker when several are present in sam eepoch

@@ -29,7 +29,7 @@
 % OUTPUTS:
 %   RR          - RR intervals
 %   RR_t        - time vector
-%   Rpeaks      - R peaks
+%   peaks      - R peaks
 %   sig         - ECG signal filtered
 %
 % Example:
@@ -40,7 +40,7 @@
 %
 % Copyright (C), BrainBeats, Cedric Cannard, 2023
 
-function [RR, RR_t, Rpeaks, sig, tm, sign, HR] = get_RR(signal, params)
+function [RR, RR_t, peaks, sig, tm, sign, HR] = get_RR(signal, params)
 
 % Parameters
 fs = params.fs;
@@ -88,19 +88,20 @@ if strcmpi(sig_type, 'ecg')
     % window remains consistent in time, regardless of fs
 
 
-    % Bandpass filter ECG signal. This sombrero hat has shown to give slightly
-    % better results than a standard band-pass filter.
-    b1 = [-7.757327341237223e-05  -2.357742589814283e-04 -6.689305101192819e-04 -0.001770119249103 ...
-        -0.004364327211358 -0.010013251577232 -0.021344241245400 -0.042182820580118 -0.077080889653194...
-        -0.129740392318591 -0.200064921294891 -0.280328573340852 -0.352139052257134 -0.386867664739069 ...
-        -0.351974030208595 -0.223363323458050 0 0.286427448595213 0.574058766243311 ...
-        0.788100265785590 0.867325070584078 0.788100265785590 0.574058766243311 0.286427448595213 0 ...
-        -0.223363323458050 -0.351974030208595 -0.386867664739069 -0.352139052257134...
-        -0.280328573340852 -0.200064921294891 -0.129740392318591 -0.077080889653194 -0.042182820580118 ...
-        -0.021344241245400 -0.010013251577232 -0.004364327211358 -0.001770119249103 -6.689305101192819e-04...
-        -2.357742589814283e-04 -7.757327341237223e-05];
-    b1 = resample(b1,fs,250);
-    sig = filtfilt(b1,1,double(signal))';
+    % % Bandpass filter ECG signal. This sombrero hat has shown to give slightly
+    % % better results than a standard band-pass filter.
+    % b1 = [-7.757327341237223e-05  -2.357742589814283e-04 -6.689305101192819e-04 -0.001770119249103 ...
+    %     -0.004364327211358 -0.010013251577232 -0.021344241245400 -0.042182820580118 -0.077080889653194...
+    %     -0.129740392318591 -0.200064921294891 -0.280328573340852 -0.352139052257134 -0.386867664739069 ...
+    %     -0.351974030208595 -0.223363323458050 0 0.286427448595213 0.574058766243311 ...
+    %     0.788100265785590 0.867325070584078 0.788100265785590 0.574058766243311 0.286427448595213 0 ...
+    %     -0.223363323458050 -0.351974030208595 -0.386867664739069 -0.352139052257134...
+    %     -0.280328573340852 -0.200064921294891 -0.129740392318591 -0.077080889653194 -0.042182820580118 ...
+    %     -0.021344241245400 -0.010013251577232 -0.004364327211358 -0.001770119249103 -6.689305101192819e-04...
+    %     -2.357742589814283e-04 -7.757327341237223e-05];
+    % b1 = resample(b1,fs,250);
+    % sig = filtfilt(b1,1,double(signal))';
+    sig = signal';
 
     % Plot spectra
     % figure;
@@ -187,24 +188,24 @@ if strcmpi(sig_type, 'ecg')
     compt = 1;
     nb_peaks = length(left);
     maxval = zeros(1,nb_peaks);
-    Rpeaks = zeros(1,nb_peaks);
+    peaks = zeros(1,nb_peaks);
     for i = 1:nb_peaks
         if sign > 0 % if sign is positive then look for positive peaks
-            [maxval(compt), Rpeaks(compt)] = max(sig(left(i):right(i))); % sig was signal originally here
+            [maxval(compt), peaks(compt)] = max(sig(left(i):right(i))); % sig was signal originally here
         else % if sign is negative then look for negative peaks
-            [maxval(compt), Rpeaks(compt)] = min(sig(left(i):right(i))); % sig was signal originally here
+            [maxval(compt), peaks(compt)] = min(sig(left(i):right(i))); % sig was signal originally here
         end
 
         % add offset of present location
-        Rpeaks(compt) = Rpeaks(compt)-1+left(i);
+        peaks(compt) = peaks(compt)-1+left(i);
 
         % refractory period - improve results
         if compt > 1
-            if Rpeaks(compt)-Rpeaks(compt-1)<fs*ref_period && abs(maxval(compt))<abs(maxval(compt-1))
-                Rpeaks(compt)=[];
+            if peaks(compt)-peaks(compt-1)<fs*ref_period && abs(maxval(compt))<abs(maxval(compt-1))
+                peaks(compt)=[];
                 maxval(compt)=[];
-            elseif Rpeaks(compt)-Rpeaks(compt-1)<fs*ref_period && abs(maxval(compt))>=abs(maxval(compt-1))
-                Rpeaks(compt-1)=[];
+            elseif peaks(compt)-peaks(compt-1)<fs*ref_period && abs(maxval(compt))>=abs(maxval(compt-1))
+                peaks(compt-1)=[];
                 maxval(compt-1)=[];
             else
                 compt=compt+1;
@@ -214,36 +215,37 @@ if strcmpi(sig_type, 'ecg')
         end
     end
 
-    r_pos = Rpeaks;       % QRS datapoint positions
-    r_t = tm(Rpeaks);     % QRS timestamp positions
+    % r_pos = peaks;       % QRS datapoint positions
+    % r_t = tm(peaks);     % QRS timestamp positions
     % r_amp = maxval;       % amplitude at QRS positions
-    hr = 60./diff(r_t);   % heart rate
+    % hr = 60./diff(r_t);   % heart rate
 
     if sign < 0
         fprintf(" - Peaks' polarity: negative \n");
     else
         fprintf(" - Peaks' polarity: positive \n");
     end
-    fprintf(' - P&T energy threshold: %g \n', en_thres)
+    fprintf(' - P&T energy threshold: %g \n', round(en_thres,2))
 
     % RR intervals and HR
-    RR = diff(Rpeaks) ./ fs;   % RR intervals in s
-    RR_t = Rpeaks ./ fs;       % RR timestamps (always ignore 1st heartbeat)
-    % RR_t = cumsum(Rpeaks);        % alternative method
-    HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
+    RR = diff(peaks) ./ fs;   % RR intervals in s
+    % RR_t = tm(peaks); 
+    RR_t = peaks ./ fs;       % RR timestamps (always ignore 1st heartbeat)
+    % RR_t = cumsum(peaks);        % alternative method
+    % HR = 60 ./ diff(r_t);   % heart rate (in bpm)
 
     % Visualize
     if params.vis_cleaning
         figure('color','w');
         subplot(2,1,1);
-        plot(tm,sig,'color','#0072BD'); hold on;
-        plot(r_t,sig(r_pos),'.','MarkerSize',10,'color','#D95319');
+        plot(tm, sig,'color','#0072BD'); hold on;
+        plot(r_t, sig(peaks),'.','MarkerSize',10,'color','#D95319');
         % plot(r_t,r_amp,'.','MarkerSize',10,'color','#D95319');
         title('Filtered ECG signal + R peaks');
         ylabel('mV'); xlim([0 tm(end)]); set(gca,'XTick',[])
 
         subplot(2,1,2);
-        plot(r_t(1:length(hr)),hr,'--','color','#A2142F','linewidth',1);
+        plot(r_t(1:length(hr)), hr, '--','color','#A2142F','linewidth',1);
         xlim([0 tm(end)]);
         title('Heart Rate'); xlabel('Time (s)'); ylabel('bpm');
 
@@ -324,7 +326,7 @@ elseif strcmpi(sig_type, 'ppg')
 
     % initiate variables
     timer = 0;
-    Rpeaks = [];
+    peaks = [];
     beat_n = 1;
     from = 1;
     to = length(signal);
@@ -458,13 +460,13 @@ elseif strcmpi(sig_type, 'ppg')
 
                         % If the proposed peak index > 0
                         if round(valley_v) > 0
-                            Rpeaks(beat_n) = round(valley_v);
+                            peaks(beat_n) = round(valley_v);
                             beat_n = beat_n + 1;
                         end
                     else
                         % Check if rounded valley_v is greater than the prior beat index
-                        if round(valley_v) > Rpeaks(beat_n-1)
-                            Rpeaks(beat_n) = round(valley_v);
+                        if round(valley_v) > peaks(beat_n-1)
+                            peaks(beat_n) = round(valley_v);
                             beat_n = beat_n + 1;
                         end
                     end
@@ -492,9 +494,9 @@ elseif strcmpi(sig_type, 'ppg')
     end
 
     sig = signal; % for plotting
-    RR = diff(Rpeaks) ./ fs;
-    RR_t = Rpeaks ./ fs;
-    HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
+    RR = diff(peaks) ./ fs;
+    RR_t = peaks ./ fs;
+    HR = 60 ./ diff(tm(peaks));   % heart rate (in bpm)
 
 else
     error('Signal type must be ECG or PPG')
