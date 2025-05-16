@@ -90,7 +90,7 @@ function [nn_intervals, nn_t, idx_rem, idx_corr] = clean_rr(rr_t, rr_intervals, 
     % Step 4: interpolate sharp spikes
     spikes = FindSpikesInRR(nn_intervals, .2);
     if any(spikes)
-        warning('Interpolating %g outlier RR intervals', sum(outliers));
+        warning('Interpolating %g abnormal spikes in RR intervals', sum(outliers));
     end
     idx_corr(spikes) = true;
     % plot(nn_t, nn_intervals, 'Color', [0.9290 0.6940 0.1250], 'LineWidth', 2, 'DisplayName', 'Outliers');

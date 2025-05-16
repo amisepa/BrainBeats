@@ -68,10 +68,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % Note: the toolbox automatically detects the undesired PPG channel, which 
 % is expected since the toolbox is not designed to run both ECG and PPG at 
 % the time.
-% EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-%     'heart_channels',{'ECG'},'clean_eeg',true);
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method', 1,'ref','infinity','linenoise',50, 'keep_heart', 0);
+    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1,'keep_heart',true);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
 %  Note that we are changing these parameters for demonstration only, but
@@ -97,6 +95,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %       EEG epochs instead of the default 'grubbs'. 
 %   - 'icamethod' to 1 (fast picard) instead of 2 (Infomax) or 3 (modified
 %       Infomax, very slow but replicable)
+%   - 'keep_heart' to true to preserve the heart channel in final output
+%       (e.g. for visual check of final HEP output).
 %   - 'save' set to false to not save the final 'filename_HEP.set' file
 %   - 'vis_cleaning' set to true to visualize preprocessing plots
 %   - 'vis_outputs' set to true to visualize the final outputs 

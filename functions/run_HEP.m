@@ -35,9 +35,10 @@ if isfield(params,'keep_heart') && params.keep_heart
     % if EEG.srate ~= CARDIO.srate
     %     CARDIO = pop_resample(CARDIO,EEG.srate);
     % end
-    CARDIO = pop_eegfiltnew(CARDIO,'locutoff',1,'hicutoff',20);    
+    % CARDIO = pop_eegfiltnew(CARDIO,'locutoff',1,'hicutoff',20);    
     for iChan = 1:CARDIO.nbchan
-        CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -100, 100);
+        % CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -100, 100);
+        CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), prctile(EEG.data(:), 5)*2,  prctile(EEG.data(:), 95)*2);
     end
     if EEG.pnts ~= CARDIO.pnts
         EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data(:,1:end-1); % for PPG
@@ -89,8 +90,8 @@ end
 % epoch length
 if params.vis_outputs
     figure('color','w'); histfit(IBI); hold on
-    plot([prctile(IBI,5) prctile(IBI,5)],ylim,'--r','linewidth',2)
-    % plot([prctile(IBI,97.5) prctile(IBI,97.5)],ylim,'--r','linewidth',2)
+    % plot([prctile(IBI,5) prctile(IBI,5)],ylim,'--r','linewidth',2)
+    plot([700 700],ylim,'--r','linewidth',2)
     title('Interbeat intervals (IBI) after removal of outliers'); 
     xlabel('Time (ms)'); ylabel('Number of IBIs')
     legend('','','lower 95% percentile (epoch size)')
@@ -101,7 +102,8 @@ end
 
 % Epoch (no baseline removal as it can bias results because of
 % pre R-peak activity)
-HEP = pop_epoch(EEG,{},[-.3 prctile(IBI,5)/1000],'epochinfo','yes');
+% HEP = pop_epoch(EEG,{},[-.3 prctile(IBI,5)/1000],'epochinfo','yes');
+HEP = pop_epoch(EEG,{},[-.3 0.7],'epochinfo','yes');
 % warning('%g trials (i.e., 10%%) with an interbeat interval (IBI) <500 ms were removed. See Candia-Rivera et al. (2021) and Park and Blanke (2019) for more detail) . \n', length(shortTrials),quantile(IBI,.1));
 % HEP = pop_rejepoch(HEP, shortTrials, 0);  % Trial numbers have changed so this is incorrect
 
@@ -143,32 +145,46 @@ if params.vis_outputs
         set(gcf,'Name','Final output','NumberTitle','Off','Toolbar','none','Menu','none');  % remove toolbobar and menu
     end
 
-    % Show mean HEP for each electrodes and allows clicking on them to see
+    % Show mean HEP for each electrode and allows clicking on them to see
     % more closely
-    % figure
-    % pop_plottopo(HEP, 1:HEP.nbchan, 'Heartbeat-evoked potentials (HEP)', 0,...
-    %     'ydir',1);
     options = { 'frames' HEP.pnts 'limits' [HEP.xmin HEP.xmax 0 0]*1000 ...
         'title' 'Heartbeat-evoked potentials (HEP)' 'chans' 1:HEP.nbchan ...
         'chanlocs' HEP.chanlocs 'ydir' 1 'legend' {'uV' 'Time (ms)'}};
     figure
     % plottopo( HEP.data, options{:} );           % single trials (long)
-    % plottopo_mod( trimmean(HEP.data,20,3), options{:} );   % modified version with y label
     plottopo( trimmean(HEP.data,20,3), options{:} );   % average across trials
     try icadefs; set(gcf, 'color', BACKCOLOR); catch; end  % eeglab color
-
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
-    % set(gcf,'Name','Mean HEP for EEG each channel','NumberTitle','Off')  % name
 
-    % HEP all elecs + scalp topographies of window of interest
+    % Grand average for each EEG channel 
     figure
+    try icadefs; set(gcf, 'color', BACKCOLOR); catch; end  % eeglab color
     subplot(2,1,1)
-    pop_timtopo(HEP, [HEP.times(1) HEP.times(end)], [300 400], ...
-        'Heartbeat-evoked potentials (HEP) - all electrodes','verbose','off');
+    
+    % if heart channel is retained, increase its linewidth for visibility
+    if isfield(params,'keep_heart') && params.keep_heart
+           % Plot all ERP waveforms including ECG
+        % figure('Color', 'w'); 
+        hold on
+        times = HEP.times;  % in ms
+        for ch = 2:size(HEP.data,1)
+            plot(times, trimmean(HEP.data(ch,:,:),20,3));  % average over epochs
+        end
+        plot(times, trimmean(HEP.data(1,:,:),20,3), 'k', 'LineWidth', 2.5);
+        xline(0, 'k--', 'LineWidth', 1.5);     % Add vertical line at time zero
+        xlabel('Latency (ms)'); ylabel('Potential (µV)');
+        title('Grand average HEP for each channel, including heart channel (thick black)');
+        
+    else
+        % EEGLAB TIMETOPO with scalp topographies of window of interest
+        pop_timtopo(HEP, [HEP.times(1) HEP.times(end)], [-25 0 250 350 450], ...
+            'Heartbeat-evoked potentials (HEP) - all electrodes','verbose','off');
+    end
+
 
     % ERPimage of known frontocentral electrode to see change over time
-    elecName = 'Fz';  % 'Fz' 'Oz'
+    elecName = 'Oz';  % 'Fz' 'Oz'
     elecNum = find(strcmpi({HEP.chanlocs.labels}, elecName));
     if isempty(elecNum)
         % if Fz is not present, try Cz
@@ -184,8 +200,8 @@ if params.vis_outputs
     pop_erpimage(HEP,1, elecNum,[],sprintf('Heartbeat-evoked potentials (HEP) over time for channel %s',elecName), ...
         10,1,{'R-peak'},[],'','yerplabel','\muV','erp','on','cbar','on' );
     colormap("parula") % parula hot bone sky  summer winter
-    set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
-    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
+    % set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     set(gcf,'Name','HEP','NumberTitle','Off')  % name
 
     % % Headplot
@@ -216,7 +232,7 @@ if params.vis_outputs
     colormap("parula") % parula hot bone sky summer winter
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
     set(gcf,'Name','Heartbeat-evoked oscillations (HEO) and ITC','NumberTitle','Off')  % name
-
+    
 end
 
 % Save
