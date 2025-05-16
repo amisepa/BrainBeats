@@ -29,8 +29,8 @@
 %                           account effective data rank (see Kim et al.2023)
 %                           and classifying them with ICLabel (eye with 90%
 %                           confidence, others with 99% confidence).
-%  'rm_heart'       - [0|1] remove the heart channel (1, default) after
-%                       operations are complete (1, default) or not (0).
+%  'keep_heart'     - [0|1] keeps the heart channel after operations are 
+%                       complete (1) or not (0, default).
 %  'hrv_features'   - [cell array of characters] HRV features to compute.
 %                       Choices are 'time', 'frequency', 'nonlinear'.
 %                       See GET_HRV_FEATURES for more information.
@@ -147,6 +147,15 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             CARDIO = pop_resample(CARDIO,EEG.srate);
         end
 
+        % Filter heart signals
+        if strcmpi(params.heart_signal, 'ecg')
+            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.5);
+            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',15);
+        elseif strcmpi(params.heart_signal, 'ppg')
+            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.8);
+            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',5);
+        end
+
         % Get RR and NN intervals from ECG/PPG signals
         % note: when several electrodes are provided, use the elec with best
         % quality for subsequent analysis. Structures are used to avoid issues
@@ -197,27 +206,38 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             % end
 
             % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
-            disp("Correcting RR artifacts...")
-            warning off
-            RR_t.(elec)(1) = [];
+            disp("Correcting abnormal RR intervals...")
+            % warning off
+            RR_t.(elec)(1) = []; Rpeaks.(elec)(1) = [];
             % [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
-            [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec));
-            flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec)) *100;
-            warning on
+            [NN.(elec), NN_t.(elec), idx_rem.(elec), idx_interp.(elec)] = clean_rr(RR_t.(elec), RR.(elec), signal(iElec,Rpeaks.(elec))');
+            % Rpeaks.(elec)(idx_rem.(elec)) = [];
+            badRR.(elec) = sum(idx_rem.(elec)) + sum(idx_interp.(elec));  % sum of removed and interpolated RR intervals
+            flaggedRatio.(elec) = badRR.(elec) / length(RR.(elec)) *100; 
+            % warning on
 
+            % Get the new sample indices of the corrected peaks (for plotting)
+            if params.vis_cleaning
+                corrected_samples = interp1(EEG.times/1000, 1:length(EEG.times), NN_t.(elec), 'nearest', 'extrap');
+                Npeaks.(elec) = Rpeaks.(elec)(~idx_rem.(elec));
+                Npeaks.(elec)(idx_interp.(elec)) = corrected_samples(idx_interp.(elec)) - 1;
+            end
+            
         end
-
+        
         % Keep only ECG data of electrode with the lowest number of RR
         % artifacts
         [~,best_elec] = min(struct2array(flaggedRatio));
         elec = sprintf('elec%g',best_elec);
         flaggedRatio = flaggedRatio.(elec);
-        flagged = flagged.(elec);
-        if sum(flagged) > 0
-            fprintf('%g/%g (%g%%) of heart beats were flagged as artifacts and interpolated (or removed if you chose to remove them). \n', sum(flagged),length(flagged),round(flaggedRatio,2));
+        badRR = badRR.(elec);
+        idx_rem = idx_rem.(elec);
+        idx_interp = idx_interp.(elec);
+        if flaggedRatio > 0
+            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%g%%). \n', sum(badRR),length(badRR),round(flaggedRatio,2));
         end
         if flaggedRatio > maxThresh % more than 20% of RR series is bad file
-            warning("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
+            warning("%g%% of the RR series on your best electrode was flagged as artifact and corrected. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
             % warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
         end
         sig_t = sig_t(best_elec,:);
@@ -226,7 +246,8 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         RR_t = RR_t.(elec);
         % RR_t(1) = [];       % always ignore 1st hearbeat
         Rpeaks = Rpeaks.(elec);
-        Rpeaks(1) = [];     % always ignore 1st hearbeat
+        % Rpeaks(1) = [];     % always ignore 1st hearbeat
+        Npeaks = Npeaks.(elec);
         NN_t = NN_t.(elec);
         NN = NN.(elec);
         pol = pol.(elec); % ECG signal polarity
@@ -239,14 +260,15 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % Plot filtered ECG and RR series of best electrode and interpolated
         % RR artifacts (if any)
         if params.vis_cleaning
-            plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, flagged, params.heart_signal)
+            plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, params.heart_signal)
             pause(0.01)  % to avoid waiting for EEG preprocessing to appear
         end
 
         % Preprocessing outputs
         % EEG.brainbeats.preprocessing.RR_times = RR_t;
         % EEG.brainbeats.preprocessing.RR = RR;
-        EEG.brainbeats.preprocessings.interpolated_heartbeats = sum(flagged);
+        EEG.brainbeats.preprocessings.removed_heartbeats = idx_rem;  % overly short RR intervals are automatically removed
+        EEG.brainbeats.preprocessings.interpolated_heartbeats = idx_interp; % abnormal RR intervals are automatically interpolated
         if exist('sqi','var')
             EEG.brainbeats.preprocessings.heart_SQI_mean = SQI_mu;
             EEG.brainbeats.preprocessings.heart_SQI_badportion = SQI_badRatio;

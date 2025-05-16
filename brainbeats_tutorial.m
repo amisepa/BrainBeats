@@ -50,7 +50,7 @@ clear; close all; clc
 eeglab; close;
 
 % Get the path to the EEGLAB plugin which contains a folder with the sample data
-main_path = fileparts(which('eegplugin_BrainBeats.m'));
+main_path = fileparts(which('brainbeats_process.m'));
 
 % Go to the plugin directory
 cd(main_path)
@@ -64,17 +64,17 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - selecting the type of analysis: 'hep'
 %   - selecting the type of heart signal: 'ECG'
 %   - selecting the name of the ECG electrodes: 'ECG'
-%   - 'clean_eeg' set to to 'true' preprocess the EEG data with default
-%       parameters.
-% Note: the toolbox automatically detects the undesired PPG channel, 
-% which is expected since the toolbox is not designed to run both ECG and PPG at the time.
+%   - 'clean_eeg' set to to 'true' preprocess the EEG data with default parameters.
+% Note: the toolbox automatically detects the undesired PPG channel, which 
+% is expected since the toolbox is not designed to run both ECG and PPG at 
+% the time.
 % EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
 %     'heart_channels',{'ECG'},'clean_eeg',true);
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50);
+    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method', 1,'ref','infinity','linenoise',50, 'keep_heart', 0);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
-%  Note that we are changing these parameters for illustraiton only, but
+%  Note that we are changing these parameters for demonstration only, but
 %  default parameters are recommended. These parameters should only be
 %  changed if you know why. 
 
