@@ -24,11 +24,15 @@ badRMS = isoutlier(sig_amp,method);
 badSNR = isoutlier(sig_snr,method);
 badTrials = unique([find(badRMS) find(badSNR)]);
 
-if vis
-    eegplot(EEG.data(:,:,badTrials),'srate',EEG.srate,'events',EEG.event, ...
-        'eloc_file',EEG.chanlocs,'spacing',80,'title','Epochs removed','plottitle','Bad epochs');
-    set(gcf,'Toolbar', 'none', 'Menu', 'none');   % remove toolbobar and menu
-    set(gcf,'Name','Bad epochs removed','NumberTitle','Off')  % name
+if ~isempty(badTrials) 
+    if vis
+        eegplot(EEG.data(:,:,badTrials),'srate',EEG.srate,'events',EEG.event, ...
+            'eloc_file',EEG.chanlocs,'spacing',80,'title','Epochs removed','plottitle','Bad epochs');
+        set(gcf,'Toolbar', 'none', 'Menu', 'none');   % remove toolbobar and menu
+        set(gcf,'Name','Bad epochs removed','NumberTitle','Off')  % name
+    end
+else
+    disp("No bad trials detected")
 end
 
 fprintf('Trials detected: %g \n', length(badTrials));

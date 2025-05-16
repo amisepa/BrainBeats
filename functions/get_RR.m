@@ -229,28 +229,27 @@ if strcmpi(sig_type, 'ecg')
 
     % RR intervals and HR
     RR = diff(peaks) ./ fs;   % RR intervals in s
-    % RR_t = tm(peaks); 
-    RR_t = peaks ./ fs;       % RR timestamps (always ignore 1st heartbeat)
+    RR_t = tm(peaks); 
+    % RR_t = peaks ./ fs;       % RR timestamps (always ignore 1st heartbeat)
     % RR_t = cumsum(peaks);        % alternative method
-    % HR = 60 ./ diff(r_t);   % heart rate (in bpm)
+    HR = 60 ./ diff(RR_t);   % heart rate (in bpm)
 
-    % Visualize
-    if params.vis_cleaning
-        figure('color','w');
-        subplot(2,1,1);
-        plot(tm, sig,'color','#0072BD'); hold on;
-        plot(r_t, sig(peaks),'.','MarkerSize',10,'color','#D95319');
-        % plot(r_t,r_amp,'.','MarkerSize',10,'color','#D95319');
-        title('Filtered ECG signal + R peaks');
-        ylabel('mV'); xlim([0 tm(end)]); set(gca,'XTick',[])
-
-        subplot(2,1,2);
-        plot(r_t(1:length(hr)), hr, '--','color','#A2142F','linewidth',1);
-        xlim([0 tm(end)]);
-        title('Heart Rate'); xlabel('Time (s)'); ylabel('bpm');
-
-        set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
-    end
+    % % Visualize
+    % if params.vis_cleaning
+    %     figure('color','w');
+    %     subplot(2,1,1);
+    %     plot(tm, sig,'color','#0072BD'); hold on;
+    %     plot(RR_t, sig(peaks),'.','MarkerSize',10,'color','#D95319');
+    %     title('Filtered ECG signal + R peaks');
+    %     ylabel('mV'); xlim([0 tm(end)]); set(gca,'XTick',[])
+    % 
+    %     subplot(2,1,2);
+    %     plot(RR_t(1:length(HR)), HR, '--','color','#A2142F','linewidth',1);
+    %     xlim([0 tm(end)]);
+    %     title('Heart Rate'); xlabel('Time (s)'); ylabel('bpm');
+    % 
+    %     set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
+    % end
 
     %%  PPG
 elseif strcmpi(sig_type, 'ppg')

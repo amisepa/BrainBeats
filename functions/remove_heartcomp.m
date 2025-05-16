@@ -11,7 +11,7 @@ end
 
 % default confidence level
 if ~isfield(params,'conf_thresh')
-    params.conf_thresh = 0.8;  % 80% confidence
+    params.conf_thresh = 0.9;  % 90% confidence
 else
     if params.conf_thresh > 1  % from GUI is in %
         params.conf_thresh = params.conf_thresh / 100;

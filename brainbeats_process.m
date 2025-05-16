@@ -199,7 +199,9 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
             disp("Correcting RR artifacts...")
             warning off
-            [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
+            RR_t.(elec)(1) = [];
+            % [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
+            [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec));
             flaggedRatio.(elec) = sum(flagged.(elec)) / length(flagged.(elec)) *100;
             warning on
 
@@ -222,7 +224,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         sig = sig(best_elec,:);
         RR = RR.(elec);
         RR_t = RR_t.(elec);
-        RR_t(1) = [];       % always ignore 1st hearbeat
+        % RR_t(1) = [];       % always ignore 1st hearbeat
         Rpeaks = Rpeaks.(elec);
         Rpeaks(1) = [];     % always ignore 1st hearbeat
         NN_t = NN_t.(elec);
@@ -238,7 +240,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % RR artifacts (if any)
         if params.vis_cleaning
             plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, flagged, params.heart_signal)
-            pause(0.1)  % to avoid waiting for EEG preprocessing to appear
+            pause(0.01)  % to avoid waiting for EEG preprocessing to appear
         end
 
         % Preprocessing outputs
@@ -366,7 +368,7 @@ elseif strcmpi(params.analysis,'coherence')
 
         % Remove bad segments from cardio signal to match EEG time
         if isfield(params,'removed_eeg_segments')
-            CARDIO = pop_select(CARDIO,'nopoint',params.removed_eeg_segments);
+            CARDIO = pop_select(CARDIO,'nopoint', params.removed_eeg_segments);
         end
 
         % Preprocessing outputs to export for reporting
@@ -389,11 +391,11 @@ elseif strcmpi(params.analysis,'coherence')
         % CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -150, 150);
     end
 
-    % Reverse polarity of ECG if negative
-    if strcmpi(params.heart_signal,'ecg') %& pol<0
-        warning("Detected negative polarity of ECG signal. Flipping polarity.")
-        CARDIO.data = -CARDIO.data;
-    end
+    % % Reverse polarity of ECG if negative
+    % if strcmpi(params.heart_signal,'ecg') %& pol<0
+    %     warning("Detected negative polarity of ECG signal. Flipping polarity.")
+    %     CARDIO.data = -CARDIO.data;
+    % end
 
     % Merge Cardio and EEG
     if EEG.pnts == CARDIO.pnts

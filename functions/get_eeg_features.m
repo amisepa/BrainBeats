@@ -370,7 +370,7 @@ if params.eeg_nonlinear
         fd(iChan,:) = fractal_volatility(sig);
 
         % Fuzzy entropy
-        fe(iChan,:) = compute_fe(sig, m, r, n, tau, usegpu);
+        fe(iChan,:) = compute_fe(sig, m, r, n, tau);
 
         % Multiscale fuzzy entropy
         % disp('Computing multiscale fuzzy entropy...')

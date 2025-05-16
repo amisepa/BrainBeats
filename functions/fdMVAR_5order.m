@@ -8,15 +8,26 @@
 %   Fs = sampling frequency
 % 
 % OUTPUTS:
-%   DC  = Directed Coherence (Eq. 11)
-%   DTF = Directed Transfer Function (Eq. 11 but with sigma_i=sigma_j for each i,j)
+%   DC  = Directed Coherence (Eq. 11). Directional influence from one signal
+%       to another, normalized by total input to the target.
+%   DTF = Directed Transfer Function (Eq. 11 but with sigma_i=sigma_j for  each i,j):
+%       Directional flow from source to target, based on the transfer function, 
+%       assuming equal noise across signals.
 %   PDC = Partial Directed Coherence (Eq. 15 but with sigma_i=sigma_j for each i,j)
-%   GPDC= Generalized Partial Directed Coherence (Eq. 15)
-%   COH = Coherence (Eq. 3)
-%   PCOH= Partial Coherence (Eq. 3)
-%   H   = Tranfer Function Matrix (Eq. 6)
-%   S   = Spectral Matrix (Eq. 7)
-%   P   = Inverse Spectral Matrix (Eq. 7)
+%       Direct influence from one signal to another, normalized by total 
+%       output from the source, with equal noise.
+%   GPDC = Generalized Partial Directed Coherence (Eq. 15): Like PDC but 
+%       accounts for actual noise levels in each signal.
+%   COH = Coherence (Eq. 3): Strength of connection between two signals at 
+%       each frequency.
+%   PCOH = Partial Coherence (Eq. 3): Connection between two signals after
+%       after removing the influence of all other signals, isolating unique shared variance.
+%   H   = Tranfer Function Matrix (Eq. 6): System’s frequency response from
+%       inputs to outputs.
+%   S   = Spectral Matrix (Eq. 7): Power and shared power between signals
+%       across frequencies.
+%   P   = Inverse Spectral Matrix (Eq. 7): Inverse of the spectral matrix, 
+%       shows conditional dependencies.
 %   f   = frequency vector
 % 
 % Copyright (C), Cedric Cannard, BrainBeats 2024

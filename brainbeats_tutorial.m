@@ -203,7 +203,7 @@ EEG.brainbeats.features.EEG
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',false,'linenoise',50,'vis_cleaning',false,...
-    'conf_thresh',.8,'boost',true);
+    'conf_thresh',.8,'boost',true,'ica_method',1);  % 'ica_method',1 for fast PICARD alg
 
 
 %% METHOD 4: Brain-heart coherence (NEW: BETA; command line only)

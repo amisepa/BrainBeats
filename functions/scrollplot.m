@@ -17,10 +17,10 @@ if nargin == 5
 end
 
 % Convert window size to percentage
-toDisplay = toDisplay / toPlot1{1}(end);
+toDisplay = toDisplay / max(toPlot1{1});
 
 % Plot primary data
-p = plot(toPlot1{:});
+p = plot(toPlot1{:}, 'linewidth', 1);
 ax = p.Parent;
 
 % Set initial axes limits to a portion of the total plotted X data
@@ -32,7 +32,9 @@ if ~isempty(XX)
         xlim = [totxlim(1), totxlim(1) + toDisplay * diff(totxlim)]; % Arbitrarily show first segment
     end
     if ~all(isnan(YY))
-        ylim = [min(YY, [], 'omitnan'), max(YY, [], 'omitnan')];
+        % ylim = [-3*std(YY, [], 'omitnan'), 3*std(YY, [], 'omitnan')];
+        % ylim = [min(YY)*1.1, max(YY)*1.1];
+        ylim = [-std(YY,[], 'omitnan'), std(YY, [],'omitnan')];
     end
 end
 set(ax, 'xlim', xlim, 'ylim', ylim);

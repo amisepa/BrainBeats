@@ -96,9 +96,9 @@ else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
     params.maxBad = .33;    % for user
 end
-win_length = 5;     % window length to scan channels (default = 5 s)
+win_length = 2;     % window length to scan channels (default = 5 s)
 line_thresh = 15;    % line noise threshold to remove bad channels (default = 15)
-nSamp = 500;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
+nSamp = 200;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
 if isfield(params,'detectMethod')
@@ -111,7 +111,7 @@ end
 if isfield(params,'asr_cutoff')
     asr_cutoff = params.asr_cutoff;
 else
-    asr_cutoff = 30;  % main ASR SD cutoff (lower = more aggressive, higher = more lax)
+    asr_cutoff = 50;  % main ASR SD cutoff (lower = more aggressive, higher = more lax)
 end
 if isfield(params,'asr_mem')
     asr_mem = params.asr_mem;
@@ -163,7 +163,12 @@ if params.clean_eeg_step == 0
     % disp('Scanning EEG channels for flat lines...')
     EEG = clean_flatlines(EEG,flatline);   % remove channels that have flat lines
     try 
-        EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
+        if any(contains(lower({EEG.chanlocs.labels}), 'meg'))
+            warning("MEG data detected. Defaulting to 2nd bad channel detection method that does not leverage EEG electrode locations.")
+            EEG = clean_channels_nolocs(EEG,0.45,0.1,win_length,.4);
+        else
+            EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
+        end
     catch
         warndlg('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.')
         warning('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.');
@@ -182,15 +187,15 @@ if params.clean_eeg_step == 0
     params.removed_eeg_channels = badChan;
 
     % Visualize removed channels
-    if params.vis_cleaning
+    if ~isempty(badChan) && params.vis_cleaning
         % EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
         % EEG.etc.clean_channel_mask(badChan) = false;
         try
-            vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+            vis_artifacts(EEG,oriEEG,'ShowSetname',false); pause(0.01)
         catch
             warning('failed to plot bad channels or artifacts with vis_artifacts(). Setting show_events to off and trying againg')
             try
-                vis_artifacts(EEG,oriEEG,'ShowSetname',false,'ShowEvents',false);
+                vis_artifacts(EEG,oriEEG,'ShowSetname',false,'ShowEvents',false); pause(0.01)
             catch
                 warning("vis_artifacts failed to plot the removed channels or artifacts. Please submit an issue on EEGLAB's page: https://github.com/sccn/eeglab/issues")
             end
@@ -199,10 +204,11 @@ if params.clean_eeg_step == 0
         set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
         set(gcf,'Name','EEG channels removed','NumberTitle', 'Off')  % change figure name
         % vis_artifacts(EEG,oriEEG,'ChannelSubset',1:EEG.nbchan-length(params.heart_channels));
+    else
+        disp("No bad channels detected.")
     end
-
     
-    % nothc filter if line noise is below lowpass filter
+    % notch filter if line noise is below lowpass filter
     if isfield(params,'linenoise') && params.linenoise<lowpass
         EEG = pop_eegfiltnew(EEG, 'locutoff',params.linenoise-3, ...
             'hicutoff',params.linenoise+3,'revfilt',1,'filtorder',500);
@@ -266,10 +272,10 @@ elseif params.clean_eeg_step == 1
 
         % Plot what has been removed
         if params.vis_cleaning
-            vis_artifacts(EEG,oriEEG,'ShowSetname',false);
+            vis_artifacts(EEG,oriEEG,'ShowSetname',false); pause(0.01)
             try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
             set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
-            set(gcf,'Name','EEG artifacts channels removed','NumberTitle', 'Off')  % change figure name
+            set(gcf,'Name','EEG (blue) and artifacts removed (red)','NumberTitle', 'Off')  % change figure name
         end
     end
     
@@ -318,14 +324,14 @@ elseif params.clean_eeg_step == 1
         nComps = size(EEG.icaweights,1);
         if ~isempty(nComps) && nComps>0
             if nComps >= 24
-                pop_selectcomps(EEG,1:24); 
+                pop_selectcomps(EEG,1:24); pause(0.01)
                 set(gcf,'Toolbar','none','Menu','none','Name','Independent components','NumberTitle','Off');  % remove toolbobar and menu and name
             else
-                pop_selectcomps(EEG,1:nComps)
+                pop_selectcomps(EEG,1:nComps); pause(0.01)
                 set(gcf,'Toolbar','none','Menu','none','Name','Independent components','NumberTitle','Off');  % remove toolbobar and menu and name
                 
             end
-            colormap("parula"); pause(0.1)
+            colormap("parula"); pause(0.01)
         else
             warndlg("No independent components in your dataset. Somethig went wrong with your ICA decomposition.")
         end

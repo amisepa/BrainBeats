@@ -28,7 +28,7 @@
 function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs)
 
 % Window length 
-winlength = 10*fs; % default = 30 s
+winlength = 30*fs; % default = 30 s
 
 % Initialize
 template = [];
@@ -58,13 +58,13 @@ for j = 1:nWind
     anntime = beats(annf);
 
     % prolong the data window an extra 3s
-    wave = signal( databegin:min(length(signal), max(dataend, anntime(length(anntime))+3*fs)) ); 
+    wave = signal( databegin:min(length(signal), max(dataend, anntime(length(anntime)) + 3*fs)) ); 
 
     % set the anntime to be the 0 offset of the selected data
     anntime = beats(annf)-databegin+1;
 
     % PPG SQI analysis
-    [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,winlength*fs,fs);
+    [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,winlength,fs);
     if ~isempty(sqimatrix)
         sqimatrix_all = nan(length(beats),size(sqimatrix,2));
         for k = 1:length(annot)
@@ -99,7 +99,7 @@ sqi = sqi./100;
 %     anntime:    PPG annotation time (samples), read from ple annot file,
 %                 But the ann-time is the OFFSET based on wave(1)
 %     template:   Last PPG beat template 
-%     windowlen:  length of window to calculate template(default: 30s)
+%     windowlen:  length of window to calculate template (default: 30s)
 %     Fs       :  sampling frequency (default Fs=125Hz)
 % output:
 %     annot:      ppg sqi annotation
@@ -167,12 +167,12 @@ function [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template
         end
         
         % Calculate the PLA of template for dynamic time warping
-        d1=t;
-        d1=(d1-min(d1))/(max(d1)-min(d1)).*100;
-        [y1 pla1]=PLA(d1,1,1);
+        d1 = t;
+        d1 = (d1-min(d1))/(max(d1)-min(d1)).*100;
+        [y1, pla1] = PLA(d1,1,1);
 
         % Main Loop
-        for j=1:length(anntime)-1
+        for j = 1:length(anntime)-1
 
             % SQI1: Direct compare
             % Calculate correlation coefficients based on the template

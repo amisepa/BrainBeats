@@ -141,8 +141,9 @@ if params.hrv_frequency
             end
 
             % Frequency resolution and vector for this window
-            % nfft = 2^nextpow2(length(NN(win_idx)));    % dynamic nfft based on window length
-            nfft = max(2^nextpow2(length(NN(win_idx))), 512);  % 512 makes distrib nicer and rounder
+            nfft = 2^nextpow2(length(NN(win_idx)));            % dynamic nfft based on window length
+            % nfft = max(2^nextpow2(length(NN(win_idx))), 512);  % 512 makes distrib nicer and rounder
+            % nfft = win_idx(end)-win_idx(1);                      % taking window length (default, most stable and accurate)
             fvec = bands(iBand,1):1/nfft:bands(iBand,2);
 
             % Lomb-Scargle Periodogram (no resampling required and best method)
