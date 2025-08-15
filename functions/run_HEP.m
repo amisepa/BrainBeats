@@ -13,9 +13,11 @@
 function HEP = run_HEP(EEG, CARDIO, params, Rpeaks)
 
 % Remove boundary events
-idx = strcmpi({EEG.event.type}, 'boundary');
-if any(idx)
-    EEG.event(idx) = [];
+if ~isempty(EEG.event)
+    idx = strcmpi({EEG.event.type}, 'boundary');
+    if any(idx)
+        EEG.event(idx) = [];
+    end
 end
 
 % Add heartbeat markers in the signals, taking into account
