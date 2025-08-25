@@ -39,11 +39,11 @@ try
     scroll = true;
     if strcmp(sigtype,'ecg')
         title('ECG signal + R peaks (press -> arrow to scroll)');
-        % ylim([-10*abs(median(sig,'omitmissing')) 10*abs(median(sig,'omitmissing'))])
+        % ylim([-10*abs(median(sig,'omitnan')) 10*abs(median(sig,'omitnan'))])
         ylabel('μV'); 
     else
         title('PPG signal + Pulse wave peaks (press -> arrow to scroll)'); 
-        % ylim([-8*median(sig,'omitmissing') 8*median(sig,'omitmissing')])
+        % ylim([-8*median(sig,'omitnan') 8*median(sig,'omitnan')])
         ylabel('a.u.'); 
     end
     xlabel('Time (s)')
@@ -63,14 +63,14 @@ plot(NN_t, sig(Npeaks),'.','MarkerSize',7,'color',[0.6350 0.0780 0.1840]);
 axis tight
 if strcmp(sigtype,'ecg')
     title('ECG signal + R peaks'); 
-    ylim([-3*abs(median(sig,'omitmissing')) 3*abs(median(sig,'omitmissing'))])
+    ylim([-3*abs(median(sig,'omitnan')) 3*abs(median(sig,'omitnan'))])
     ylabel('μV');
 else
     title('PPG signal + Pulse wave peaks'); 
-    ylim([-3*abs(median(sig,'omitmissing')) 3*abs(median(sig,'omitmissing'))])
+    ylim([-3*abs(median(sig,'omitnan')) 3*abs(median(sig,'omitnan'))])
     ylabel('a.u.')
 end
-ylim([-std(sig,'omitmissing')*7 std(sig,'omitmissing')*7])
+ylim([-std(sig,'omitnan')*7 std(sig,'omitnan')*7])
 
 
 if scroll, subplot(3,1,2); else, subplot(2,1,2); end

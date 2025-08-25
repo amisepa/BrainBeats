@@ -243,8 +243,13 @@ elseif params.clean_eeg_step == 1
         
         % Identify artifacts using ASR
         oriEEG = EEG;
-        m = memory; maxmem = round(asr_mem*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
-        cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,maxmem);
+        try
+            m = memory; maxmem = round(asr_mem*(m.MemAvailableAllArrays/1000000),1);  % use 80% of available memory (in MB)
+            cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,maxmem);
+        catch
+            warning("Failed to use high RAM to run ASR faster. Defaulting back to default values (ASR will just be slower).")
+            cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,[]);
+        end
         
         % Mask for vis_artifacts
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;

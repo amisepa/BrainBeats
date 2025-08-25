@@ -135,14 +135,17 @@ if params.eeg_frequency
     % nFreqBins = floor((fRange(2) - fRange(1)) / freqRes);
     nFreqBins = length(f);
 
-    % preallocate memory
-    PWR = nan(nChan,nFreqBins);
-    PWR_DB = nan(nChan,nFreqBins);
-    DELTA = nan(nChan,1);
-    THETA = nan(nChan,1);
-    ALPHA = nan(nChan,1);
-    BETA = nan(nChan,1);
-    GAMMA = nan(nChan,1);
+    % qEEG additions: preallocs (no existing names changed)
+    ABS_DELTA = nan(nChan,1); ABS_THETA = nan(nChan,1); ABS_ALPHA = nan(nChan,1); ABS_BETA = nan(nChan,1); ABS_GAMMA = nan(nChan,1);
+    REL_DELTA = nan(nChan,1); REL_THETA = nan(nChan,1); REL_ALPHA = nan(nChan,1); REL_BETA = nan(nChan,1); REL_GAMMA = nan(nChan,1);
+    TOT_PWR   = nan(nChan,1);
+    
+    R_AT = nan(nChan,1); R_TB = nan(nChan,1); R_AB = nan(nChan,1); R_A_TB = nan(nChan,1);
+    
+    IAF_Hz = nan(nChan,1); MF_Hz = nan(nChan,1); SEF90_Hz = nan(nChan,1);
+    
+    % helper for frequency step
+    df = mean(diff(f));
 
     % progressbar (only when not in parpool)
     if ~useparpool
@@ -169,6 +172,7 @@ if params.eeg_frequency
         % Compute PSD using pwelch
         [pwr, pwr_dB, ~] = compute_psd(sig,fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
 
+
         % Delta
         if strcmp(freqbounds, 'conventional')
             if eeg_norm == 0
@@ -176,7 +180,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 delta = mean(pwr_dB(f >= f(1) & f <= 3));    % db
             elseif eeg_norm == 2
-                delta = mean(pwr_dB(f >= f(1) & f <= 3)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                delta = mean(pwr(f >= f(1) & f <= 3)) ./ sum(pwr);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -194,7 +198,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 theta= mean(pwr_dB(f >= f(3) & f <= 7));    % db
             elseif eeg_norm == 2
-                theta = mean(pwr_dB(f >= f(3) & f <= 7)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                theta = mean(pwr(f >= f(3) & f <= 7)) ./ sum(pwr);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -212,7 +216,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 alpha = mean(pwr_dB(f >= f(8) & f <= 13));    % db
             elseif eeg_norm == 2
-                alpha = mean(pwr_dB(f >= f(8) & f <= 13)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                alpha = mean(pwr(f >= f(8) & f <= 13)) ./ sum(pwr);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -230,7 +234,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 beta = mean(pwr_dB(:,f >= f(13) & f <= 30));    % db
             elseif eeg_norm == 2
-                beta = mean(pwr_dB(:,f >= f(13) & f <= 30)) ./ sum(pwr_dB);   % normalized by total power of same channel
+                beta = mean(pwr(:,f >= f(13) & f <= 30)) ./ sum(pwr);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -248,7 +252,7 @@ if params.eeg_frequency
             elseif eeg_norm == 1
                 gamma = mean(pwr_dB(:,f >= f(30) & f <= fRange(2)));    % db
             elseif eeg_norm == 2
-                gamma = mean(pwr_dB(:,f >= f(30) & f <= fRange(2))) ./ sum(pwr_dB);   % normalized by total power of same channel
+                gamma = mean(pwr(:,f >= f(30) & f <= fRange(2))) ./ sum(pwr);   % normalized by total power of same channel
             end
         elseif strcmp(freqbounds, 'individualized')
             try
@@ -258,11 +262,7 @@ if params.eeg_frequency
                 gamma = NaN;
             end
         end
-
-        if ~useparpool
-            progressbar(iChan/nChan)
-        end
-        
+       
         PWR(iChan,:) = pwr;
         PWR_DB(iChan,:) = pwr_dB;
         DELTA(iChan,:) = delta;
@@ -270,7 +270,80 @@ if params.eeg_frequency
         ALPHA(iChan,:) = alpha;
         BETA(iChan,:) = beta;
         GAMMA(iChan,:) = gamma;
+
+        %%%%%%%%%%%%%%%%%%%%%% NEW REPLACEMENT ???? %%%%%%%%%%%%%%%%%%%%%%%
+
+        % Total band-limited linear power for this channel
+        TOT_PWR(iChan) = sum(pwr) * df;
         
+        % Define band masks using your current choice of bounds
+        if strcmp(freqbounds,'conventional')
+            idxD = f >= f(1) & f <= 3;
+            idxT = f >= 4     & f <= 7;
+            idxA = f >= 8     & f <= 13;
+            idxB = f >= 13    & f <= 30;
+            idxG = f >= 30    & f <= fRange(2);
+        else
+            % individualized masks per band with your existing helper
+            try, b = get_freqBounds(pwr, f, fs, [f(1) 3.5], winlen, 0.25); idxD = f>=b(1)&f<=b(2); catch, idxD = false(size(f)); end
+            try, b = get_freqBounds(pwr, f, fs, [3 7],    winlen, 0.25);   idxT = f>=b(1)&f<=b(2); catch, idxT = false(size(f)); end
+            try, b = get_freqBounds(pwr, f, fs, [7 14],   winlen, 1.00);   idxA = f>=b(1)&f<=b(2); catch, idxA = false(size(f)); end
+            try, b = get_freqBounds(pwr, f, fs, [13 30],  winlen, 0.25);   idxB = f>=b(1)&f<=b(2); catch, idxB = false(size(f)); end
+            try, b = get_freqBounds(pwr, f, fs, [30 fRange(2)], winlen, 0.25); idxG = f>=b(1)&f<=b(2); catch, idxG = false(size(f)); end
+        end
+        
+        % Absolute band power in linear units (µV^2)
+        absD = sum(pwr(idxD)) * df;
+        absT = sum(pwr(idxT)) * df;
+        absA = sum(pwr(idxA)) * df;
+        absB = sum(pwr(idxB)) * df;
+        absG = sum(pwr(idxG)) * df;
+        
+        ABS_DELTA(iChan) = absD; ABS_THETA(iChan) = absT; ABS_ALPHA(iChan) = absA; ABS_BETA(iChan) = absB; ABS_GAMMA(iChan) = absG;
+        
+        % Relative band power (to total in fRange)
+        den = max(TOT_PWR(iChan), eps);
+        REL_DELTA(iChan) = absD / den;
+        REL_THETA(iChan) = absT / den;
+        REL_ALPHA(iChan) = absA / den;
+        REL_BETA(iChan)  = absB / den;
+        REL_GAMMA(iChan) = absG / den;
+        
+        % Ratios on linear power
+        R_AT(iChan)   = absA / max(absT, eps);              % alpha/theta
+        R_TB(iChan)   = absT / max(absB, eps);              % theta/beta
+        R_AB(iChan)   = absA / max(absB, eps);              % alpha/beta
+        R_A_TB(iChan) = absA / max(absT + absB, eps);       % alpha/(theta+beta)
+        
+        % Individual alpha frequency (IAF) 
+        aSearch = (f >= 7 & f <= 13);
+        if any(aSearch)
+            fA = f(aSearch);
+            pA = pwr(aSearch);
+            [~, ix] = max(pA);
+            IAF_Hz(iChan) = fA(ix);
+        else
+            IAF_Hz(iChan) = NaN;
+        end
+        
+        % Median frequency (MF), the frequency that splits the power 
+        % spectrum into two equal halves.
+        % Spectral edge frequency 90 (SEF90), the frequency below which 90% 
+        % of the total spectral power is contained.
+        cs = cumsum(pwr) * df;   % df = mean(diff(f)) defined before the parfor
+        if cs(end) > 0
+            MF_Hz(iChan)    = interp1(cs, f, 0.5*cs(end), 'linear', 'extrap');
+            SEF90_Hz(iChan) = interp1(cs, f, 0.9*cs(end), 'linear', 'extrap');
+        else
+            MF_Hz(iChan) = NaN;
+            SEF90_Hz(iChan) = NaN;
+        end
+
+
+        if ~useparpool
+            progressbar(iChan/nChan)
+        end
+         
     end
     % toc
 
@@ -286,6 +359,30 @@ if params.eeg_frequency
     eeg_features.frequency.alpha = round(ALPHA,3);
     eeg_features.frequency.beta = round(BETA,3);
     eeg_features.frequency.gamma = round(GAMMA,3);
+
+    % new qEEG features?
+    eeg_features.qeeg.delta_abs   = ABS_DELTA;
+    eeg_features.qeeg.theta_abs   = ABS_THETA;
+    eeg_features.qeeg.alpha_abs   = ABS_ALPHA;
+    eeg_features.qeeg.beta_abs    = ABS_BETA;
+    eeg_features.qeeg.gamma_abs   = ABS_GAMMA;
+    eeg_features.qeeg.total_abs   = TOT_PWR;
+    
+    eeg_features.qeeg.delta_rel   = REL_DELTA;
+    eeg_features.qeeg.theta_rel   = REL_THETA;
+    eeg_features.qeeg.alpha_rel   = REL_ALPHA;
+    eeg_features.qeeg.beta_rel    = REL_BETA;
+    eeg_features.qeeg.gamma_rel   = REL_GAMMA;
+    
+    eeg_features.qeeg.alpha_theta = R_AT;
+    eeg_features.qeeg.theta_beta  = R_TB;
+    eeg_features.qeeg.alpha_beta  = R_AB;
+    eeg_features.qeeg.alpha_tplusb = R_A_TB;
+    
+    eeg_features.qeeg.iaf    = IAF_Hz;
+    eeg_features.qeeg.median = MF_Hz;
+    eeg_features.qeeg.sef90  = SEF90_Hz;
+
 
     %%%%% Individual alpha frequency (IAF) %%%%%
     % Use alpha center of gravity (CoG) since it's the best

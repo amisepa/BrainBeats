@@ -38,7 +38,8 @@ end
 load('corr_cmap.mat');  % loads variable 'cmap'
 
 % format into a triangular matrix
-C = tril(C,-1);                 % zero upper triangle
+% C = tril(C,-1);  % zero upper triangle (+ remove diagonal)
+C = tril(C,0);    % zero upper triangle, preserving diagonal
 
 % Set the [min,max] of diameter where 1 consumes entire grid square
 diamLim = [0.1, 1];
@@ -67,7 +68,7 @@ tickvalues = 1:size(C,2);
 x = zeros(size(tickvalues));
 text(x, tickvalues, labels,'HorizontalAlignment','right','fontSize',12,'fontweight','normal');
 x(:) = size(C,1)+1;
-text(tickvalues, x, labels,'HorizontalAlignment','right','Rotation',45,'fontSize',12,'fontweight','normal');
+text(tickvalues, x, labels,'HorizontalAlignment','right','Rotation',90,'fontSize',12,'fontweight','normal');
 
 % Create circles
 theta = linspace(0,2*pi,50); % the smaller, the less memory
