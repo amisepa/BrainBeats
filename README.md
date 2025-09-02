@@ -108,6 +108,8 @@ Cannard, C., Wahbeh, H., & Delorme, A. (2024). BrainBeats as an Open-Source EEGL
 
 ## Cited by
 
+Park, S., Ha, J., & Kim, L. (2025). Improving single-trial detection of error-related potentials by considering the effect of heartbeat-evoked potentials in a motor imagery-based brain-computer interface. Computers in Biology and Medicine, 195, 110563.
+
 Abdullah, J. et al. (2025). Mathematical Decoding of the Correlation Between Different Organs' Activities: A Review. Fractals.
 
 Carbone, F. et al. (2025). Registered Report Stage I: Neurological and physiological effects of animal-assisted treatments for patients in a minimally conscious state: a randomized, controlled cross-over study. Neuroscience.
