@@ -108,7 +108,9 @@ Cannard, C., Wahbeh, H., & Delorme, A. (2024). BrainBeats as an Open-Source EEGL
 
 ## Cited by
 
-Park, S., Ha, J., & Kim, L. (2025). Improving single-trial detection of error-related potentials by considering the effect of heartbeat-evoked potentials in a motor imagery-based brain-computer interface. Computers in Biology and Medicine, 195, 110563.
+Balasubramanian, K. et al. (2025). Complexity Measures in Biomedical Signal Analysis: A Clinically-Grounded Survey Across EEG, ECG, Intracranial Pressure, and Photoplethysmogram Modalities. IEEE Access.
+
+Park, S. et al. (2025). Improving single-trial detection of error-related potentials by considering the effect of heartbeat-evoked potentials in a motor imagery-based brain-computer interface. Computers in Biology and Medicine, 195, 110563.
 
 Abdullah, J. et al. (2025). Mathematical Decoding of the Correlation Between Different Organs' Activities: A Review. Fractals.
 
