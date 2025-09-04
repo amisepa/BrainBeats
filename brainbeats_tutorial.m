@@ -69,7 +69,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % is expected since the toolbox is not designed to run both ECG and PPG at 
 % the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1,'keep_heart',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',2,'keep_heart',true);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
 %  Note that we are changing these parameters for demonstration only, but
@@ -85,7 +85,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'clean_rr' set to 'spline' to interpolate the RR artifacts instead of
 %       'pchip' (default)
 %   - 'ref' set to 'infinity' to rereference EEG data to infinity instead
-%       of average (default)
+%       of common average (default) or 'csd' for current source density
+%       transformation (surface Laplacian)
 %   - 'highpass' filter set to .5 to remove EEG frequencies <0.5 hz 
 %   - 'lowpass' set to 20 to remove EEG frequencies >20 hz
 %   - 'filttype' set to 'causal' to use causal minimum-phase FIR filter
@@ -196,14 +197,19 @@ EEG.brainbeats.preprocessings
 EEG.brainbeats.features.EEG
 
 
-%% METHOD 3: Remove heart components from EEG signals
-% to avoid preprocessing the whole file again, remove PPG channel and the
-% first 10 s that contain simulated artifacts (that were added for illustration). 
+%% METHOD 3: Remove Cardiac field artifacts (CFA) from EEG signals using ICA
+% and ICLabel. 
 
+conf_thresh = .65;    % minimum confidence to classify components as heart (e.g. .65 = 65% confidence).
+boost_mode  = true;  % use 'boost' mode to increase chances to detect and remove CFA (beta version, has not been validated, use at your own risk)
+ica_mode = 2;        % 1 for fast Picard algo; 2 for infomax ICA; 3 for very long but more robust and replicable ICA
+ref_mode = 'average'; % re-referencing method ('average', 'infinity', or 'csd')
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',false,'linenoise',50,'vis_cleaning',false,...
-    'conf_thresh',.8,'boost',true,'ica_method',1);  % 'ica_method',1 for fast PICARD alg
+EEG = brainbeats_process(EEG, 'analysis', 'rm_heart', ...
+    'heart_signal', 'ECG', 'heart_channels', {'ECG'}, ...
+    'clean_eeg', true, 'vis_cleaning', true, 'filttype', 'noncausal','linenoise', 50,...
+    'conf_thresh', conf_thresh, 'boost', boost_mode, 'ica_method', ica_mode,...
+    'keep_heart',true); 
 
 
 %% METHOD 4: Brain-heart coherence (NEW: BETA; command line only)

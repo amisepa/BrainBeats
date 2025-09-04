@@ -374,7 +374,7 @@ if ~isempty(idx)
         fprintf('Saving outputs set to OFF. \n')
     end
 else
-    params.save = true; % save output by default
+    params.save = true; % ON by default
     disp("Saving outputs not defined. Set to ON by default. If you wish to turn it OFF, set input 'save' to false");
 end
 

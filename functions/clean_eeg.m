@@ -43,7 +43,7 @@ function [EEG, params] = clean_eeg(EEG, params)
 if isfield(params,'ref')
     reref = params.ref;
 else
-    reref = 'average'; % 'average' (default), 'infinity', 'off'
+    reref = 'average'; % 'average' (default), 'infinity', 'csd', 'off'
     params.ref = 'average';    % for user
 end
 if isfield(params,'highpass')
@@ -66,9 +66,9 @@ if isfield(params,'filttype')
         causalfilt = false; % zero-phase (linear) noncausal filter
     end
 else
-    % default filter depending on analysis
+    % default filter
     causalfilt = false; % zero-phase noncausal filter
-    params.causalfilt = 0;    % for user
+    params.causalfilt = 0;    % to export for user knowledge
 end
 if isfield(params,'gpu')
     usegpu = params.gpu;
@@ -96,9 +96,9 @@ else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
     params.maxBad = .33;    % for user
 end
-win_length = 2;     % window length to scan channels (default = 5 s)
+win_length = 2;     % window length to scan channels (default = 2 s)
 line_thresh = 15;    % line noise threshold to remove bad channels (default = 15)
-nSamp = 200;        % number of ransac samples (default = 500; higher is longer but more accurate and replicable)
+nSamp = 200;        % number of ransac samples (default = 200; ~50-500 range; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
 if isfield(params,'detectMethod')
@@ -123,7 +123,7 @@ end
 if isfield(params,'icamethod')
     icamethod = params.icamethod;
 else
-    icamethod = 2;  % 1 = fast ICA (picard), 2 = Infomax, 3 replicable Infomax (slowest but replicable)
+    icamethod = 2;  % 1 = fast ICA (picard), 2 = Infomax, 3 replicable Infomax (longest but replicable)
 end
 
 % Filter, re-reference, and remove bad channels
@@ -141,15 +141,31 @@ if params.clean_eeg_step == 0
     % methodology to user guidelines. Journal of Neuroscience Methods.
     if ~strcmp(reref,'off')
         if EEG.nbchan < 30
-            warndlg('Cannot reference these EEG data to infinity or average, not validated with less than 30 channels.')
-            warning('Cannot reference these EEG data to infinity or average, not validated with less than 30 channels.')
+            warndlg('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
+            warning('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
         else
             if strcmp(reref,'infinity')
                 fprintf('Re-referencing EEG data to infinity. \n')
-                EEG = ref_infinity(EEG);
+                try
+                    EEG = ref_infinity(EEG);
+                catch
+                    warning("Re-reference to infinity failed. This may happen on MACs (you likely need XCode installed for compiling the required code). Please submit an issue on Github: https://github.com/amisepa/BrainBeats/issues")
+                    warning("Defaulting back to common average reference (CAR).")
+                    EEG = apply_car(EEG);  % preserving effective data rank
+                end
             elseif strcmp(reref,'average')
                 fprintf('Re-referencing EEG data to average. \n')
-                EEG = pop_reref(EEG,[]);
+                % EEG = pop_reref(EEG,[]);
+                EEG = apply_car(EEG);  % preserving effective data rank
+            elseif strcmp(reref,'csd')
+                try
+                    disp("Performing reference-free current-source density (CSD) transformation (Surface Laplacian).")
+                    EEG = csd_transform(EEG);
+                catch
+                    warning("Re-reference to infinity failed. This may happen on MACs. Please submit an issue on Github: https://github.com/amisepa/BrainBeats/issues")
+                    warning("Defaulting back to common average reference (CAR).")
+                    EEG = apply_car(EEG);  % preserving effective data rank
+                end
             end
         end
     end
@@ -170,7 +186,6 @@ if params.clean_eeg_step == 0
             EEG = clean_channels(EEG,corrThresh,line_thresh,win_length,maxBad,nSamp); 
         end
     catch
-        warndlg('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.')
         warning('Your dataset has incorrect electrode locations. Using the location-free algorithm to remove bad EEG channels.');
         EEG = clean_channels_nolocs(EEG,0.45,0.1,win_length,.4);
     end
@@ -312,11 +327,14 @@ elseif params.clean_eeg_step == 1
     % Classify and remove bad components with IClabel
     EEG = pop_iclabel(EEG,'default');
     if contains(params.analysis, {'rm_heart' 'hep'}) 
-        % Do not remove heart components
-        EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
+        % % Do not remove heart components here (we clean the EEG only from 
+        % % other artifacts)
+        conf_thresh = .75;  % confidence threshold for removing CFA
+        EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; conf_thresh 1; .99 1; .99 1; NaN NaN]);
+        % EEG = pop_icflag(EEG,[NaN NaN; .95 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     else
-        % Remove components: muscle, eye, heart, line noise, channel noise
-        EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; .99 1; .99 1; .99 1; NaN NaN]);
+        % Remove components: brain,  muscle, eye, heart, line noise, channel noise, other
+        EEG = pop_icflag(EEG,[NaN NaN; .95 1; .95 1; .99 1; .99 1; .99 1; NaN NaN]);
     end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);

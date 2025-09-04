@@ -231,15 +231,6 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         elec = sprintf('elec%g',best_elec);
         flaggedRatio = flaggedRatio.(elec);
         badRR = badRR.(elec);
-        idx_rem = idx_rem.(elec);
-        idx_interp = idx_interp.(elec);
-        if flaggedRatio > 0
-            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%g%%). \n', sum(badRR),length(badRR),round(flaggedRatio,2));
-        end
-        if flaggedRatio > maxThresh % more than 20% of RR series is bad file
-            warning("%g%% of the RR series on your best electrode was flagged as artifact and corrected. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
-            % warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
-        end
         sig_t = sig_t(best_elec,:);
         sig = sig(best_elec,:);
         RR = RR.(elec);
@@ -247,12 +238,23 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % RR_t(1) = [];       % always ignore 1st hearbeat
         Rpeaks = Rpeaks.(elec);
         % Rpeaks(1) = [];     % always ignore 1st hearbeat
-        Npeaks = Npeaks.(elec);
+        if params.vis_cleaning
+            Npeaks = Npeaks.(elec);
+        end
         NN_t = NN_t.(elec);
         NN = NN.(elec);
         pol = pol.(elec); % ECG signal polarity
         SQI_mu = SQI_mu(best_elec,:);
         SQI_badRatio = SQI_badRatio(best_elec,:);
+        idx_rem = idx_rem.(elec);
+        idx_interp = idx_interp.(elec);
+        if flaggedRatio > 0
+            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%.2f%%). \n', sum(badRR),length(RR), flaggedRatio);
+        end
+        if flaggedRatio > maxThresh % more than 20% of RR series is bad file
+            warning("%g%% of the RR series on your best electrode was flagged as artifact and corrected. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
+            % warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
+        end
 
         % Print average SQI
         fprintf("Overall signal quality index (SQI): %g. Note: SQI > 0.9 is considered good.\n", SQI_mu)
