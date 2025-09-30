@@ -69,7 +69,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % is expected since the toolbox is not designed to run both ECG and PPG at 
 % the time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',2,'keep_heart',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1,'keep_heart',true);
 
 %% Same as above but using the PPG signal and adjusting some parameters 
 %  Note that we are changing these parameters for demonstration only, but
