@@ -101,12 +101,14 @@ v1.5 (5/2/2024) - METHOD 4 (brain-heart coherence) added
 
 v1.4 (4/1/2024) - publication JoVE (methods 1, 2, 3)
 
-## Reference (please cite)
+## When using BrainBeats, please cite:
 
 Cannard, C., Wahbeh, H., & Delorme, A. (2024). BrainBeats as an Open-Source EEGLAB Plugin to Jointly Analyze EEG and Cardiovascular Signals. Journal of visualized experiments: JoVE, (206).
 
 
-## Cited by
+## BrainBeats was used and cited in:
+
+Carbone, F., Silva, M., Leemann, B., Hund-Georgiadis, M., & Hediger, K. (2025). Registered Report Stage I: Neurological and physiological effects of animal-assisted treatments for patients in a minimally conscious state: a randomized, controlled cross-over study. Neuroscience.
 
 Balasubramanian, K. et al. (2025). Complexity Measures in Biomedical Signal Analysis: A Clinically-Grounded Survey Across EEG, ECG, Intracranial Pressure, and Photoplethysmogram Modalities. IEEE Access.
 
