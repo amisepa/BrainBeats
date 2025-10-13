@@ -31,7 +31,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 </p>
 
 <p align="center">
-    Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals (note that with PPG, we must correct for the delay between the electrical and mechanical cardiac events so that the estimated heartbeat times correspond to the R-peaks of an ECG; ~200-400 ms).
+    Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals (note that with PPG, we must correct for the delay between the electrical and mechanical cardiac events so that the estimated heartbeat times correspond to the R-peaks of an ECG; ~200-400 ms depending on PPG sensor location, the subject, and if you use the onset or peak of the pulse wave as the marker).
 </p>
 <p align="center" width="100%">
   <img width="50%" alt="BrainBeats fig17"
