@@ -3,7 +3,7 @@
 <!-- </p> -->
 
 <p align="center" width="100%">
-    <img width="30%" src="https://github.com/amisepa/BrainBeats/blob/main/brainbeats_logo2.png">
+    <img width="30%" src="https://github.com/amisepa/BrainBeats/main/brainbeats_logo2.png">
 </p>
 
 The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing and analysis of EEG and cardiovascular signals (ECG and PPG) for brain-heart interplay research. Both the general user interface (GUI) and command line are supported (see tutorial). BrainBeats currently supports: 1) Heartbeat-evoked potentials (HEP) and oscillations (HEO); 2) Extraction of EEG and HRV features; 3) Extraction of heart artifacts from EEG signals; 4) brain-heart coherence.
@@ -12,7 +12,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 ## THREE METHODS AVAILABLE
 
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/diagram.png">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/diagram.png">
 </p>
 
 1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
@@ -22,14 +22,14 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of HEP at the subject level, obtained from simultaneous EEG-ECG signals
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/fig11.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig11.png"> 
 </p>
 
 <p align="center">
     Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/fig17.png">
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig17.png">
 </p>
 
 2) Extract EEG and HRV features from continuous data in the time, frequency, and nonlinear domains. 
@@ -45,14 +45,14 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of power spectral density (PSD) estimated from HRV and EEG data
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/fig21.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig21.png"> 
 </p>
 
 <p align="center">
     Example of EEG features extracted from sample dataset
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/fig22.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig22.png"> 
 </p>
 
 
@@ -62,7 +62,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of extraction of cardiovascular components from EEG signals
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/fig27.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig27.png"> 
 </p>
 
 
@@ -72,14 +72,14 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of several brain-heart coherence measures computed with BrainBeats from simultaneous EEG and ECG signals
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/coherence_allfreqs.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/coherence_allfreqs.png"> 
 </p>
 
 <p align="center">
     Scalp topography showing scalp regions coherent with ECG signal for each frequency band
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/blob/main/figures/coherence_topo.png"> 
+    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/coherence_topo.png"> 
 </p>
 
 ## Requirements
