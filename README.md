@@ -11,7 +11,7 @@
 The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing and analysis of EEG and cardiovascular signals (ECG and PPG) for brain-heart interplay research. Both the general user interface (GUI) and command line are supported (see tutorial). BrainBeats currently supports: 1) Heartbeat-evoked potentials (HEP) and oscillations (HEO); 2) Extraction of EEG and HRV features; 3) Extraction of heart artifacts from EEG signals; 4) brain-heart coherence.
 
  
-## THREE METHODS AVAILABLE
+## 4 METHODS AVAILABLE
 
 <p align="center" width="100%">
   <img width="50%" alt="BrainBeats diagram"
