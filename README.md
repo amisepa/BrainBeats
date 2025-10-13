@@ -19,7 +19,7 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 </p>
 
 
-1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, time-frequency decomposition.
+1) Process EEG data for heartbeat-evoked potentials (HEP) analysis using ECG or PPG signals. Steps include signal processing of EEG and cardiovascular signals, inserting R-peak markers into the EEG data, segmentation around the R-peaks with optimal window length, and time-frequency decomposition.
 
 
 <p align="center">
@@ -34,7 +34,8 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of HEP at the subject level, obtained from simultaneous EEG-PPG signals
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig17.png">
+  <img width="50%" alt="BrainBeats fig17"
+       src="https://raw.githubusercontent.com/amisepa/BrainBeats/main/figures/fig17.png">
 </p>
 
 2) Extract EEG and HRV features from continuous data in the time, frequency, and nonlinear domains. 
@@ -50,16 +51,17 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of power spectral density (PSD) estimated from HRV and EEG data
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig21.png"> 
+  <img width="50%" alt="BrainBeats fig21"
+       src="https://raw.githubusercontent.com/amisepa/BrainBeats/main/figures/fig21.png">
 </p>
 
 <p align="center">
     Example of EEG features extracted from sample dataset
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig22.png"> 
+  <img width="50%" alt="BrainBeats fig22"
+       src="https://raw.githubusercontent.com/amisepa/BrainBeats/main/figures/fig22.png">
 </p>
-
 
 3) Remove heart components from EEG signals using ICA and ICLabel.
    
@@ -67,9 +69,9 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of extraction of cardiovascular components from EEG signals
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/fig27.png"> 
+  <img width="50%" alt="BrainBeats fig27"
+       src="https://raw.githubusercontent.com/amisepa/BrainBeats/main/figures/fig27.png">
 </p>
-
 
 4) Compute brain-heart coherence (beta version, please test and give feedback)
    
@@ -77,15 +79,18 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
     Example of several brain-heart coherence measures computed with BrainBeats from simultaneous EEG and ECG signals
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/coherence_allfreqs.png"> 
+  <img width="50%" alt="BrainBeats coh_all"
+       src="https://raw.githubusercontent.com/amisepa/BrainBeats/main/figures/coherence_allfreqs.png">
 </p>
 
 <p align="center">
     Scalp topography showing scalp regions coherent with ECG signal for each frequency band
 </p>
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/amisepa/BrainBeats/main/figures/coherence_topo.png"> 
+  <img width="50%" alt="BrainBeats coh_topo"
+       src="https://raw.githubusercontent.com/amisepa/BrainBeats/main/figures/coherence_topo.png">
 </p>
+
 
 ## Requirements
 
