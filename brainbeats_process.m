@@ -267,7 +267,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % RR artifacts (if any)
         if params.vis_cleaning
             plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, params.heart_signal)
-            pause(0.01)  % to avoid waiting for EEG preprocessing to appear
+            pause(0.1)  % to avoid waiting for EEG preprocessing to be done to appear
         end
 
         % Preprocessing outputs

@@ -96,9 +96,6 @@ else
     maxBad = .33;       % max tolerated portion of channel to be bad before removal (default = .33)
     params.maxBad = .33;    % for user
 end
-win_length = 2;     % window length to scan channels (default = 2 s)
-line_thresh = 15;    % line noise threshold to remove bad channels (default = 15)
-nSamp = 200;        % number of ransac samples (default = 200; ~50-500 range; higher is longer but more accurate and replicable)
 
 % HEP parameters to remove bad epochs
 if isfield(params,'detectMethod')
@@ -171,12 +168,14 @@ if params.clean_eeg_step == 0
     end
     
     % Remove bad channels
+    win_length = [];     % window length to scan channels (default = [])
+    line_thresh = 15;    % line noise threshold to remove bad channels (default = 15)
+    nSamp = 100;        % number of ransac samples (default = 100; ~50-500 range; higher is longer but more accurate and replicable)
     EEG.etc.clean_channel_mask = true(1,EEG.nbchan);
     oriEEG = EEG;
     % EEG = pop_clean_rawdata(EEG,'FlatlineCriterion',5,'ChannelCriterion',.85, ...
     %     'LineNoiseCriterion',5,'Highpass','off', 'BurstCriterion','off', ...
     %     'WindowCriterion','off','BurstRejection','off','Distance','off');    
-    % disp('Scanning EEG channels for flat lines...')
     EEG = clean_flatlines(EEG,flatline);   % remove channels that have flat lines
     try 
         if any(contains(lower({EEG.chanlocs.labels}), 'meg'))
