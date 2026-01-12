@@ -166,7 +166,10 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         for iElec = 1:nElec
             elec = sprintf('elec%g',iElec);
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:)',params);
+            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:)', params);
+            % figure; scrollplot({sig_t(iElec,:),sig(iElec,:),'color','#0072BD'},{'X'},10, ...
+            %     {RR_t.(elec), sig(Rpeaks.(elec)),'.','MarkerSize',15,'color',[0.9290
+            %     0.6940 0.1250]}); % for troublehsooting hearbteat detection
 
             % % Fix values if PPG had a different sampling rate than EEG (this
             % should now be avoided by resampling above)
@@ -194,16 +197,17 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             end
             SQI_mu(iElec,:) = round(mean(sqi(iElec,:), 'omitnan'),2);
             SQI_badRatio(iElec,:) = round(sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:))*100,1);
-            % if SQI_mu(iElec,:) < .9
-            %     warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9 before correction of RR artifacts. See Vest et al. (2017) for more detail. \n", SQI_mu)
-            % else
-            % end
-            % if SQI_badRatio(iElec,:) > 20
-            %     warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
-            %     warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh),'Signal quality warning 1')
-            % else
-            %     fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
-            % end
+            if SQI_mu(iElec,:) < .9
+                warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9. See Vest et al. (2017) for more detail. \n",  SQI_mu(iElec,:))
+            else
+                fprintf("Mean SQI is within recommendations (>0.9): %g\n",  SQI_mu(iElec,:));
+            end
+            if SQI_badRatio(iElec,:) > 20
+                warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+                warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh),'Signal quality warning 1')
+            else
+                fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+            end
 
             % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
             disp("Correcting abnormal RR intervals...")

@@ -90,7 +90,7 @@ function [nn_intervals, nn_t, idx_rem, idx_corr] = clean_rr(rr_t, rr_intervals, 
     % Step 4: interpolate sharp spikes
     spikes = FindSpikesInRR(nn_intervals, .2);
     if any(spikes)
-        warning('Interpolating %g abnormal spikes in RR intervals', sum(outliers));
+        warning('Interpolating %g abnormal spikes in RR intervals', sum(spikes));
     end
     idx_corr(spikes) = true;
     % plot(nn_t, nn_intervals, 'Color', [0.9290 0.6940 0.1250], 'LineWidth', 2, 'DisplayName', 'Outliers');
@@ -105,7 +105,7 @@ function [nn_intervals, nn_t, idx_rem, idx_corr] = clean_rr(rr_t, rr_intervals, 
         idx_corr = [];
         disp("No abnormal RR intervals detected.")
     else
-        fprintf('Abnromal RR intervals detected and corrected: %g\n', sum(idx_corr));
+        fprintf('Total number of abnormal RR intervals detected and corrected: %g\n', sum(idx_corr));
     end
 
 
@@ -119,8 +119,8 @@ end
 %       RR : a single row of rr interval data in seconds
 %       th : threshold percent limit of change from one interval to the next
 % OUTPUTS:
-%       idxRRtoBeRemoved : a single vector of indexes related to RR
-%                          intervals corresponding to a change > th
+%       idxRRtoBeRemoved : a single vector of logical values indicating
+%                          which RR intervals correspond to a change > th
 
 function idxRRtoBeRemoved = FindSpikesInRR(RR, th)
 
@@ -133,23 +133,25 @@ FiveRR_MedianVal = medfilt1(RR,5); % compute as median RR(-i-2: i+2)
 
 % shift of three position to align with to corresponding RR
 FiveRR_MedianVal = [RR(1:5) FiveRR_MedianVal(3:end-3)];
-rr_above_th = (abs(RR-FiveRR_MedianVal)./FiveRR_MedianVal)>=th;
+rr_above_th_forward = (abs(RR-FiveRR_MedianVal)./FiveRR_MedianVal)>=th;
 
 RR_forward = RR;
-RR_forward(rr_above_th) = NaN;
+RR_forward(rr_above_th_forward) = NaN;
 
 % Backward search
-RRfilpped = fliplr(RR);
-FiveRR_MedianVal = medfilt1(RRfilpped,5); % compute as median RR(-i-2: i+2)
-% shift of three position to aligne with to corresponding RR
-FiveRR_MedianVal = [RRfilpped(1:5) FiveRR_MedianVal(3:end-3)];
-rr_above_th = find(abs(RRfilpped-FiveRR_MedianVal)./FiveRR_MedianVal>=th);
-rr_above_th = sort(length(RR)-rr_above_th+1);
+RRflipped = fliplr(RR);
+FiveRR_MedianVal = medfilt1(RRflipped,5); % compute as median RR(-i-2: i+2)
+% shift of three position to align with to corresponding RR
+FiveRR_MedianVal = [RRflipped(1:5) FiveRR_MedianVal(3:end-3)];
+rr_above_th_backward = (abs(RRflipped-FiveRR_MedianVal)./FiveRR_MedianVal)>=th;
 
-RR_backward = RRfilpped;
-RR_backward(rr_above_th) = NaN;
+RR_backward = RRflipped;
+RR_backward(rr_above_th_backward) = NaN;
 
-% Combine
+% Flip back to original order
+RR_backward = fliplr(RR_backward);
+
+% Combine: mark as spike if detected in both forward and backward passes
 idxRRtoBeRemoved = (isnan(RR_forward) & isnan(RR_backward));
 
 end

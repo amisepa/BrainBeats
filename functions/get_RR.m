@@ -38,6 +38,31 @@
 %   Vest et al. (2018). An Open Source Benchmarked Toolbox for Cardiovascular
 %   Waveform and Interval Analysis. Physiological measurement.
 %
+% ECG detection improvements: January 12, 2026 by Cedric Cannard
+%   - Enforced consistent signal orientation by converting the ECG signal 
+%     to a column vector once at the start of the ECG branch, eliminating
+%     downstream dimension and indexing errors.
+%   - Reworked the Pan–Tompkins processing to be fully zero-phase:
+%       - Padded the differentiated signal to preserve length.
+%       - Replaced the integration filter with filtfilt to remove phase delay.
+%       - Ensured the median filter window length is odd.
+%       - Removed all manual delay compensation and circshift logic.
+%   - Corrected polarity detection and peak finding to operate on the 
+%     original ECG signal rather than intermediate or transposed variables,
+%     ensuring correct peak selection regardless of signal inversion.
+%   - Added a post-detection peak refinement step that recenters each coarse
+%     peak by searching for the true local extremum within a short QRS-scale window.
+%   - Fixed search-back logic inconsistencies:
+%       - Used logical masks instead of mixed index spaces.
+%       - Properly flipped backward-search results back into forward time 
+%         before combining.
+%       - Clarified forward vs backward variable naming.
+%   - Clamped all search windows to valid signal bounds and aligned 
+%     intermediate vectors to identical lengths to prevent off-by-one and 
+%     assignment errors.
+%   - Fixed minor typos and incorrect variable references in diagnostic 
+%     and warning messages.
+% 
 % Copyright (C), BrainBeats, Cedric Cannard, 2023
 
 function [RR, RR_t, peaks, sig, tm, sign, HR] = get_RR(signal, params)
@@ -52,7 +77,7 @@ end
 
 sign = [];
 nSamp = size(signal,1);
-tm = 1/fs:1/fs:nSamp/fs;   
+tm = 1/fs:1/fs:nSamp/fs;
 % tm = 1/fs:1/fs:ceil(nSamp/fs);
 
 %% ECG
@@ -76,59 +101,41 @@ if strcmpi(sig_type, 'ecg')
     end
 
     % Constants
-    med_smooth_nb_coef = round(fs/100);     
-    % Scales the number of coefficients for the median filter based on fs
-    % If the sampling frequency is higher, the number of coefficients 
-    % increases proportionally, allowing the filter to maintain a consistent 
-    % duration in terms of time across different sampling rates.
+    med_smooth_nb_coef = round(fs/100);     % scales with fs
+    int_nb_coef = round(7*fs/256);          % length is 7 for fs = 256 Hz
 
-    int_nb_coef = round(7*fs/256);      % length is 7 for fs = 256Hz (designed on fs = 256 hz)
-    % Used in the integration step of the P&T
-    % It scales with the sampling frequency, ensuring that the integration 
-    % window remains consistent in time, regardless of fs
-
-
-    % % Bandpass filter ECG signal. This sombrero hat has shown to give slightly
-    % % better results than a standard band-pass filter.
-    % b1 = [-7.757327341237223e-05  -2.357742589814283e-04 -6.689305101192819e-04 -0.001770119249103 ...
-    %     -0.004364327211358 -0.010013251577232 -0.021344241245400 -0.042182820580118 -0.077080889653194...
-    %     -0.129740392318591 -0.200064921294891 -0.280328573340852 -0.352139052257134 -0.386867664739069 ...
-    %     -0.351974030208595 -0.223363323458050 0 0.286427448595213 0.574058766243311 ...
-    %     0.788100265785590 0.867325070584078 0.788100265785590 0.574058766243311 0.286427448595213 0 ...
-    %     -0.223363323458050 -0.351974030208595 -0.386867664739069 -0.352139052257134...
-    %     -0.280328573340852 -0.200064921294891 -0.129740392318591 -0.077080889653194 -0.042182820580118 ...
-    %     -0.021344241245400 -0.010013251577232 -0.004364327211358 -0.001770119249103 -6.689305101192819e-04...
-    %     -2.357742589814283e-04 -7.757327341237223e-05];
-    % b1 = resample(b1,fs,250);
-    % sig = filtfilt(b1,1,double(signal))';
-    sig = signal';
-
-    % Plot spectra
-    % figure;
-    % subplot(2,1,1)
-    % [~, pwr_db, f] = get_psd(sig,250,0.5,[0.5 60],4,0);
-    % plot(f, pwr_db); xlabel('Freqeuncy (Hz)')
-    % subplot(2,1,2)
-    % spectrogram(sig,kaiser(250,5),250/2,500,250);
-    % view(-5,50); xlim([0 50]) % colormap bone; 
+    % Use a consistent orientation: COLUMN vectors everywhere in ECG branch
+    sig = signal(:);
 
     % If median of 20% of the samples are < min_amp, abort (flat line)
     min_amp = 0.1;
-    % nSamp = length(signal);         % number of input samples
-    if length(find(abs(sig)<min_amp))/nSamp > 0.20
+    if length(find(abs(sig)<min_amp)) / nSamp > 0.20
         error('ECG time series is a flat line')
     end
 
-    % P&T operations
-    dffecg = diff(sig');  % (4) differentiate (one datum shorter)
-    sqrecg = dffecg.*dffecg; % (5) square ecg
-    intecg = filter(ones(1,int_nb_coef),1,sqrecg); % (6) integrate
-    mdfint = medfilt1(intecg,med_smooth_nb_coef);  % (7) smooth
-    delay  = ceil(int_nb_coef/2);
-    mdfint = circshift(mdfint,-delay); % remove filter delay for scanning back through ECG
+    % P&T operations - using zero-phase filtering to eliminate delay
+    dffecg = diff(sig);                 % (4) differentiate (one datum shorter)
+    sqrecg = dffecg .* dffecg;          % (5) square ecg
+
+    % (6) integrate using zero-phase filter (filtfilt)
+    b_int = ones(1,int_nb_coef) / int_nb_coef;
+    intecg = filtfilt(b_int, 1, sqrecg);
+
+    % (7) smooth using median filter (medfilt1 is inherently zero-phase for odd window sizes)
+    if mod(med_smooth_nb_coef, 2) == 0
+        med_smooth_nb_coef = med_smooth_nb_coef + 1; % ensure odd window size
+    end
+    mdfint = medfilt1(intecg, med_smooth_nb_coef);
+
+    % Ensure mdfint has same length as sig by padding/truncating (both columns)
+    if numel(mdfint) < numel(sig)
+        mdfint = [mdfint; zeros(numel(sig) - numel(mdfint), 1)];
+    elseif numel(mdfint) > numel(sig)
+        mdfint = mdfint(1:numel(sig));
+    end
 
     % P&T threshold
-    if nSamp/fs>90
+    if nSamp/fs > 90
         xs = sort(mdfint(fs:fs*90));
     else
         xs = sort(mdfint(fs:end));
@@ -136,9 +143,9 @@ if strcmpi(sig_type, 'ecg')
 
     max_force = [];    % to force the energy threshold value
     if isempty(max_force)
-        if nSamp/fs>10
+        if nSamp/fs > 10
             ind_xs = ceil(98/100*length(xs));
-            en_thres = xs(ind_xs); % if more than ten seconds of ecg then 98% CI
+            en_thres = xs(ind_xs); % if more than 10 s of ecg then 98% CI
         else
             ind_xs = ceil(99/100*length(xs));
             en_thres = xs(ind_xs); % else 99% CI
@@ -147,78 +154,141 @@ if strcmpi(sig_type, 'ecg')
         en_thres = max_force;
     end
 
-    % build an array of segments to look into
-    poss_reg = mdfint>(peakThresh*en_thres);
+    % build an array of segments to look into (COLUMN logical)
+    poss_reg = mdfint > (peakThresh * en_thres);
 
     % in case empty because force threshold and crap in the signal
     if isempty(poss_reg)
-        poss_reg(10) = 1;
+        poss_reg(10) = true;
     end
 
     % P&T QRS detection & search back
     if search_back
-        indAboveThreshold = find(poss_reg); % ind of samples above threshold
-        RRv = diff(tm(indAboveThreshold));  % compute RRv
+        indAboveThreshold = find(poss_reg);      % indices above threshold
+        RRv = diff(tm(indAboveThreshold));       % compute RRv (seconds)
         medRRv = median(RRv(RRv>0.01));
-        indMissedBeat = find(RRv>1.5*medRRv); % missed a peak?
-        % find interval onto which a beat might have been missed
+        indMissedBeat = find(RRv > 1.5*medRRv);  % missed a peak?
+
         indStart = indAboveThreshold(indMissedBeat);
-        indEnd = indAboveThreshold(indMissedBeat+1);
+        indEnd   = indAboveThreshold(indMissedBeat+1);
 
         % look for a peak on this interval by lowering the energy threshold
         for i = 1:length(indStart)
-            poss_reg(indStart(i):indEnd(i)) = mdfint(indStart(i):indEnd(i))>(0.5*peakThresh*en_thres);
+            poss_reg(indStart(i):indEnd(i)) = ...
+                mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
         end
     end
 
-    % find indices into boudaries of each segment
-    left  = find(diff([0 poss_reg'])==1);  % remember to zero pad at start
-    right = find(diff([poss_reg' 0])==-1); % remember to zero pad at end
+    % find indices into boundaries of each segment (work with column vectors)
+    left  = find(diff([0; poss_reg])==1);   % zero pad at start
+    right = find(diff([poss_reg; 0])==-1);  % zero pad at end
 
-    % looking for max/min?
-    nb_s = length(left<30*fs);
-    loc  = zeros(1,nb_s);
-    for j=1:nb_s
-        [~,loc(j)] = max(abs(sig(left(j):right(j))));
-        loc(j) = loc(j)-1+left(j);
+    % Determine polarity using first 30 s or entire signal if shorter
+    nb_s = min(length(left), round(30*fs));
+    loc  = zeros(1, nb_s);
+    for j = 1:nb_s
+        [~, loc(j)] = max(abs(sig(left(j):right(j))));
+        loc(j) = loc(j) - 1 + left(j);
     end
-    sign = median(sig(loc));  % median was mean & sig was signal originally here
+    sign = median(sig(loc));
 
     % loop through all possibilities
     compt = 1;
     nb_peaks = length(left);
-    maxval = zeros(1,nb_peaks);
-    peaks = zeros(1,nb_peaks);
+    maxval = zeros(1, nb_peaks);
+    peaks  = zeros(1, nb_peaks);
+
     for i = 1:nb_peaks
         if sign > 0 % if sign is positive then look for positive peaks
-            [maxval(compt), peaks(compt)] = max(sig(left(i):right(i))); % sig was signal originally here
-        else % if sign is negative then look for negative peaks
-            [maxval(compt), peaks(compt)] = min(sig(left(i):right(i))); % sig was signal originally here
+            [maxval(compt), peaks(compt)] = max(sig(left(i):right(i)));
+        else        % if sign is negative then look for negative peaks
+            [maxval(compt), peaks(compt)] = min(sig(left(i):right(i)));
         end
 
         % add offset of present location
-        peaks(compt) = peaks(compt)-1+left(i);
+        peaks(compt) = peaks(compt) - 1 + left(i);
 
         % refractory period - improve results
         if compt > 1
-            if peaks(compt)-peaks(compt-1)<fs*ref_period && abs(maxval(compt))<abs(maxval(compt-1))
-                peaks(compt)=[];
-                maxval(compt)=[];
-            elseif peaks(compt)-peaks(compt-1)<fs*ref_period && abs(maxval(compt))>=abs(maxval(compt-1))
-                peaks(compt-1)=[];
-                maxval(compt-1)=[];
+            if peaks(compt) - peaks(compt-1) < fs*ref_period && abs(maxval(compt)) < abs(maxval(compt-1))
+                peaks(compt)  = [];
+                maxval(compt) = [];
+            elseif peaks(compt) - peaks(compt-1) < fs*ref_period && abs(maxval(compt)) >= abs(maxval(compt-1))
+                peaks(compt-1)  = [];
+                maxval(compt-1) = [];
             else
-                compt=compt+1;
+                compt = compt + 1;
             end
-        else % if first peak then increment
-            compt=compt+1;
+        else
+            compt = compt + 1;
         end
     end
 
-    % r_pos = peaks;       % QRS datapoint positions
-    % r_t = tm(peaks);     % QRS timestamp positions
-    % r_amp = maxval;       % amplitude at QRS positions
-    % hr = 60./diff(r_t);   % heart rate
+    % After coarse peak picking (peaks), refine each peak location on raw ECG
+    % by searching for the true extremum in a tight QRS window.
+
+    qrs_halfwin = max(1, round(0.08 * fs));   % 80 ms on each side, adjust 0.05-0.12 if needed
+    L = numel(sig);
+
+    peaks = peaks(:)';                         % row
+    peaks = peaks(peaks >= 1 & peaks <= L);    % safety
+
+    for k = 1:numel(peaks)
+        p = peaks(k);
+
+        w1 = max(1, p - qrs_halfwin);
+        w2 = min(L, p + qrs_halfwin);
+        w  = w1:w2;
+
+        if sign > 0
+            [~, ii] = max(sig(w));
+        else
+            [~, ii] = min(sig(w));
+        end
+
+        peaks(k) = w1 + ii - 1;
+    end
+
+    % Optional: enforce strict local extremum (nudges peaks by 1-2 samples sometimes)
+    for k = 2:numel(peaks)-1
+        p = peaks(k);
+        if p <= 1 || p >= L, continue; end
+
+        if sign > 0
+            if ~(sig(p) >= sig(p-1) && sig(p) >= sig(p+1))
+                % move to nearest local max within a tiny neighborhood
+                w1 = max(1, p - round(0.02*fs)); % 20 ms
+                w2 = min(L, p + round(0.02*fs));
+                [~, ii] = max(sig(w1:w2));
+                peaks(k) = w1 + ii - 1;
+            end
+        else
+            if ~(sig(p) <= sig(p-1) && sig(p) <= sig(p+1))
+                % move to nearest local min within a tiny neighborhood
+                w1 = max(1, p - round(0.02*fs)); % 20 ms
+                w2 = min(L, p + round(0.02*fs));
+                [~, ii] = min(sig(w1:w2));
+                peaks(k) = w1 + ii - 1;
+            end
+        end
+    end
+
+    % Remove duplicates created by refinement and enforce refractory period again
+    peaks = unique(peaks, 'stable');
+
+    keep = true(size(peaks));
+    for k = 2:numel(peaks)
+        if (peaks(k) - peaks(k-1)) < round(ref_period * fs)
+            % keep the one with larger absolute amplitude consistent with polarity
+            if abs(sig(peaks(k))) > abs(sig(peaks(k-1)))
+                keep(k-1) = false;
+            else
+                keep(k) = false;
+            end
+        end
+    end
+    peaks = peaks(keep);
+
 
     if sign < 0
         fprintf(" - Peaks' polarity: negative \n");
@@ -228,28 +298,10 @@ if strcmpi(sig_type, 'ecg')
     fprintf(' - P&T energy threshold: %g \n', round(en_thres,2))
 
     % RR intervals and HR
-    RR = diff(peaks) ./ fs;   % RR intervals in s
-    RR_t = tm(peaks); 
-    % RR_t = peaks ./ fs;       % RR timestamps (always ignore 1st heartbeat)
-    % RR_t = cumsum(peaks);        % alternative method
-    HR = 60 ./ diff(RR_t);   % heart rate (in bpm)
+    RR   = diff(peaks) ./ fs;     % RR intervals in s
+    RR_t = tm(peaks);             % timestamps (s)
+    HR   = 60 ./ diff(RR_t);      % bpm
 
-    % % Visualize
-    if params.vis_cleaning
-        figure('color','w');
-        subplot(2,1,1);
-        plot(tm, sig,'color','#0072BD'); hold on;
-        plot(RR_t, sig(peaks),'.','MarkerSize',10,'color','#D95319');
-        title('Filtered ECG signal + R peaks');
-        ylabel('mV'); xlim([0 tm(end)]); set(gca,'XTick',[])
-
-        subplot(2,1,2);
-        plot(RR_t(1:length(HR)), HR, '--','color','#A2142F','linewidth',1);
-        xlim([0 tm(end)]);
-        title('Heart Rate'); xlabel('Time (s)'); ylabel('bpm');
-
-        set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
-    end
 
     %%  PPG
 elseif strcmpi(sig_type, 'ppg')
