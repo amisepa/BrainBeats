@@ -27,6 +27,20 @@
 %   ORIGINAL SOURCE AND AUTHORS:
 %       Adriana N. Vest and various authors (Physionet Cardiovascular Signal toolbox).
 %
+% UPDATE January 12, 2026 by Cedric Cannard
+% Issue detected: the backward search was creating indices in the flipped 
+%   coordinate system but never properly flipping the results back before
+%   the final combination step, leading to incorrect spike detection.
+% 
+% Fix:
+%   - Fixed backward search indexing: Changed from using find() indices to 
+%     logical arrays (consistent with forward search)
+%   - Added flip back: After setting NaN values in the flipped array, I flip
+%     RR_backward back to the original order before combining
+%   - Used consistent variable names: Changed rr_above_th to rr_above_th_forward
+%     and rr_above_th_backward for clarity
+%   - Fixed soe typos and warning message
+% 
 % Copyright (C), BrainBeats, Cedric Cannard, 2022
 
 
