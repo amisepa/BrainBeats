@@ -168,8 +168,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
             [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:)', params);
             % figure; scrollplot({sig_t(iElec,:),sig(iElec,:),'color','#0072BD'},{'X'},10, ...
-            %     {RR_t.(elec), sig(Rpeaks.(elec)),'.','MarkerSize',15,'color',[0.9290
-            %     0.6940 0.1250]}); % for troublehsooting hearbteat detection
+            %     {RR_t.(elec), sig(Rpeaks.(elec)),'.','MarkerSize',15,'color','r'}); % for troublehsooting hearbteat detection
 
             % % Fix values if PPG had a different sampling rate than EEG (this
             % should now be avoided by resampling above)
@@ -213,7 +212,6 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             disp("Correcting abnormal RR intervals...")
             % warning off
             RR_t.(elec)(1) = []; Rpeaks.(elec)(1) = [];
-            % [NN.(elec), NN_t.(elec), flagged.(elec)] = clean_rr(RR_t.(elec), RR.(elec), params);
             [NN.(elec), NN_t.(elec), idx_rem.(elec), idx_interp.(elec)] = clean_rr(RR_t.(elec), RR.(elec), signal(iElec,Rpeaks.(elec))');
             % Rpeaks.(elec)(idx_rem.(elec)) = [];
             badRR.(elec) = sum(idx_rem.(elec)) + sum(idx_interp.(elec));  % sum of removed and interpolated RR intervals

@@ -314,8 +314,7 @@ elseif params.clean_eeg_step == 1
     % use lrate=1e-5 and maxsteps=2000 to obtain reproducible ICA results
     dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
     if icamethod == 1
-        EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard', ...
-            'pca',dataRank);
+        EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard', 'pca',dataRank);
     elseif icamethod == 2
         EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
     elseif icamethod == 3 
