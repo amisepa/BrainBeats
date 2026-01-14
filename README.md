@@ -118,6 +118,8 @@ Cannard, C., Wahbeh, H., & Delorme, A. (2024). BrainBeats as an Open-Source EEGL
 
 ## BrainBeats was used and cited in:
 
+Abdullah, J., Kasik, V., Marek, P., Krejcar, O., Panwar, A., & Namazi, H. (2025). MATHEMATICAL DECODING OF THE CORRELATION BETWEEN DIFFERENT ORGANS'ACTIVITIES: A REVIEW. Fractals, volume 33, issue: 09.
+
 Liu, P., Gao, Y., Ballegaard, M., & Puthusserypady, S. (2025, July). A Novel Framework for Real-Time ECG and Blood Pressure Signal Analysis: Enhancing Accuracy and Interaction through Dynamic Quality Evaluation. In Annual International Conference of the IEEE Engineering in Medicine and Biology Society. IEEE Engineering in Medicine and Biology Society. Annual International Conference (Vol. 2025, pp. 1-7).
 
 Carbone, F., Silva, M., Leemann, B., Hund-Georgiadis, M., & Hediger, K. (2025). Registered Report Stage I: Neurological and physiological effects of animal-assisted treatments for patients in a minimally conscious state: a randomized, controlled cross-over study. Neuroscience.
