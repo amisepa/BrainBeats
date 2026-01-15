@@ -39,7 +39,7 @@
 %   Waveform and Interval Analysis. Physiological measurement.
 %
 % ECG detection improvements: January 12, 2026 by Cedric Cannard
-%   - Enforced consistent signal orientation by converting the ECG signal 
+%   - Enforced consistent signal orientation by converting the ECG signal
 %     to a column vector once at the start of the ECG branch, eliminating
 %     downstream dimension and indexing errors.
 %   - Reworked the Pan–Tompkins processing to be fully zero-phase:
@@ -47,22 +47,22 @@
 %       - Replaced the integration filter with filtfilt to remove phase delay.
 %       - Ensured the median filter window length is odd.
 %       - Removed all manual delay compensation and circshift logic.
-%   - Corrected polarity detection and peak finding to operate on the 
+%   - Corrected polarity detection and peak finding to operate on the
 %     original ECG signal rather than intermediate or transposed variables,
 %     ensuring correct peak selection regardless of signal inversion.
 %   - Added a post-detection peak refinement step that recenters each coarse
 %     peak by searching for the true local extremum within a short QRS-scale window.
 %   - Fixed search-back logic inconsistencies:
 %       - Used logical masks instead of mixed index spaces.
-%       - Properly flipped backward-search results back into forward time 
+%       - Properly flipped backward-search results back into forward time
 %         before combining.
 %       - Clarified forward vs backward variable naming.
-%   - Clamped all search windows to valid signal bounds and aligned 
-%     intermediate vectors to identical lengths to prevent off-by-one and 
+%   - Clamped all search windows to valid signal bounds and aligned
+%     intermediate vectors to identical lengths to prevent off-by-one and
 %     assignment errors.
-%   - Fixed minor typos and incorrect variable references in diagnostic 
+%   - Fixed minor typos and incorrect variable references in diagnostic
 %     and warning messages.
-% 
+%
 % Copyright (C), BrainBeats, Cedric Cannard, 2023
 
 function [RR, RR_t, peaks, sig, tm, sign, HR] = get_RR(signal, params)
@@ -78,7 +78,6 @@ end
 sign = [];
 nSamp = size(signal,1);
 tm = 1/fs:1/fs:nSamp/fs;
-% tm = 1/fs:1/fs:ceil(nSamp/fs);
 
 %% ECG
 if strcmpi(sig_type, 'ecg')
@@ -113,21 +112,21 @@ if strcmpi(sig_type, 'ecg')
         error('ECG time series is a flat line')
     end
 
-    % P&T operations - using zero-phase filtering to eliminate delay
-    dffecg = diff(sig);                 % (4) differentiate (one datum shorter)
-    sqrecg = dffecg .* dffecg;          % (5) square ecg
+    % P&T operations (zero-phase where applicable)
+    dffecg = diff(sig);                 % differentiate (one datum shorter)
+    sqrecg = dffecg .* dffecg;          % square
 
-    % (6) integrate using zero-phase filter (filtfilt)
+    % integrate using zero-phase filtering (filtfilt)
     b_int = ones(1,int_nb_coef) / int_nb_coef;
     intecg = filtfilt(b_int, 1, sqrecg);
 
-    % (7) smooth using median filter (medfilt1 is inherently zero-phase for odd window sizes)
+    % smooth using median filter (odd length)
     if mod(med_smooth_nb_coef, 2) == 0
-        med_smooth_nb_coef = med_smooth_nb_coef + 1; % ensure odd window size
+        med_smooth_nb_coef = med_smooth_nb_coef + 1;
     end
     mdfint = medfilt1(intecg, med_smooth_nb_coef);
 
-    % Ensure mdfint has same length as sig by padding/truncating (both columns)
+    % match length to sig
     if numel(mdfint) < numel(sig)
         mdfint = [mdfint; zeros(numel(sig) - numel(mdfint), 1)];
     elseif numel(mdfint) > numel(sig)
@@ -141,146 +140,147 @@ if strcmpi(sig_type, 'ecg')
         xs = sort(mdfint(fs:end));
     end
 
-    max_force = [];    % to force the energy threshold value
+    max_force = []; % to force the energy threshold value
     if isempty(max_force)
         if nSamp/fs > 10
             ind_xs = ceil(98/100*length(xs));
-            en_thres = xs(ind_xs); % if more than 10 s of ecg then 98% CI
+            en_thres = xs(ind_xs);
         else
             ind_xs = ceil(99/100*length(xs));
-            en_thres = xs(ind_xs); % else 99% CI
+            en_thres = xs(ind_xs);
         end
     else
         en_thres = max_force;
     end
 
-    % build an array of segments to look into (COLUMN logical)
+    % candidate regions (energy)
     poss_reg = mdfint > (peakThresh * en_thres);
-
-    % in case empty because force threshold and crap in the signal
     if isempty(poss_reg)
         poss_reg(10) = true;
     end
 
-    % P&T QRS detection & search back
+    % search-back for missed beats
     if search_back
-        indAboveThreshold = find(poss_reg);      % indices above threshold
-        RRv = diff(tm(indAboveThreshold));       % compute RRv (seconds)
-        medRRv = median(RRv(RRv>0.01));
-        indMissedBeat = find(RRv > 1.5*medRRv);  % missed a peak?
+        indAboveThreshold = find(poss_reg);
+        RRv = diff(tm(indAboveThreshold));
+        medRRv = median(RRv(RRv > 0.01));
+        indMissedBeat = find(RRv > 1.5*medRRv);
 
         indStart = indAboveThreshold(indMissedBeat);
         indEnd   = indAboveThreshold(indMissedBeat+1);
 
-        % look for a peak on this interval by lowering the energy threshold
         for i = 1:length(indStart)
             poss_reg(indStart(i):indEnd(i)) = ...
                 mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
         end
     end
 
-    % find indices into boundaries of each segment (work with column vectors)
-    left  = find(diff([0; poss_reg])==1);   % zero pad at start
-    right = find(diff([poss_reg; 0])==-1);  % zero pad at end
 
-    % Determine polarity using first 30 s or entire signal if shorter
-    nb_s = min(length(left), round(30*fs));
-    loc  = zeros(1, nb_s);
-    for j = 1:nb_s
-        [~, loc(j)] = max(abs(sig(left(j):right(j))));
-        loc(j) = loc(j) - 1 + left(j);
+    % segment boundaries
+    left  = find(diff([0; poss_reg])==1);
+    right = find(diff([poss_reg; 0])==-1);
+
+    nb_peaks = numel(left);
+    if nb_peaks == 0
+        peaks = [];
+        RR = [];
+        RR_t = [];
+        HR = [];
+        return
     end
-    sign = median(sig(loc));
 
-    % loop through all possibilities
-    compt = 1;
-    nb_peaks = length(left);
-    maxval = zeros(1, nb_peaks);
-    peaks  = zeros(1, nb_peaks);
+    % ------------------------------------------------------------
+    % FIX Jnauary 15, 2026: R-peak localization by QRS ordering, not amplitude
+    % Inside each QRS segment, compute both max and min of raw ECG.
+    % The R peak is the first dominant extremum of the QRS.
+    % This prevents selecting S when S is the larger absolute deflection.
+    % ------------------------------------------------------------
+
+    % 1) Per-segment extrema and their order
+    idxMax = zeros(1, nb_peaks);
+    idxMin = zeros(1, nb_peaks);
+    valMax = zeros(1, nb_peaks);
+    valMin = zeros(1, nb_peaks);
 
     for i = 1:nb_peaks
-        if sign > 0 % if sign is positive then look for positive peaks
-            [maxval(compt), peaks(compt)] = max(sig(left(i):right(i)));
-        else        % if sign is negative then look for negative peaks
-            [maxval(compt), peaks(compt)] = min(sig(left(i):right(i)));
-        end
+        a = left(i);
+        b = right(i);
+        seg = sig(a:b);
 
-        % add offset of present location
-        peaks(compt) = peaks(compt) - 1 + left(i);
+        [valMax(i), imx] = max(seg);
+        [valMin(i), imn] = min(seg);
 
-        % refractory period - improve results
-        if compt > 1
-            if peaks(compt) - peaks(compt-1) < fs*ref_period && abs(maxval(compt)) < abs(maxval(compt-1))
-                peaks(compt)  = [];
-                maxval(compt) = [];
-            elseif peaks(compt) - peaks(compt-1) < fs*ref_period && abs(maxval(compt)) >= abs(maxval(compt-1))
-                peaks(compt-1)  = [];
-                maxval(compt-1) = [];
-            else
-                compt = compt + 1;
-            end
-        else
-            compt = compt + 1;
-        end
+        idxMax(i) = a + imx - 1;
+        idxMin(i) = a + imn - 1;
     end
 
-    % After coarse peak picking (peaks), refine each peak location on raw ECG
-    % by searching for the true extremum in a tight QRS window.
-
-    qrs_halfwin = max(1, round(0.08 * fs));   % 80 ms on each side, adjust 0.05-0.12 if needed
-    L = numel(sig);
-
-    peaks = peaks(:)';                         % row
-    peaks = peaks(peaks >= 1 & peaks <= L);    % safety
-
-    for k = 1:numel(peaks)
-        p = peaks(k);
-
-        w1 = max(1, p - qrs_halfwin);
-        w2 = min(L, p + qrs_halfwin);
-        w  = w1:w2;
-
-        if sign > 0
-            [~, ii] = max(sig(w));
+    % 2) Decide global polarity from ordering across early beats
+    % If max tends to come before min, treat R as positive, else negative.
+    nb_pol = min(nb_peaks, max(3, round(30*fs))); % up to ~30 s worth of segments
+    polVotes = ones(1, nb_pol);
+    for i = 1:nb_pol
+        if idxMin(i) < idxMax(i)
+            polVotes(i) = -1;
         else
-            [~, ii] = min(sig(w));
+            polVotes(i) = +1;
         end
-
-        peaks(k) = w1 + ii - 1;
+    end
+    pol = median(polVotes);
+    if pol >= 0
+        pol = +1;
+    else
+        pol = -1;
     end
 
-    % Optional: enforce strict local extremum (nudges peaks by 1-2 samples sometimes)
-    for k = 2:numel(peaks)-1
-        p = peaks(k);
-        if p <= 1 || p >= L, continue; end
+    % 3) Pick peaks with polarity, but constrain search to occur before opposite extremum
+    peaks = zeros(1, nb_peaks);
+    pkval = zeros(1, nb_peaks);
 
-        if sign > 0
-            if ~(sig(p) >= sig(p-1) && sig(p) >= sig(p+1))
-                % move to nearest local max within a tiny neighborhood
-                w1 = max(1, p - round(0.02*fs)); % 20 ms
-                w2 = min(L, p + round(0.02*fs));
-                [~, ii] = max(sig(w1:w2));
-                peaks(k) = w1 + ii - 1;
+    for i = 1:nb_peaks
+        a = left(i);
+        b = right(i);
+
+        if pol > 0
+            % R expected positive: force search before the min (S) when possible
+            stop = min(idxMin(i), b);
+            if stop <= a + 1
+                stop = b;
+            end
+            [pkval(i), ii] = max(sig(a:stop));
+            peaks(i) = a + ii - 1;
+
+            % if the chosen max still occurs after the min (edge case), fall back to earliest max
+            if peaks(i) > idxMin(i) && idxMax(i) >= a && idxMax(i) <= b
+                peaks(i) = idxMax(i);
+                pkval(i) = valMax(i);
             end
         else
-            if ~(sig(p) <= sig(p-1) && sig(p) <= sig(p+1))
-                % move to nearest local min within a tiny neighborhood
-                w1 = max(1, p - round(0.02*fs)); % 20 ms
-                w2 = min(L, p + round(0.02*fs));
-                [~, ii] = min(sig(w1:w2));
-                peaks(k) = w1 + ii - 1;
+            % R expected negative: force search before the max when possible
+            stop = min(idxMax(i), b);
+            if stop <= a + 1
+                stop = b;
+            end
+            [pkval(i), ii] = min(sig(a:stop));
+            peaks(i) = a + ii - 1;
+
+            if peaks(i) > idxMax(i) && idxMin(i) >= a && idxMin(i) <= b
+                peaks(i) = idxMin(i);
+                pkval(i) = valMin(i);
             end
         end
     end
 
-    % Remove duplicates created by refinement and enforce refractory period again
-    peaks = unique(peaks, 'stable');
+    % representative polarity value for reporting
+    sign = median(pkval);
+
+    % 4) Enforce refractory period (keep larger |amplitude| within ref period)
+    [peaks, ord] = sort(peaks, 'ascend');
+    pkval = pkval(ord);
 
     keep = true(size(peaks));
     for k = 2:numel(peaks)
         if (peaks(k) - peaks(k-1)) < round(ref_period * fs)
-            % keep the one with larger absolute amplitude consistent with polarity
-            if abs(sig(peaks(k))) > abs(sig(peaks(k-1)))
+            if abs(pkval(k)) > abs(pkval(k-1))
                 keep(k-1) = false;
             else
                 keep(k) = false;
@@ -289,8 +289,26 @@ if strcmpi(sig_type, 'ecg')
     end
     peaks = peaks(keep);
 
+    % 5) Micro-refine around each peak to nearest local extremum of the chosen polarity
+    Lsig  = numel(sig);
+    micro = max(1, round(0.015 * fs)); % 15 ms
 
-    if sign < 0
+    for k = 1:numel(peaks)
+        p  = peaks(k);
+        w1 = max(1, p - micro);
+        w2 = min(Lsig, p + micro);
+
+        if pol > 0
+            [~, ii] = max(sig(w1:w2));
+        else
+            [~, ii] = min(sig(w1:w2));
+        end
+        peaks(k) = w1 + ii - 1;
+    end
+
+    peaks = unique(peaks, 'stable');
+
+    if pol < 0
         fprintf(" - Peaks' polarity: negative \n");
     else
         fprintf(" - Peaks' polarity: positive \n");
@@ -298,10 +316,9 @@ if strcmpi(sig_type, 'ecg')
     fprintf(' - P&T energy threshold: %g \n', round(en_thres,2))
 
     % RR intervals and HR
-    RR   = diff(peaks) ./ fs;     % RR intervals in s
-    RR_t = tm(peaks);             % timestamps (s)
-    HR   = 60 ./ diff(RR_t);      % bpm
-
+    RR   = diff(peaks) ./ fs;
+    RR_t = tm(peaks);
+    HR   = 60 ./ diff(RR_t);
 
     %%  PPG
 elseif strcmpi(sig_type, 'ppg')
