@@ -118,7 +118,9 @@ Cannard, C., Wahbeh, H., & Delorme, A. (2024). BrainBeats as an Open-Source EEGL
 
 ## BrainBeats was used and cited in:
 
-Abdullah, J., Kasik, V., Marek, P., Krejcar, O., Panwar, A., & Namazi, H. (2025). MATHEMATICAL DECODING OF THE CORRELATION BETWEEN DIFFERENT ORGANS'ACTIVITIES: A REVIEW. Fractals, volume 33, issue: 09.
+Abdollahpour, N., & Artan, N. S. (2025). Significant interactions in infant operculum regions when exposed to a bilingual environment: a resting-state fNIRS study. Neurophotonics, 12(4), 045012-045012.
+
+Abdullah, J.et al. (2025). Mathematical Decoding of the Correlation Between Different Organs' Activities: A Review. Fractals, volume 33, issue: 09.
 
 Liu, P., Gao, Y., Ballegaard, M., & Puthusserypady, S. (2025, July). A Novel Framework for Real-Time ECG and Blood Pressure Signal Analysis: Enhancing Accuracy and Interaction through Dynamic Quality Evaluation. In Annual International Conference of the IEEE Engineering in Medicine and Biology Society. IEEE Engineering in Medicine and Biology Society. Annual International Conference (Vol. 2025, pp. 1-7).
 
@@ -127,8 +129,6 @@ Carbone, F., Silva, M., Leemann, B., Hund-Georgiadis, M., & Hediger, K. (2025). 
 Balasubramanian, K. et al. (2025). Complexity Measures in Biomedical Signal Analysis: A Clinically-Grounded Survey Across EEG, ECG, Intracranial Pressure, and Photoplethysmogram Modalities. IEEE Access.
 
 Park, S. et al. (2025). Improving single-trial detection of error-related potentials by considering the effect of heartbeat-evoked potentials in a motor imagery-based brain-computer interface. Computers in Biology and Medicine, 195, 110563.
-
-Abdullah, J. et al. (2025). Mathematical Decoding of the Correlation Between Different Organs' Activities: A Review. Fractals.
 
 Carbone, F. et al. (2025). Registered Report Stage I: Neurological and physiological effects of animal-assisted treatments for patients in a minimally conscious state: a randomized, controlled cross-over study. Neuroscience.
 
