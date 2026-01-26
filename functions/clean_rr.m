@@ -64,7 +64,7 @@ function [nn_intervals, nn_t, idx_rem, idx_corr] = clean_rr(rr_t, rr_intervals, 
     
     % initialize variables
     nn_intervals = rr_intervals;
-    nn_t = rr_t';
+    nn_t = rr_t;
     idx_rem = false(length(rr_intervals), 1);
 
     % Step 1: Remove overly short RR intervals

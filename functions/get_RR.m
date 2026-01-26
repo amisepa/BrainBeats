@@ -23,14 +23,17 @@
 %
 % INPUTS:
 %   signal      - raw ECG or PPG signal
+%   tm          - time vector (in milliseconds)
 %   params      - params structure containing the following fields:
 %                   fs (sample rate) and heart_signal ('ecg' or 'ppg')
 %
 % OUTPUTS:
-%   RR          - RR intervals
+%   RR          - RR intervals (in s)
 %   RR_t        - time vector
-%   peaks      - R peaks
-%   sig         - ECG signal filtered
+%   peaks       - R peaks (samples)
+%   sig         - ECG signal after processing
+%   pol         - ECG signal polarity
+%   HR          - Heart rate (in beats/min; bpm)
 %
 % Example:
 %
@@ -65,7 +68,7 @@
 %
 % Copyright (C), BrainBeats, Cedric Cannard, 2023
 
-function [RR, RR_t, peaks, sig, tm, sign, HR] = get_RR(signal, params)
+function [RR, RR_t, peaks, sig, tm, sign, HR] = get_RR(signal, tm, params)
 
 % Parameters
 fs = params.fs;
@@ -77,7 +80,13 @@ end
 
 sign = [];
 nSamp = size(signal,1);
-tm = 1/fs:1/fs:nSamp/fs;
+% tm = 1/fs:1/fs:nSamp/fs;
+tm = tm(:) / 1000;  % convert to seconds
+diff(tm(1:10))
+if numel(tm) ~= nSamp
+    error('tm must have same number of samples as signal')
+end
+
 
 %% ECG
 if strcmpi(sig_type, 'ecg')
@@ -106,18 +115,21 @@ if strcmpi(sig_type, 'ecg')
     % Use a consistent orientation: COLUMN vectors everywhere in ECG branch
     sig = signal(:);
 
-    % If median of 20% of the samples are < min_amp, abort (flat line)
-    min_amp = 0.1;
-    if length(find(abs(sig)<min_amp)) / nSamp > 0.20
-        error('ECG time series is a flat line')
+    % flatline check 
+    if prctile(abs(sig), 95) < 0.05
+        error('ECG time series amplitude too small (likely flat line)')
     end
 
     % P&T operations (zero-phase where applicable)
-    dffecg = diff(sig);                 % differentiate (one datum shorter)
-    sqrecg = dffecg .* dffecg;          % square
+    % dffecg = diff(sig);                 % differentiate (one datum shorter)
+    % sqrecg = dffecg .* dffecg;          % square
+    dffecg = [0; diff(sig)];     % same length as sig
+    sqrecg = dffecg.^2;
 
-    % integrate using zero-phase filtering (filtfilt)
-    b_int = ones(1,int_nb_coef) / int_nb_coef;
+    % % integrate using zero-phase filtering (filtfilt)
+    % b_int = ones(1,int_nb_coef) / int_nb_coef;
+    % intecg = filtfilt(b_int, 1, sqrecg);
+    b_int  = ones(int_nb_coef,1) / int_nb_coef;
     intecg = filtfilt(b_int, 1, sqrecg);
 
     % smooth using median filter (odd length)
@@ -154,24 +166,52 @@ if strcmpi(sig_type, 'ecg')
     end
 
     % candidate regions (energy)
+    % poss_reg = mdfint > (peakThresh * en_thres);
+    % if isempty(poss_reg)
+    %     poss_reg(10) = true;
+    % end
     poss_reg = mdfint > (peakThresh * en_thres);
-    if isempty(poss_reg)
-        poss_reg(10) = true;
+    if ~any(poss_reg)
+        % No candidates found, bail early
+        peaks = [];
+        RR = [];
+        RR_t = [];
+        HR = [];
+        return
     end
 
     % search-back for missed beats
+    % if search_back
+    %     indAboveThreshold = find(poss_reg);
+    %     RRv = diff(tm(indAboveThreshold));
+    %     medRRv = median(RRv(RRv > 0.01));
+    %     indMissedBeat = find(RRv > 1.5*medRRv);
+    % 
+    %     indStart = indAboveThreshold(indMissedBeat);
+    %     indEnd   = indAboveThreshold(indMissedBeat+1);
+    % 
+    %     for i = 1:length(indStart)
+    %         poss_reg(indStart(i):indEnd(i)) = ...
+    %             mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
+    %     end
+    % end
     if search_back
         indAboveThreshold = find(poss_reg);
-        RRv = diff(tm(indAboveThreshold));
-        medRRv = median(RRv(RRv > 0.01));
-        indMissedBeat = find(RRv > 1.5*medRRv);
-
-        indStart = indAboveThreshold(indMissedBeat);
-        indEnd   = indAboveThreshold(indMissedBeat+1);
-
-        for i = 1:length(indStart)
-            poss_reg(indStart(i):indEnd(i)) = ...
-                mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
+        if numel(indAboveThreshold) > 2
+            RRv = diff(tm(indAboveThreshold));
+            RRv = RRv(RRv > 0.01);
+            if ~isempty(RRv)
+                medRRv = median(RRv);
+                indMissedBeat = find(diff(tm(indAboveThreshold)) > 1.5*medRRv);
+    
+                indStart = indAboveThreshold(indMissedBeat);
+                indEnd   = indAboveThreshold(indMissedBeat+1);
+    
+                for i = 1:numel(indStart)
+                    poss_reg(indStart(i):indEnd(i)) = ...
+                        mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
+                end
+            end
         end
     end
 
@@ -320,7 +360,13 @@ if strcmpi(sig_type, 'ecg')
     RR_t = tm(peaks);
     HR   = 60 ./ diff(RR_t);
 
-    %%  PPG
+    % sanity check
+    if ~isempty(RR_t)
+        RR_from_tm = diff(RR_t);
+        fprintf('RR median from samples: %.3f s, from tm: %.3f s\n', median(RR), median(RR_from_tm));
+    end
+
+%%  PPG
 elseif strcmpi(sig_type, 'ppg')
 
     if ~exist('fs','var')

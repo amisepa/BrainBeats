@@ -33,7 +33,8 @@ end
 % Try Scrollplot 1st to adjust figure if it fails (common)
 try
     subplot(3,1,3)
-    scrollplot({sig_t,sig,'color','#0072BD'},{'X'},10, ...
+    win_len = 15; % window length (in s)
+    scrollplot({sig_t,sig,'color','#0072BD'},{'X'},win_len, ...
         {RR_t, sig(Rpeaks),'.','MarkerSize',15,'color',[0.9290 0.6940 0.1250]},...
         {NN_t, sig(Npeaks),'.','MarkerSize',15, 'color',[0.6350 0.0780 0.1840]});
     scroll = true;

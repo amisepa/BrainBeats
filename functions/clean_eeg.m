@@ -55,9 +55,11 @@ end
 if isfield(params,'lowpass')
     lowpass = params.lowpass;
 else
-    lowpass = 40;   % default = 40 hz to safely remove power line at 50/60 Hz 
+    lowpass = 30;   % default = 30 hz to safely remove power line at 50/60 Hz 
                     % with a low filter order (less ripples and faster)
-    params.lowpass = 40;    % for user
+                    % removing high-freq also leads to faster ICA and better 
+                    % ERP smoothing
+    params.lowpass = 30;    % for user
 end
 if isfield(params,'filttype')
     if strcmpi(params.filttype,'causal')
@@ -314,7 +316,7 @@ elseif params.clean_eeg_step == 1
     % use lrate=1e-5 and maxsteps=2000 to obtain reproducible ICA results
     dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
     if icamethod == 1
-        EEG = pop_runica(EEG,'icatype','picard','maxiter',500,'mode','standard', 'pca',dataRank);
+        EEG = pop_runica(EEG,'icatype','picard','maxiter',400,'mode','standard', 'pca',dataRank);
     elseif icamethod == 2
         EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
     elseif icamethod == 3 

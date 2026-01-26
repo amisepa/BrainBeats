@@ -150,7 +150,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % Filter heart signals
         if strcmpi(params.heart_signal, 'ecg')
             CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.5);
-            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',15);
+            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',30);
         elseif strcmpi(params.heart_signal, 'ppg')
             CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.8);
             CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',5);
@@ -166,7 +166,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         for iElec = 1:nElec
             elec = sprintf('elec%g',iElec);
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:)', params);
+            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:), CARDIO.times, params);
             % figure; scrollplot({sig_t(iElec,:),sig(iElec,:),'color','#0072BD'},{'X'},10, ...
             %     {RR_t.(elec), sig(Rpeaks.(elec)),'.','MarkerSize',15,'color','r'}); % for troublehsooting hearbteat detection
 
@@ -218,13 +218,20 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             flaggedRatio.(elec) = badRR.(elec) / length(RR.(elec)) *100; 
             % warning on
 
-            % Get the new sample indices of the corrected peaks (for plotting)
+            % Get the new sample indices of the corrected peaks 
             if params.vis_cleaning
                 corrected_samples = interp1(EEG.times/1000, 1:length(EEG.times), NN_t.(elec), 'nearest', 'extrap');
                 Npeaks.(elec) = Rpeaks.(elec)(~idx_rem.(elec));
                 Npeaks.(elec)(idx_interp.(elec)) = corrected_samples(idx_interp.(elec)) - 1;
+                % tEcgSec = double(CARDIO.times(:)) ./ 1000;     % [nSamp x 1] seconds
+                % idxGrid = (1:numel(tEcgSec))';             % sample indices
+                % corrected_samples = interp1(tEcgSec, idxGrid, NN_t.(elec)(:), 'nearest', 'extrap');
+                % corrected_samples = max(1, min(CARDIO.pnts, corrected_samples));
+                % peaks = rPeaks.(elec)(~idx_rem);
+                % peaks(idx_interp) = corrected_samples(idx_interp);
+                % peaks = max(1, min(CARDIO.pnts, peaks));
+                % Npeaks.(elec) = peaks;
             end
-            
         end
         
         % Keep only ECG data of electrode with the lowest number of RR
@@ -240,9 +247,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % RR_t(1) = [];       % always ignore 1st hearbeat
         Rpeaks = Rpeaks.(elec);
         % Rpeaks(1) = [];     % always ignore 1st hearbeat
-        if params.vis_cleaning
-            Npeaks = Npeaks.(elec);
-        end
+        Npeaks = Npeaks.(elec);
         NN_t = NN_t.(elec);
         NN = NN.(elec);
         pol = pol.(elec); % ECG signal polarity
@@ -265,7 +270,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % RR artifacts (if any)
         if params.vis_cleaning
             plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, params.heart_signal)
-            pause(0.1)  % to avoid waiting for EEG preprocessing to be done to appear
+            pause(1)  % to avoid waiting for EEG preprocessing to be done to appear
         end
 
         % Preprocessing outputs
@@ -464,7 +469,7 @@ if strcmp(params.analysis,'features')
     end
 end
 
-%%%%%%%%%%%%%%% MODE 4: extract heart components from EEG %%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%% MODE 4: cardiac field artifact (CFA) component from EEG %%%%%%%%%%%%%%%
 if strcmp(params.analysis,'rm_heart')
 
     % Preprocess EEG
