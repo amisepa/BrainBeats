@@ -149,8 +149,8 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
 
         % Filter heart signals
         if strcmpi(params.heart_signal, 'ecg')
-            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.5);
-            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',30);
+            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',2);
+            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',20);
         elseif strcmpi(params.heart_signal, 'ppg')
             CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.8);
             CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',5);
