@@ -149,7 +149,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
 
         % Filter heart signals
         if strcmpi(params.heart_signal, 'ecg')
-            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',2);
+            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',3);
             CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',20);
         elseif strcmpi(params.heart_signal, 'ppg')
             CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.8);
@@ -166,7 +166,8 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         for iElec = 1:nElec
             elec = sprintf('elec%g',iElec);
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:), CARDIO.times, params);
+            % [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:), CARDIO.times, params);
+            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR_v2(signal(iElec,:), CARDIO.times, params);
             % figure; scrollplot({sig_t(iElec,:),sig(iElec,:),'color','#0072BD'},{'X'},10, ...
             %     {RR_t.(elec), sig(Rpeaks.(elec)),'.','MarkerSize',15,'color','r'}); % for troublehsooting hearbteat detection
 
@@ -220,7 +221,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
 
             % Get the new sample indices of the corrected peaks 
             if params.vis_cleaning
-                corrected_samples = interp1(EEG.times/1000, 1:length(EEG.times), NN_t.(elec), 'nearest', 'extrap');
+                corrected_samples = interp1(CARDIO.times/1000, 1:length(CARDIO.times), NN_t.(elec), 'nearest', 'extrap');
                 Npeaks.(elec) = Rpeaks.(elec)(~idx_rem.(elec));
                 Npeaks.(elec)(idx_interp.(elec)) = corrected_samples(idx_interp.(elec)) - 1;
                 % tEcgSec = double(CARDIO.times(:)) ./ 1000;     % [nSamp x 1] seconds

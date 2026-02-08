@@ -1,171 +1,159 @@
-%% Preprocesses RR interval data for running HRV analyses.
-% Noise and non-normal beats are either removed from the RR interval data
-% or interpolated using a interpolation method of choice.
-% The default extrapolation behavior is 'extrap' for 'spline', 'pchip' and 'makima',
-% and EXTRAPVAL = NaN (NaN+NaN*1i for complex values) for the other methods.
-
-% INPUTS:
-%   t_rr - time of the rr interval data
-%   rr - a single row of rr interval data (in s)
-%   vis - plot (1) or not (0)
-%
-% OUTPUTS:
-%   nn - normal normal interval data
-%   t_nn - time of NN interval
-%   fs - sample rate (Hz)
-%   flagged_beats - percent of original data removed
-%
-% PLEASE CITE:
-%   Clifford, G. (2002). "Characterizing Artefact in the Normal
-%   Human 24-Hour RR Time Series to Aid Identification and Artificial
-%   Replication of Circadian Variations in Human Beat to Beat Heart
-%   Rate using a Simple Threshold."
-%
-%   Vest et al. (2018) "An Open Source Benchmarked HRV Toolbox for Cardiovascular
-%   Waveform and Interval Analysis" Physiological Measurement.
-%
-%   ORIGINAL SOURCE AND AUTHORS:
-%       Adriana N. Vest and various authors (Physionet Cardiovascular Signal toolbox).
-%
-% UPDATE January 12, 2026 by Cedric Cannard
-% Issue detected: the backward search was creating indices in the flipped 
-%   coordinate system but never properly flipping the results back before
-%   the final combination step, leading to incorrect spike detection.
-% 
-% Fix:
-%   - Fixed backward search indexing: Changed from using find() indices to 
-%     logical arrays (consistent with forward search)
-%   - Added flip back: After setting NaN values in the flipped array, I flip
-%     RR_backward back to the original order before combining
-%   - Used consistent variable names: Changed rr_above_th to rr_above_th_forward
-%     and rr_above_th_backward for clarity
-%   - Fixed soe typos and warning message
-% 
-% Copyright (C), BrainBeats, Cedric Cannard, 2022
-
-
 function [nn_intervals, nn_t, idx_rem, idx_corr] = clean_rr(rr_t, rr_intervals, peak_amp)
-    % clean_rr_intervals - Detects and corrects abnormal heartbeats in RR interval time series.
+    % clean_rr - Detects and corrects abnormal heartbeats in RR interval time series.
+    %
+    % Strategy:
+    %   1. Remove beats with abnormal amplitude (likely noise, not true R-peaks)
+    %   2. Remove physiologically impossible short intervals (ectopic/false positive)
+    %   3. Interpolate long gaps (missed beats)
+    %   4. Flag remaining ectopics using adaptive thresholding based on local RR
     %
     % INPUT:
-    %   rr_t          - Vector of timestamps (seconds) corresponding to each RR interval.
-    %   rr_intervals  - Vector of RR intervals in seconds.
-    %   peak_amp      - Vector of signal amplitude at detected peaks.
+    %   rr_t          - Vector of timestamps (seconds) for each RR interval
+    %   rr_intervals  - Vector of RR intervals in seconds
+    %   peak_amp      - Vector of signal amplitude at detected R-peaks
     %
     % OUTPUT:
-    %   nn_intervals  - Vector of corrected NN intervals in seconds.
-    %   new_peaks     - Updated sample indices of peaks after corrections.
-    %   idx_removed   - Logical array indicating which intervals were removed (true if corrected).
-    %   idx_corrected - Logical array indicating which intervals were corrected (true if corrected).
+    %   nn_intervals  - Corrected NN intervals (seconds)
+    %   nn_t          - Updated timestamps
+    %   idx_rem       - Indices of removed intervals (from original input)
+    %   idx_corr      - Indices of interpolated intervals (in output)
 
-    % Parameters
-    lower_limit = 0.375;  % Minimum valid RR interval (0.375 s = 160 bpm)
-    upper_limit = 1.5;      % Maximum valid RR interval (1.5 s = 40 bpm and 0.66 hz)
+    %% Parameters (physiologically motivated)
+    min_rr = 0.33;          % 180 bpm - absolute physiological minimum
+    max_rr = 2.0;           % 30 bpm - reasonable maximum for resting
+    amp_threshold = 5;      % MAD multipliers for amplitude outliers
+    ectopic_threshold = 0.25; % 25% deviation from local median = likely ectopic
+    local_window = 11;      % Window for local median (odd number)
     
-    % initialize variables
-    nn_intervals = rr_intervals;
-    nn_t = rr_t;
-    idx_rem = false(length(rr_intervals), 1);
-
-    % Step 1: Remove overly short RR intervals
-    short_rr = rr_intervals <= lower_limit;
-    if any(short_rr)
-        warning('Removing %g overly short RR intervals', sum(short_rr));
-    end
-    nn_intervals(short_rr) = [];
-    nn_t(short_rr) = [];
-    % new_peaks(short_rr) = [];
-    peak_amp(short_rr) = [];
-    idx_rem(short_rr) = true;
-
-    % figure('Color', 'w'); hold on;
-    % plot(nn_t, nn_intervals, 'Color',[0.6350 0.0780 0.1840], 'LineWidth', 2, 'DisplayName', 'Short RR');
-
-    % Step 2: Recalculate gaps based on updated nn_intervals
-    idx_corr = false(length(nn_intervals), 1);
-    gaps = nn_intervals > upper_limit;
-    if any(gaps)
-        warning('Interpolating %g gaps in the RR intervals', sum(gaps));
-    end
-    idx_corr(gaps) = true;
-    nn_intervals = interp1(nn_t(~gaps), nn_intervals(~gaps), nn_t, 'spline', 'extrap');
-    % plot(nn_t, nn_intervals, 'Color',[0.3010 0.7450 0.9330], 'LineWidth', 2, 'DisplayName', 'Gaps');
-
-    % Step 3: Interpolate outliers
-    outliers = isoutlier(nn_intervals, 'mean') | isoutlier(peak_amp,'mean');
-    if any(outliers)
-        warning('Interpolating %g outlier RR intervals', sum(outliers));
-    end
-    idx_corr(outliers) = true;
-    % plot(nn_t, nn_intervals, 'Color', [0.9290 0.6940 0.1250], 'LineWidth', 2, 'DisplayName', 'Outliers');
-    % nn_intervals = interp1(nn_t(~outliers), nn_intervals(~outliers), nn_t, 'pchip');
-    nn_intervals = interp1(nn_t(~outliers), nn_intervals(~outliers), nn_t, 'spline', 'extrap');
-
-    % Step 4: interpolate sharp spikes
-    spikes = FindSpikesInRR(nn_intervals, .2);
-    if any(spikes)
-        warning('Interpolating %g abnormal spikes in RR intervals', sum(spikes));
-    end
-    idx_corr(spikes) = true;
-    % plot(nn_t, nn_intervals, 'Color', [0.9290 0.6940 0.1250], 'LineWidth', 2, 'DisplayName', 'Outliers');
-    % nn_intervals = interp1(nn_t(~spikes), nn_intervals(~spikes), nn_t, 'pchip');
-    nn_intervals = interp1(nn_t(~spikes), nn_intervals(~spikes), nn_t, 'spline', 'extrap');
-
-    % plot(nn_t, nn_intervals, 'k', 'LineWidth', 2, 'DisplayName', 'Final');
-    % legend('show');
-
-    % Output results
-    if sum(idx_corr)==0
-        idx_corr = [];
-        disp("No abnormal RR intervals detected.")
+    %% Initialize
+    n_orig = length(rr_intervals);
+    nn_intervals = rr_intervals(:);
+    nn_t = rr_t(:);
+    peak_amp = peak_amp(:);
+    
+    idx_rem = false(n_orig, 1);
+    
+    %% Step 1: Remove beats with abnormal amplitude (false R-peak detections)
+    % Use MAD-based outlier detection - robust to non-normal distributions
+    med_amp = median(peak_amp, 'omitnan');
+    mad_amp = mad(peak_amp, 1);  % MAD with scaling factor
+    
+    if mad_amp > 0
+        amp_outliers = abs(peak_amp - med_amp) > amp_threshold * mad_amp * 1.4826;
     else
-        fprintf('Total number of abnormal RR intervals detected and corrected: %g\n', sum(idx_corr));
+        amp_outliers = false(size(peak_amp));
     end
-
-
-end
-
-%% clean RR intervals that change more than a given threshold
-% (eg., th = 0.2 = 20%) with respect to the median value of the previous 5
-% and next 5 RR intervals (using a forward-backward approach).
-%
-% INPUTS:
-%       RR : a single row of rr interval data in seconds
-%       th : threshold percent limit of change from one interval to the next
-% OUTPUTS:
-%       idxRRtoBeRemoved : a single vector of logical values indicating
-%                          which RR intervals correspond to a change > th
-
-function idxRRtoBeRemoved = FindSpikesInRR(RR, th)
-
-if size(RR,1)>size(RR,2)
-    RR = RR';
-end
-
-% Forward search
-FiveRR_MedianVal = medfilt1(RR,5); % compute as median RR(-i-2: i+2)
-
-% shift of three position to align with to corresponding RR
-FiveRR_MedianVal = [RR(1:5) FiveRR_MedianVal(3:end-3)];
-rr_above_th_forward = (abs(RR-FiveRR_MedianVal)./FiveRR_MedianVal)>=th;
-
-RR_forward = RR;
-RR_forward(rr_above_th_forward) = NaN;
-
-% Backward search
-RRflipped = fliplr(RR);
-FiveRR_MedianVal = medfilt1(RRflipped,5); % compute as median RR(-i-2: i+2)
-% shift of three position to align with to corresponding RR
-FiveRR_MedianVal = [RRflipped(1:5) FiveRR_MedianVal(3:end-3)];
-rr_above_th_backward = (abs(RRflipped-FiveRR_MedianVal)./FiveRR_MedianVal)>=th;
-
-RR_backward = RRflipped;
-RR_backward(rr_above_th_backward) = NaN;
-
-% Flip back to original order
-RR_backward = fliplr(RR_backward);
-
-% Combine: mark as spike if detected in both forward and backward passes
-idxRRtoBeRemoved = (isnan(RR_forward) & isnan(RR_backward));
-
+    
+    if any(amp_outliers)
+        fprintf('Removing %d beats with abnormal amplitude\n', sum(amp_outliers));
+    end
+    
+    %% Step 2: Remove physiologically impossible short intervals
+    % These are almost certainly false positives or PVCs
+    short_rr = nn_intervals < min_rr;
+    
+    if any(short_rr)
+        fprintf('Removing %d intervals < %.0f ms (>%.0f bpm)\n', ...
+            sum(short_rr), min_rr*1000, 60/min_rr);
+    end
+    
+    %% Combine removal criteria
+    to_remove = amp_outliers | short_rr;
+    idx_rem(to_remove) = true;
+    
+    nn_intervals(to_remove) = [];
+    nn_t(to_remove) = [];
+    
+    if isempty(nn_intervals)
+        warning('All intervals removed - check your data quality');
+        idx_corr = [];
+        return;
+    end
+    
+    %% Step 3: Detect ectopic beats using adaptive local threshold
+    % An ectopic beat creates a short-long or long-short pattern
+    % We look for intervals that deviate significantly from local median
+    
+    idx_corr = false(length(nn_intervals), 1);
+    
+    % Compute local median RR (robust estimate of local heart rate)
+    local_med = movmedian(nn_intervals, local_window, 'omitnan', 'Endpoints', 'shrink');
+    
+    % Relative deviation from local median
+    rel_deviation = abs(nn_intervals - local_med) ./ local_med;
+    
+    % Flag as ectopic if deviation exceeds threshold
+    ectopics = rel_deviation > ectopic_threshold;
+    
+    % Additional check: ectopics typically come in pairs (short-long pattern)
+    % A true ectopic followed by compensatory pause: RR1 + RR2 ≈ 2 * normal RR
+    % This helps distinguish from normal sinus arrhythmia
+    for i = 2:length(ectopics)-1
+        if ectopics(i)
+            % Check if this is part of a compensatory pattern
+            sum_rr = nn_intervals(i-1) + nn_intervals(i);
+            expected_sum = 2 * local_med(i);
+            
+            % If the sum is close to expected (compensatory), likely true ectopic
+            % If not, might just be normal variability - be conservative
+            if abs(sum_rr - expected_sum) / expected_sum > 0.15
+                % Doesn't fit ectopic pattern - might be normal variability
+                % Only keep flagged if deviation is very large
+                if rel_deviation(i) < ectopic_threshold * 1.5
+                    ectopics(i) = false;
+                end
+            end
+        end
+    end
+    
+    if any(ectopics)
+        fprintf('Interpolating %d suspected ectopic beats\n', sum(ectopics));
+        idx_corr(ectopics) = true;
+        
+        % Interpolate ectopics using PCHIP (shape-preserving, no overshoot)
+        valid_idx = ~ectopics;
+        if sum(valid_idx) >= 2
+            nn_intervals = interp1(nn_t(valid_idx), nn_intervals(valid_idx), ...
+                nn_t, 'pchip', 'extrap');
+        end
+    end
+    
+    %% Step 4: Handle long gaps (missed beats)
+    % If RR > max_rr, beats were likely missed
+    long_gaps = nn_intervals > max_rr;
+    
+    if any(long_gaps)
+        fprintf('Detected %d long gaps (>%.1f s) - likely missed beats\n', ...
+            sum(long_gaps), max_rr);
+        
+        % For long gaps, we can either:
+        % (a) Interpolate (simple but loses timing info)
+        % (b) Insert estimated beats (better for HRV)
+        % Here we interpolate, but flag them
+        
+        idx_corr(long_gaps) = true;
+        
+        valid_idx = ~long_gaps;
+        if sum(valid_idx) >= 2
+            nn_intervals = interp1(nn_t(valid_idx), nn_intervals(valid_idx), ...
+                nn_t, 'pchip', 'extrap');
+        end
+    end
+    
+    %% Final bounds check
+    % Clamp any remaining extreme values (from extrapolation artifacts)
+    nn_intervals = max(nn_intervals, min_rr);
+    nn_intervals = min(nn_intervals, max_rr);
+    
+    %% Summary
+    if isempty(idx_corr) || ~any(idx_corr)
+        idx_corr = [];
+        fprintf('No intervals required interpolation\n');
+    else
+        fprintf('Total corrected: %d/%d intervals (%.1f%%)\n', ...
+            sum(idx_corr), length(nn_intervals), 100*sum(idx_corr)/length(nn_intervals));
+    end
+    
+    fprintf('Total removed: %d/%d intervals (%.1f%%)\n', ...
+        sum(idx_rem), n_orig, 100*sum(idx_rem)/n_orig);
 end
