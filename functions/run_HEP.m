@@ -31,9 +31,9 @@ types = repmat({'R-peak'},1,length(evt));
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};  % assign event index
 EEG = eeg_checkset(EEG);
 
-% Add back heart channel (mainly for plotting to check if R-peaks events 
+% Add back heart channel (mainly for plotting to check if R-peaks events
 % align correctly with ECG signal)
-if isfield(params,'keep_heart') && params.keep_heart
+if isfield(params,'keep_heart') && params.keep_heart && ~isempty(CARDIO)
     % if EEG.srate ~= CARDIO.srate
     %     CARDIO = pop_resample(CARDIO,EEG.srate);
     % end

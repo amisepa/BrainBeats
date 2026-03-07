@@ -46,14 +46,14 @@ end
 % end
 
 % Check heart signal type
-if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
-    errordlg('Heart signal should be either ECG, PPG or off')
+if ~contains(params.heart_signal, {'ecg' 'ppg' 'rr' 'off'})
+    errordlg('Heart signal should be either ECG, PPG, RR, or off')
     return
 end
 
 % Heart checks
 % Make sure Heart channel is a cell
-if ~strcmpi(params.heart_signal,'off')
+if ~strcmpi(params.heart_signal,'off') && ~strcmpi(params.heart_signal,'rr')
     if ~iscell(params.heart_channels)
         % warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
         params.heart_channels = {params.heart_channels};
