@@ -17,10 +17,10 @@ function [nn_intervals, nn_t, nPeaks, idx_bad] = clean_rr(rr_t, rr_intervals, pe
     % local_window = 61;         % Larger window for more stable local median
     
     %% Initialize
+
     n_orig = length(rr_intervals);
     nn_intervals = rr_intervals(:);
     nn_t = rr_t(:);
-    peak_amp = peak_amp(:);
     nPeaks = rPeaks(:);
     
     idx_rem = false(n_orig, 1);
@@ -37,16 +37,20 @@ function [nn_intervals, nn_t, nPeaks, idx_bad] = clean_rr(rr_t, rr_intervals, pe
     % else
     %     amp_outliers = false(size(peak_amp));
     % end
-    peak_amp(1) = [];
-    amp_outliers = isoutlier(peak_amp, 'median'); 
-    
-    if any(amp_outliers)
-        fprintf('Removing %d beats with extreme amplitude outliers\n', sum(amp_outliers));
+    if ~isempty(peak_amp)
+        peak_amp = peak_amp(:);
+        peak_amp(1) = [];
+        amp_outliers = isoutlier(peak_amp, 'median'); 
+        if any(amp_outliers)
+            fprintf('Removing %d beats with extreme amplitude outliers\n', sum(amp_outliers));
+        end
+    else
+        amp_outlier = [];
     end
-    
-    %% Step 2: Remove physiologically impossible short intervals
+
+    %% Step 2: Remove ectopic/abnormal short intervals (e.g. arrythmia or artifact)
+
     short_rr = nn_intervals < min_rr;
-    
     if any(short_rr)
         fprintf('Removing %d intervals < %.0f ms (>%.0f bpm)\n', ...
             sum(short_rr), min_rr*1000, 60/min_rr);
