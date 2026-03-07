@@ -7,8 +7,13 @@
 % INPUTS:
 %  'analysis'       - 'hep' (heartbeat-evoked potentials) | 'features' (extract EEG and HRV features) |
 %                       'rm_heart' | extract heart components from EEG signals.
-%  'heart_signal'   - [ppg'|'ecg'] define if cardiovascular signal to process is PPG or ECG.
-%  'heart_channels' - [cell array of character] name(s) of the heart channel to process
+%  'heart_signal'   - ['ppg'|'ecg'|'rr'] define if cardiovascular signal to process is PPG, ECG,
+%                       or pre-detected beat latencies ('rr'). When 'rr', also provide 'beat_latencies'.
+%  'heart_channels' - [cell array of character] name(s) of the heart channel to process.
+%                       Not required when heart_signal is 'rr'.
+%  'beat_latencies' - [numeric vector] beat times in seconds relative to EEG start (time 0).
+%                       Required when heart_signal is 'rr'. Skips peak detection and SQI; runs
+%                       clean_rr on the provided intervals and passes to run_HEP.
 %  'rr_correct'     - [see below] correction method for RR artifacts. Interpolation algorithms:
 %                       'pchip'     (default; shape-preserving piecewise cubic),
 %                       'linear'
@@ -105,11 +110,12 @@ if err, return; end  % stop program if there was an error (because errdlg
 
 % Keep only EEG and ECG channels in separate structures
 % EEG = pop_select(EEG, 'chantype',{'ECG','EEG'});
-CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
-% if isempty(params.heart_channels)  % for computing EEG features without heart data
-%     CARDIO.data = [];
-% end
-EEG = pop_select(EEG,'nochannel',params.heart_channels);
+if strcmpi(params.heart_signal, 'rr')
+    CARDIO = [];  % no cardiovascular channel when using pre-detected beats
+else
+    CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
+    EEG = pop_select(EEG,'nochannel',params.heart_channels);
+end
 
 
 % Basic check for other auxiliary channels that could cause issues
@@ -139,7 +145,44 @@ end
 %%%%% MODE 1 & 2: RR, SQI, and NN %%%%%
 if ~strcmpi(params.heart_signal,'off') %&& ~coh
 
-    if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features') 
+    if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features')
+
+      if strcmpi(params.heart_signal, 'rr')
+        % Pre-detected beat latencies mode: convert seconds to sample indices
+        % and run minimal RR cleaning (skip peak detection, filtering, SQI)
+        fprintf('Using pre-detected beat latencies (%g beats provided).\n', length(params.beat_latencies));
+        beat_sec = params.beat_latencies(:)';
+        Rpeaks = round(beat_sec * EEG.srate);
+        Rpeaks(Rpeaks < 1) = [];
+        Rpeaks(Rpeaks > EEG.pnts) = [];
+
+        % Compute RR intervals and run clean_rr (seconds, same units as ECG/PPG path)
+        RR = diff(Rpeaks) / EEG.srate;         % sec
+        RR_t = Rpeaks(1:end-1) / EEG.srate;    % sec
+        fprintf('RR intervals: mean=%.0f ms, std=%.0f ms, n=%d\n', mean(RR)*1000, std(RR)*1000, length(RR));
+
+        % Clean RR artifacts (same as ECG/PPG path)
+        disp("Correcting abnormal RR intervals...")
+        sig_dummy = zeros(1, EEG.pnts);  % placeholder signal
+        [NN, NN_t, idx_rem, idx_interp] = clean_rr(RR_t, RR, sig_dummy(Rpeaks(1:end-1))');
+        badRR = sum(idx_rem) + sum(idx_interp);
+        flaggedRatio = badRR / length(RR) * 100;
+        if flaggedRatio > 0
+            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%.2f%%). \n', badRR, length(RR), flaggedRatio);
+        end
+
+        % Remove flagged beats from Rpeaks
+        Rpeaks_clean = Rpeaks(2:end);  % align with RR (first beat removed)
+        Rpeaks_clean(idx_rem) = [];
+        Rpeaks = [Rpeaks(1) Rpeaks_clean];  % keep first beat
+
+        % Store preprocessing outputs
+        EEG.brainbeats.preprocessings.removed_heartbeats = idx_rem;
+        EEG.brainbeats.preprocessings.interpolated_heartbeats = idx_interp;
+        EEG.brainbeats.preprocessings.NN = NN;
+        EEG.brainbeats.preprocessings.NN_times = NN_t;
+
+      else  % ECG or PPG path (original code)
 
         % Resample CARDIO data to match EEG for HEP, when different
         if  strcmp(params.analysis, 'hep') && EEG.srate~=CARDIO.srate
@@ -323,6 +366,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
                 % return
             end
         end
+      end  % end of ECG/PPG else branch
     end
 end
 

@@ -11,8 +11,8 @@ idx = find(strcmpi(varargin,'heart_signal'));
 if ~isempty(idx)
     params.heart = true;
     params.heart_signal = lower(varargin{idx+1});
-    if ~contains(params.heart_signal, {'ecg' 'ppg' 'off'})
-        error("Heart signal not recognized. Should be 'ecg' or 'ppg' or 'off'.")
+    if ~contains(params.heart_signal, {'ecg' 'ppg' 'rr' 'off'})
+        error("Heart signal not recognized. Should be 'ecg', 'ppg', 'rr', or 'off'.")
     end
     if contains(params.heart_signal, 'off')
         params.heart = false;
@@ -28,8 +28,19 @@ if params.heart
     if ~isempty(idx)
         params.heart_channels = varargin{idx+1};
         fprintf('Number of heart channels selected: %g \n', length(params.heart_channels));
-    else
+    elseif ~strcmpi(params.heart_signal, 'rr')
         error("Heart channels not defined. Please define 'heart_channels'. See help for an example")
+    else
+        params.heart_channels = {};
+    end
+
+    % Pre-detected beat latencies (for 'rr' mode)
+    idx = find(strcmpi(varargin,'beat_latencies'));
+    if ~isempty(idx)
+        params.beat_latencies = varargin{idx+1};
+        fprintf('Pre-detected beat latencies provided: %g beats \n', length(params.beat_latencies));
+    elseif strcmpi(params.heart_signal, 'rr')
+        error("'beat_latencies' required when heart_signal is 'rr'. Provide a vector of beat times in seconds.")
     end
 end
 
