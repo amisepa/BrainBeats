@@ -96,7 +96,8 @@ if params.vis_outputs
     plot([700 700],ylim,'--r','linewidth',2)
     title('Interbeat intervals (IBI) after removal of outliers'); 
     xlabel('Time (ms)'); ylabel('Number of IBIs')
-    legend('','','lower 95% percentile (epoch size)')
+    % legend('','','lower 95% percentile (epoch size)')
+    legend('', '', 'hardcoded 700 ms window epoch (new default')
     try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
     set(gcf,'Name','Inter-beat intervals (IBI) distribution','NumberTitle','Off','Toolbar','none','Menu','none')
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');

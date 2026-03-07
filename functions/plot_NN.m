@@ -33,9 +33,9 @@ end
 % Try Scrollplot 1st to adjust figure if it fails (common)
 try
     subplot(3,1,3)
-    win_len = 15; % window length (in s)
+    win_len = 10; % window length (in s)
     scrollplot({sig_t,sig,'color','#0072BD'},{'X'},win_len, ...
-        {RR_t, sig(Rpeaks),'.','MarkerSize',15,'color',[0.9290 0.6940 0.1250]},...
+        {RR_t, sig(Rpeaks),'x','MarkerSize',14,'color','r'},...
         {NN_t, sig(Npeaks),'.','MarkerSize',15, 'color',[0.6350 0.0780 0.1840]});
     scroll = true;
     if strcmp(sigtype,'ecg')
@@ -59,15 +59,19 @@ end
 
 if scroll, subplot(3,1,1); else, subplot(2,1,1); end
 plot(sig_t, sig,'color','#0072BD'); hold on;
-plot(RR_t, sig(Rpeaks),'.','MarkerSize',7,'color',[0.9290 0.6940 0.1250]);
+plot(RR_t, sig(Rpeaks),'.','MarkerSize',7,'color','r');  % yellow: [0.9290 0.6940 0.1250]
 plot(NN_t, sig(Npeaks),'.','MarkerSize',7,'color',[0.6350 0.0780 0.1840]);
 axis tight
 if strcmp(sigtype,'ecg')
-    title('ECG signal + R peaks'); 
-    ylim([-3*abs(median(sig,'omitnan')) 3*abs(median(sig,'omitnan'))])
+    title('Entire ECG time series + R-peaks'); 
+    if median(sig,'omitnan') ~= 0
+        ylim([-3*abs(median(sig,'omitnan')) 3*abs(median(sig,'omitnan'))])
+    else
+        ylim([-3 3])
+    end        
     ylabel('μV');
 else
-    title('PPG signal + Pulse wave peaks'); 
+    title('Entire PPG time series + valleys'); 
     ylim([-3*abs(median(sig,'omitnan')) 3*abs(median(sig,'omitnan'))])
     ylabel('a.u.')
 end
@@ -75,9 +79,10 @@ ylim([-std(sig,'omitnan')*7 std(sig,'omitnan')*7])
 
 
 if scroll, subplot(3,1,2); else, subplot(2,1,2); end
-plot(RR_t,RR,'-','color','#A2142F','linewidth',0.5);
-hold on; plot(NN_t, NN,'-','color',"#0072BD", 'LineWidth', 1);
-title('NN intervals (blue) & RR artifacts before interpolation (red)'); 
+plot(RR_t,RR,'--','color','r','linewidth',0.5);
+hold on; 
+plot(NN_t, NN,'-','color',"#0072BD", 'LineWidth', 1);
+title('NN intervals (blue) & RR artifacts before correction (red)'); 
 ylabel('NN intervals (s)'); xlabel('Time (s)');
 axis tight;
 box on

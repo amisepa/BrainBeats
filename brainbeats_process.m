@@ -169,10 +169,11 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         end
 
         % Filter heart signals
-        if strcmpi(params.heart_signal, 'ecg')
-            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',3);
-            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',20);
-        elseif strcmpi(params.heart_signal, 'ppg')
+        % if strcmpi(params.heart_signal, 'ecg')
+        %     CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',1);
+        %     CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',35);
+        % elseif strcmpi(params.heart_signal, 'ppg')
+        if strcmpi(params.heart_signal, 'ppg')
             CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.8);
             CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',5);
         end
@@ -187,13 +188,10 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         for iElec = 1:nElec
             elec = sprintf('elec%g',iElec);
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-            % [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR(signal(iElec,:), CARDIO.times, params);
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR_v2(signal(iElec,:), CARDIO.times, params);
-            % figure; scrollplot({sig_t(iElec,:),sig(iElec,:),'color','#0072BD'},{'X'},10, ...
-            %     {RR_t.(elec), sig(Rpeaks.(elec)),'.','MarkerSize',15,'color','r'}); % for troublehsooting hearbteat detection
+            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR_ori(signal(iElec,:), CARDIO.times, params);
 
             % % Fix values if PPG had a different sampling rate than EEG (this
-            % should now be avoided by resampling above)
+            % should now be avoided by resampling above, but just in case)
             factor = EEG.srate / CARDIO.srate;
             if factor ~= 1
                 errordlg("Your EEG and cardiovascular data must have the same sampling rate.")
@@ -232,28 +230,8 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
 
             % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
             disp("Correcting abnormal RR intervals...")
-            % warning off
-            RR_t.(elec)(1) = []; Rpeaks.(elec)(1) = [];
-            [NN.(elec), NN_t.(elec), idx_rem.(elec), idx_interp.(elec)] = clean_rr(RR_t.(elec), RR.(elec), signal(iElec,Rpeaks.(elec))');
-            % Rpeaks.(elec)(idx_rem.(elec)) = [];
-            badRR.(elec) = sum(idx_rem.(elec)) + sum(idx_interp.(elec));  % sum of removed and interpolated RR intervals
-            flaggedRatio.(elec) = badRR.(elec) / length(RR.(elec)) *100; 
-            % warning on
-
-            % Get the new sample indices of the corrected peaks 
-            if params.vis_cleaning
-                corrected_samples = interp1(CARDIO.times/1000, 1:length(CARDIO.times), NN_t.(elec), 'nearest', 'extrap');
-                Npeaks.(elec) = Rpeaks.(elec)(~idx_rem.(elec));
-                Npeaks.(elec)(idx_interp.(elec)) = corrected_samples(idx_interp.(elec)) - 1;
-                % tEcgSec = double(CARDIO.times(:)) ./ 1000;     % [nSamp x 1] seconds
-                % idxGrid = (1:numel(tEcgSec))';             % sample indices
-                % corrected_samples = interp1(tEcgSec, idxGrid, NN_t.(elec)(:), 'nearest', 'extrap');
-                % corrected_samples = max(1, min(CARDIO.pnts, corrected_samples));
-                % peaks = rPeaks.(elec)(~idx_rem);
-                % peaks(idx_interp) = corrected_samples(idx_interp);
-                % peaks = max(1, min(CARDIO.pnts, peaks));
-                % Npeaks.(elec) = peaks;
-            end
+            [NN.(elec), NN_t.(elec), Npeaks.(elec), idx_bad.(elec)] = clean_rr(RR_t.(elec), RR.(elec), signal(iElec, Rpeaks.(elec)), Rpeaks.(elec));
+            flaggedRatio.(elec) = idx_bad.(elec) / length(idx_bad.(elec)) *100; 
         end
         
         % Keep only ECG data of electrode with the lowest number of RR
@@ -261,24 +239,26 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         [~,best_elec] = min(struct2array(flaggedRatio));
         elec = sprintf('elec%g',best_elec);
         flaggedRatio = flaggedRatio.(elec);
-        badRR = badRR.(elec);
+        % badRR = idx_bad.(elec);
         sig_t = sig_t(best_elec,:);
         sig = sig(best_elec,:);
         RR = RR.(elec);
         RR_t = RR_t.(elec);
-        % RR_t(1) = [];       % always ignore 1st hearbeat
+        RR_t(1) = [];       % always ignore 1st hearbeat
         Rpeaks = Rpeaks.(elec);
-        % Rpeaks(1) = [];     % always ignore 1st hearbeat
-        if exist('Npeaks','var'), Npeaks = Npeaks.(elec); end
+        Rpeaks(1) = [];     % always ignore 1st hearbeat
+        Npeaks = Npeaks.(elec);
+        Npeaks(1) = [];
         NN_t = NN_t.(elec);
+        NN_t(1) = [];
         NN = NN.(elec);
-        pol = pol.(elec); % ECG signal polarity
+        % pol = pol.(elec); % ECG signal polarity
         SQI_mu = SQI_mu(best_elec,:);
         SQI_badRatio = SQI_badRatio(best_elec,:);
-        idx_rem = idx_rem.(elec);
-        idx_interp = idx_interp.(elec);
+        % idx_rem = idx_rem.(elec);
+        % idx_interp = idx_interp.(elec);
         if flaggedRatio > 0
-            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%.2f%%). \n', sum(badRR),length(RR), flaggedRatio);
+            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%.2f%%). \n', sum(idx_bad), length(RR), flaggedRatio);
         end
         if flaggedRatio > maxThresh % more than 20% of RR series is bad file
             warning("%g%% of the RR series on your best electrode was flagged as artifact and corrected. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
@@ -298,8 +278,9 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % Preprocessing outputs
         % EEG.brainbeats.preprocessing.RR_times = RR_t;
         % EEG.brainbeats.preprocessing.RR = RR;
-        EEG.brainbeats.preprocessings.removed_heartbeats = idx_rem;  % overly short RR intervals are automatically removed
-        EEG.brainbeats.preprocessings.interpolated_heartbeats = idx_interp; % abnormal RR intervals are automatically interpolated
+        % EEG.brainbeats.preprocessings.removed_heartbeats = idx_rem;  % overly short RR intervals are automatically removed
+        % EEG.brainbeats.preprocessings.interpolated_heartbeats = idx_interp; % abnormal RR intervals are automatically interpolated
+        EEG.brainbeats.preprocessings.bad_heartbeats = idx_bad; % abnormal RR intervals are automatically interpolated
         if exist('sqi','var')
             EEG.brainbeats.preprocessings.heart_SQI_mean = SQI_mu;
             EEG.brainbeats.preprocessings.heart_SQI_badportion = SQI_badRatio;

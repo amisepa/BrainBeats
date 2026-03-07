@@ -50,12 +50,13 @@ clear; close all; clc
 eeglab; close;
 
 % Get the path to the EEGLAB plugin which contains a folder with the sample data
-main_path = fileparts(which('brainbeats_process.m'));
+% main_path = fileparts(which('brainbeats_process.m'));
+main_path = 'C:\Users\ccann\Documents\MATLAB\BrainBeats';
 
 % Go to the plugin directory
 cd(main_path)
 
-%% METHOD 1: Heartbeat-evoked potentials (HEP) and oscillations (HEO)
+%% METHOD 1: Heartbeat-evoked potentials (HEP) and oscillations (HEO; also called Heartbeat-related spectral perturbations; HRSP)
 
 % Load the sample dataset into EEGLAB
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
