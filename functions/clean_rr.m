@@ -40,7 +40,7 @@ function [nn_intervals, nn_t, nPeaks, idx_bad] = clean_rr(rr_t, rr_intervals, pe
     if ~isempty(peak_amp)
         peak_amp = peak_amp(:);
         peak_amp(1) = [];
-        amp_outliers = isoutlier(peak_amp, 'median'); 
+        amp_outliers = isoutlier(peak_amp, 'mean'); 
         if any(amp_outliers)
             fprintf('Removing %d beats with extreme amplitude outliers\n', sum(amp_outliers));
         end
