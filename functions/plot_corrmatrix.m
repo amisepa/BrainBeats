@@ -35,14 +35,15 @@ if size(C,1) ~= length(labels)
     error("Labels and correlation matrix must have the same number of variables: %g", size(C,1))
 end
 
-load('corr_cmap.mat');  % loads variable 'cmap'
+% load('corr_cmap.mat');  % loads variable 'cmap'
+load colormap_bwr.mat; 
+% load cm17.mat
+cmap = dmap;
 
 % format into a triangular matrix
-% C = tril(C,-1);  % zero upper triangle (+ remove diagonal)
-C = tril(C,0);    % zero upper triangle, preserving diagonal
+C = tril(C,-1);  % zero upper triangle (+ remove diagonal)
+% C = tril(C,0);    % zero upper triangle, preserving diagonal
 
-% Set the [min,max] of diameter where 1 consumes entire grid square
-diamLim = [0.1, 1];
 
 % Compute center of each circle
 x = 1 : 1 : size(C,2); % x edges
@@ -56,8 +57,10 @@ Cscaled = (C - clrLim(1))/range(clrLim);
 colIdx = discretize(Cscaled, linspace(0,1,size(cmap,1)));
 
 % Scale the size between 0 and 1
+diamLim = [0.1, .75]; % Set the [min,max] of diameter where 1 consumes entire grid square
 Cscaled = abs(C);
 diamSize = Cscaled * range(diamLim) + diamLim(1);
+% diamSize = Cscaled/2 * range(diamLim) + diamLim(1);
 
 % Create figure
 fh = figure();
@@ -68,10 +71,11 @@ tickvalues = 1:size(C,2);
 x = zeros(size(tickvalues));
 text(x, tickvalues, labels,'HorizontalAlignment','right','fontSize',12,'fontweight','normal');
 x(:) = size(C,1)+1;
-text(tickvalues, x, labels,'HorizontalAlignment','right','Rotation',90,'fontSize',12,'fontweight','normal');
+text(tickvalues, x, labels,'HorizontalAlignment','right','Rotation',45,'fontSize',12,'fontweight','normal');
 
 % Create circles
-theta = linspace(0,2*pi,50); % the smaller, the less memory
+% theta = linspace(0,2*pi,50); % the smaller, the less memory
+theta = linspace(0,2*pi,100); % the smaller, the less memory
 arrayfun(@(i)fill(diamSize(i)/2 * cos(theta) + xAll(i), ...
     diamSize(i)/2 * sin(theta) + yAll(i), cmap(colIdx(i),:), ...
     'LineStyle','none'), 1:numel(xAll));

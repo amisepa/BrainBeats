@@ -1,14 +1,13 @@
-% Detect R peaks from raw ECG signals using ADAPTIVE THRESHOLDS
-% 
-% Adapted from PPG detection methods: continuously updates peak height 
-% and distance thresholds based on recent signal characteristics
+% Detect R peaks from raw ECG with automatic boundary detection and offset correction
 %
+% Handles concatenated multi-session recordings by:
+% 1. Detecting boundaries (large baseline/offset changes)
+% 2. De-meaning each segment to remove DC offset
+% 3. Processing each segment independently with P&T algorithm
+% 4. Combining results
+%
+% Based on get_RR_v2.m with EEGLAB-style segment handling
 % February 8, 2026 - Cedric Cannard
-%   - Implemented adaptive threshold approach for multi-session recordings
-%   - Updates thresholds every 5s based on past 20s of detected peaks
-%   - Handles amplitude and baseline changes automatically without segmentation
-%
-% Copyright (C), BrainBeats, Cedric Cannard, 2023-2026
 
 function [RR, RR_t, peaks, sig, tm, sign, HR] = get_RR_adaptive(signal, tm, params)
 
@@ -28,72 +27,242 @@ if numel(tm) ~= nSamp
     error('tm must have same number of samples as signal')
 end
 
-%% ECG with Adaptive Thresholds
+%% ECG with Boundary Detection
 if strcmpi(sig_type, 'ecg')
 
     % Parameters
+    if isfield(params,'ecg_peakthresh')
+        peakThresh = params.ecg_peakthresh;
+    else
+        peakThresh = .6;
+    end
+    if isfield(params,'ecg_searchback')
+        search_back = params.ecg_searchback;
+    else
+        search_back = true;
+    end
     if isfield(params,'ecg_refperiod')
         ref_period = params.ecg_refperiod;
     else
-        ref_period = 0.25; % refractory period
+        ref_period = 0.25;
     end
 
-    % Use column vector
     sig = signal(:);
 
-    % flatline check 
+    % Flatline check
     if prctile(abs(sig), 95) < 0.05
         error('ECG time series amplitude too small (likely flat line)')
     end
 
-    fprintf('\n=== ADAPTIVE PEAK DETECTION ===\n');
+    fprintf('\n=== BOUNDARY DETECTION & OFFSET CORRECTION ===\n');
     
-    % High-pass filter entire signal to remove baseline drift
-    if fs >= 100
-        [b_hp, a_hp] = butter(2, 0.5/(fs/2), 'high');
-        sig = filtfilt(b_hp, a_hp, sig);
-        fprintf(' - Applied 0.5 Hz high-pass filter\n');
+    % Detect boundaries (large baseline/offset shifts)
+    if isfield(params, 'boundary_indices') && ~isempty(params.boundary_indices)
+        boundary_indices = params.boundary_indices(:);
+        fprintf(' - Using manual boundaries at samples: %s\n', mat2str(boundary_indices'));
+    else
+        boundary_indices = detect_baseline_shifts(sig, fs);
+        if isempty(boundary_indices)
+            fprintf(' - No boundaries detected\n');
+        else
+            fprintf(' - Detected %d boundaries at: %s\n', ...
+                length(boundary_indices), mat2str(boundary_indices'));
+        end
     end
     
-    % Calibration period: use 10-30 seconds (skip first 5s for stability)
-    calib_start = min(round(5*fs), round(nSamp*0.1));  % Skip first 5s or 10%
-    calib_duration = min(25, floor(nSamp/fs) - calib_start/fs - 1);
-    calib_end = min(calib_start + round(calib_duration * fs), nSamp);
-    calib_data = sig(calib_start:calib_end);
+    % Create segment definitions
+    if isempty(boundary_indices)
+        segments = struct('start', 1, 'end', nSamp);
+    else
+        boundaries = [1; boundary_indices(:); nSamp+1];
+        segments = struct('start', {}, 'end', {});
+        for i = 1:length(boundaries)-1
+            segments(i).start = boundaries(i);
+            segments(i).end = boundaries(i+1) - 1;
+        end
+    end
     
-    fprintf(' - Calibration: %.1f-%.1f s (%d samples)\n', ...
-        calib_start/fs, calib_end/fs, length(calib_data));
+    fprintf('\n=== PROCESSING %d SEGMENTS ===\n', length(segments));
     
-    % Estimate initial thresholds
-    [init_height, pol] = estimate_peak_height(calib_data);
+    % Process each segment
+    all_peaks = [];
+    all_polarity = [];
+    sig_corrected = zeros(size(sig));
     
-    % Conservative initial distance: assume HR between 40-150 bpm
-    % Min distance = 60/150 bpm = 0.4s, Max = 60/40 bpm = 1.5s
-    init_distance = round(0.4 * fs);  % ~150 bpm max (was 0.33s/180bpm)
+    for seg_idx = 1:length(segments)
+        seg_start = segments(seg_idx).start;
+        seg_end = segments(seg_idx).end;
+        seg_sig = sig(seg_start:seg_end);
+        seg_tm = tm(seg_start:seg_end);
+        
+        fprintf('\n--- Segment %d: samples %d-%d (%.1f s) ---\n', ...
+            seg_idx, seg_start, seg_end, (seg_end-seg_start+1)/fs);
+        
+        % Skip if too short
+        if length(seg_sig) < 2*fs
+            fprintf('  Skipping (too short)\n');
+            sig_corrected(seg_start:seg_end) = seg_sig;
+            continue
+        end
+        
+        % Remove DC offset (de-mean)
+        seg_median = median(seg_sig);
+        seg_sig_corrected = seg_sig - seg_median;
+        sig_corrected(seg_start:seg_end) = seg_sig_corrected;
+        
+        fprintf('  DC offset removed: %.2f µV\n', seg_median);
+        
+        % Process with P&T algorithm
+        [seg_peaks, seg_pol] = process_ecg_segment_pt(seg_sig_corrected, seg_tm, fs, ...
+            peakThresh, search_back, ref_period);
+        
+        % Adjust peaks to global indices
+        if ~isempty(seg_peaks)
+            global_peaks = seg_peaks + seg_start - 1;
+            all_peaks = [all_peaks; global_peaks(:)];
+            all_polarity = [all_polarity; seg_pol];
+        end
+    end
     
-    fprintf(' - Initial height threshold: %.2f\n', init_height);
-    fprintf(' - Initial distance: %d samples (%.2f s, max ~%.0f bpm)\n', ...
-        init_distance, init_distance/fs, 60/(init_distance/fs));
-    fprintf(' - Polarity: %s\n', iif(pol > 0, 'positive', 'negative'));
+    % Sort peaks chronologically
+    [peaks, sort_idx] = sort(all_peaks);
     
-    % Adaptive parameters
-    update_interval = 3 * fs;  % Update every 5 seconds
-    lookback_window = 10 * fs;  % Use past 20 seconds
+    % Overall polarity (mode)
+    if ~isempty(all_polarity)
+        pol = mode(all_polarity);
+        sign = pol * median(abs(sig_corrected(peaks)));
+    else
+        sign = [];
+        pol = 1;
+    end
     
-    % P&T constants for QRS detection
+    % Use corrected signal
+    sig = sig_corrected;
+    
+    fprintf('\n=== COMBINED RESULTS ===\n');
+    fprintf(' - Total R-peaks: %d\n', length(peaks));
+    if ~isempty(all_polarity) && length(unique(all_polarity)) > 1
+        fprintf(' - NOTE: Polarity varied across segments\n');
+    end
+    if pol < 0
+        fprintf(' - Overall polarity: negative\n');
+    else
+        fprintf(' - Overall polarity: positive\n');
+    end
+
+    % RR intervals and HR
+    RR = diff(peaks) ./ fs;
+    RR_t = tm(peaks);
+    HR = 60 ./ diff(RR_t);
+
+    if ~isempty(RR)
+        fprintf(' - Median RR: %.3f s (%.1f bpm)\n', median(RR), 60/median(RR));
+    end
+
+else
+    error('Only ECG supported. Use get_RR.m for PPG.')
+end
+
+end
+
+%% Detect baseline shifts (boundaries)
+function boundary_indices = detect_baseline_shifts(sig, fs)
+    % Detect MAJOR baseline/offset changes (like session concatenations)
+    % Only triggers on very large shifts (hundreds of µV)
+    
+    window_size = round(5 * fs);  % 5-second windows (was 2s)
+    step_size = round(2 * fs);    % 2-second steps (was 0.5s)
+    
+    n_windows = floor((length(sig) - window_size) / step_size) + 1;
+    medians = zeros(n_windows, 1);
+    mads = zeros(n_windows, 1);  % Median absolute deviation
+    times = zeros(n_windows, 1);
+    
+    % Compute rolling median and MAD (baseline and variability)
+    for i = 1:n_windows
+        idx_start = (i-1) * step_size + 1;
+        idx_end = min(idx_start + window_size - 1, length(sig));
+        medians(i) = median(sig(idx_start:idx_end));
+        mads(i) = mad(sig(idx_start:idx_end), 1);  % Median absolute deviation
+        times(i) = idx_start + floor(window_size/2);
+    end
+    
+    % Find large changes in median (baseline shifts)
+    median_changes = abs(diff(medians));
+    
+    % Much more conservative threshold
+    % Typical ECG amplitude is ~100-2000 µV, we want to catch shifts > 200 µV
+    baseline_noise = median(median_changes);
+    
+    % Use both statistical and absolute thresholds
+    stat_threshold = 15 * std(median_changes);  % 15 sigma (was 3)
+    absolute_threshold = max(200, 2*median(mads));  % At least 200 µV or 2x typical variability
+    threshold = max(stat_threshold, absolute_threshold);
+    
+    fprintf('  Boundary detection threshold: %.1f µV\n', threshold);
+    fprintf('  Median baseline change: %.1f µV\n', baseline_noise);
+    
+    % Find peaks in median changes
+    [~, shift_locs] = findpeaks(median_changes, ...
+        'MinPeakHeight', threshold, ...
+        'MinPeakDistance', round(30*fs/step_size));  % At least 30s apart (was 10s)
+    
+    if isempty(shift_locs)
+        boundary_indices = [];
+    else
+        boundary_indices = round(times(shift_locs + 1));
+        
+        % Validate each boundary: check amplitude difference is substantial
+        keep = true(size(boundary_indices));
+        for i = 1:length(boundary_indices)
+            b = boundary_indices(i);
+            
+            % Compare 10s before and after boundary
+            before_start = max(1, b - 10*fs);
+            before_end = b - 1;
+            after_start = b;
+            after_end = min(length(sig), b + 10*fs);
+            
+            if (before_end - before_start) < fs || (after_end - after_start) < fs
+                keep(i) = false;
+                continue;
+            end
+            
+            med_before = median(sig(before_start:before_end));
+            med_after = median(sig(after_start:after_end));
+            shift_size = abs(med_before - med_after);
+            
+            % Require at least 150 µV shift (very conservative)
+            if shift_size < 150
+                keep(i) = false;
+                fprintf('  Rejected boundary at %d: shift only %.1f µV\n', b, shift_size);
+            else
+                fprintf('  Validated boundary at %d: shift %.1f µV\n', b, shift_size);
+            end
+        end
+        
+        boundary_indices = boundary_indices(keep);
+        
+        % Filter boundaries too close to start/end
+        boundary_indices(boundary_indices < 10*fs) = [];
+        boundary_indices(boundary_indices > length(sig) - 10*fs) = [];
+    end
+end
+
+%% Process single ECG segment with P&T algorithm
+function [peaks, pol] = process_ecg_segment_pt(sig, tm, fs, peakThresh, search_back, ref_period)
+    % Full P&T algorithm on a single segment
+    
+    nSamp = length(sig);
+    
+    % P&T constants
     med_smooth_nb_coef = round(fs/100);
     int_nb_coef = round(7*fs/256);
     if mod(med_smooth_nb_coef, 2) == 0
         med_smooth_nb_coef = med_smooth_nb_coef + 1;
     end
     
-    % Initialize
-    peaks = [];
-    current_height = init_height;
-    current_dist = init_distance;
-    
-    % Process entire signal with P&T to get QRS energy
-    fprintf(' - Computing P&T QRS energy envelope...\n');
+    % P&T operations
     dffecg = [0; diff(sig)];
     sqrecg = dffecg.^2;
     b_int = ones(int_nb_coef,1) / int_nb_coef;
@@ -107,118 +276,105 @@ if strcmpi(sig_type, 'ecg')
         mdfint = mdfint(1:numel(sig));
     end
     
-    % Estimate initial energy threshold
+    % P&T threshold
     if nSamp/fs > 90
-        xs = sort(mdfint(fs:fs*90));
+        xs = sort(mdfint(fs:min(fs*90, end)));
     else
-        xs = sort(mdfint(fs:end));
+        xs = sort(mdfint(max(1,fs):end));
     end
+    
     if nSamp/fs > 10
         ind_xs = ceil(98/100*length(xs));
     else
         ind_xs = ceil(99/100*length(xs));
     end
     en_thres = xs(ind_xs);
-    current_energy_thresh = 0.3 * en_thres;  % Start conservative
     
-    fprintf(' - Initial energy threshold: %.2f\n', current_energy_thresh);
+    % Candidate regions
+    poss_reg = mdfint > (peakThresh * en_thres);
     
-    % Process in chunks
-    chunk_size = update_interval;
-    n_chunks = ceil(nSamp / chunk_size);
+    if ~any(poss_reg)
+        peaks = [];
+        pol = 1;
+        return
+    end
     
-    fprintf(' - Processing %d chunks with adaptive P&T thresholds...\n', n_chunks);
-    
-    for i_chunk = 1:n_chunks
-        chunk_start = (i_chunk - 1) * chunk_size + 1;
-        chunk_end = min(i_chunk * chunk_size, nSamp);
-        
-        % Find candidate QRS regions based on energy
-        chunk_energy = mdfint(chunk_start:chunk_end);
-        poss_reg = chunk_energy > current_energy_thresh;
-        
-        if ~any(poss_reg)
-            continue
-        end
-        
-        % Get segment boundaries
-        left = find(diff([0; poss_reg])==1);
-        right = find(diff([poss_reg; 0])==-1);
-        
-        % Find peak in each QRS segment
-        chunk_data = sig(chunk_start:chunk_end);
-        chunk_peaks = [];
-        
-        for i_seg = 1:length(left)
-            a = left(i_seg);
-            b = right(i_seg);
-            seg = chunk_data(a:b);
-            
-            if pol > 0
-                [~, pk_idx] = max(seg);
-            else
-                [~, pk_idx] = min(seg);
-            end
-            
-            chunk_peaks = [chunk_peaks; a + pk_idx - 1];
-        end
-        
-        % Enforce minimum distance within chunk
-        if length(chunk_peaks) > 1
-            keep = true(size(chunk_peaks));
-            for k = 2:length(chunk_peaks)
-                if chunk_peaks(k) - chunk_peaks(k-1) < current_dist
-                    % Keep peak with higher energy
-                    if mdfint(chunk_start + chunk_peaks(k) - 1) > mdfint(chunk_start + chunk_peaks(k-1) - 1)
-                        keep(k-1) = false;
-                    else
-                        keep(k) = false;
-                    end
-                end
-            end
-            chunk_peaks = chunk_peaks(keep);
-        end
-        
-        % Adjust to global indices
-        chunk_peaks = chunk_peaks + chunk_start - 1;
-        peaks = [peaks; chunk_peaks(:)];
-        
-        % Update thresholds based on past 20s
-        if chunk_end > lookback_window
-            lookback_start = chunk_end - lookback_window;
-            recent_peaks = peaks(peaks >= lookback_start & peaks <= chunk_end);
-            
-            if length(recent_peaks) >= 5
-                % Update height threshold
-                if pol > 0
-                    recent_heights = sig(recent_peaks);
-                else
-                    recent_heights = -sig(recent_peaks);
-                end
-                current_height = 0.4 * median(recent_heights);  % 40% of median
-                
-                % Update energy threshold based on recent QRS energy
-                recent_energy = mdfint(recent_peaks);
-                current_energy_thresh = 0.4 * median(recent_energy);
-                
-                % Update distance threshold
-                if length(recent_peaks) >= 2
-                    recent_dist = diff(recent_peaks);
-                    median_dist = median(recent_dist);
-                    current_dist = round(0.6 * median_dist);
-                    
-                    % Enforce physiological limits (40-150 bpm)
-                    min_dist = round(0.4*fs);   % Max 150 bpm
-                    max_dist = round(1.5*fs);   % Max 40 bpm
-                    current_dist = max(current_dist, min_dist);
-                    current_dist = min(current_dist, max_dist);
+    % Search-back for missed beats
+    if search_back
+        indAboveThreshold = find(poss_reg);
+        if numel(indAboveThreshold) > 2
+            RRv = diff(tm(indAboveThreshold));
+            RRv = RRv(RRv > 0.01);
+            if ~isempty(RRv)
+                medRRv = median(RRv);
+                indMissedBeat = find(diff(tm(indAboveThreshold)) > 1.5*medRRv);
+                indStart = indAboveThreshold(indMissedBeat);
+                indEnd = indAboveThreshold(indMissedBeat+1);
+                for i = 1:numel(indStart)
+                    poss_reg(indStart(i):indEnd(i)) = ...
+                        mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
                 end
             end
         end
     end
     
-    % Remove duplicates
-    peaks = unique(peaks);
+    % Segment boundaries
+    left = find(diff([0; poss_reg])==1);
+    right = find(diff([poss_reg; 0])==-1);
+    nb_peaks = numel(left);
+    
+    if nb_peaks == 0
+        peaks = [];
+        pol = 1;
+        return
+    end
+    
+    % Find peaks and determine polarity
+    peaks = zeros(nb_peaks, 1);
+    for i = 1:nb_peaks
+        a = left(i);
+        b = right(i);
+        seg = sig(a:b);
+        
+        [vmax, imax] = max(seg);
+        [vmin, imin] = min(seg);
+        
+        % Simple polarity: which is larger in absolute value?
+        if abs(vmax) > abs(vmin)
+            peaks(i) = a + imax - 1;
+        else
+            peaks(i) = a + imin - 1;
+        end
+    end
+    
+    % Determine overall polarity
+    peak_values = sig(peaks);
+    if median(peak_values) > 0
+        pol = 1;
+    else
+        pol = -1;
+    end
+    
+    % Keep only peaks of dominant polarity
+    if pol > 0
+        keep = sig(peaks) > 0;
+    else
+        keep = sig(peaks) < 0;
+    end
+    peaks = peaks(keep);
+    
+    % Refine peaks
+    for i = 1:length(peaks)
+        a = left(find(left <= peaks(i), 1, 'last'));
+        b = right(find(right >= peaks(i), 1, 'first'));
+        seg = sig(a:b);
+        if pol > 0
+            [~, idx] = max(seg);
+        else
+            [~, idx] = min(seg);
+        end
+        peaks(i) = a + idx - 1;
+    end
     
     % Enforce refractory period
     if length(peaks) > 1
@@ -226,18 +382,10 @@ if strcmpi(sig_type, 'ecg')
         keep = true(size(peaks));
         for k = 2:length(peaks)
             if (peaks(k) - peaks(k-1)) < refSamples
-                if pol > 0
-                    if sig(peaks(k)) > sig(peaks(k-1))
-                        keep(k-1) = false;
-                    else
-                        keep(k) = false;
-                    end
+                if abs(sig(peaks(k))) > abs(sig(peaks(k-1)))
+                    keep(k-1) = false;
                 else
-                    if sig(peaks(k)) < sig(peaks(k-1))
-                        keep(k-1) = false;
-                    else
-                        keep(k) = false;
-                    end
+                    keep(k) = false;
                 end
             end
         end
@@ -259,72 +407,11 @@ if strcmpi(sig_type, 'ecg')
     end
     peaks = unique(peaks, 'stable');
     
-    sign = pol * median(abs(sig(peaks)));
-    
-    fprintf('\n=== RESULTS ===\n');
-    fprintf(' - Detected %d R-peaks\n', length(peaks));
-    if pol < 0
-        fprintf(" - Polarity: negative\n");
-    else
-        fprintf(" - Polarity: positive\n");
-    end
-
-    % RR intervals and HR
-    RR = diff(peaks) ./ fs;
-    RR_t = tm(peaks);
-    HR = 60 ./ diff(RR_t);
-
-    if ~isempty(RR)
-        fprintf(' - Median RR: %.3f s (%.1f bpm)\n', median(RR), 60/median(RR));
-    end
-
-else
-    error('Only ECG supported in adaptive version. Use get_RR.m for PPG.')
+    fprintf('  Detected %d peaks (polarity: %s)\n', ...
+        length(peaks), iif(pol > 0, 'pos', 'neg'));
 end
 
-end
-
-%% Helper: Estimate peak height threshold
-function [peak_height, polarity] = estimate_peak_height(data)
-    % Robust estimation of peak height and polarity
-    
-    % Use findpeaks with minimum distance to avoid noise
-    fs_approx = 250;  % Assume ~250 Hz for min distance
-    min_pk_dist = round(0.4 * fs_approx);  % At least 0.4s apart
-    
-    % Check both positive and negative peaks
-    [pos_peaks, ~] = findpeaks(data, 'MinPeakDistance', min_pk_dist);
-    [neg_peaks, ~] = findpeaks(-data, 'MinPeakDistance', min_pk_dist);
-    
-    if isempty(pos_peaks)
-        pos_height = 0;
-    else
-        pos_height = median(pos_peaks);
-    end
-    
-    if isempty(neg_peaks)
-        neg_height = 0;
-    else
-        neg_height = median(neg_peaks);
-    end
-    
-    % Determine polarity
-    if pos_height > neg_height
-        polarity = 1;
-        peak_height = 0.4 * pos_height;  % 40% of median peak (more conservative)
-    else
-        polarity = -1;
-        peak_height = 0.4 * neg_height;
-    end
-    
-    % Fallback if no peaks found
-    if peak_height == 0
-        peak_height = 0.25 * prctile(abs(data), 95);
-        polarity = 1;
-    end
-end
-
-% Simple inline if
+% Inline if
 function out = iif(condition, true_val, false_val)
     if condition
         out = true_val;
