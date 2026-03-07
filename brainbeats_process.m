@@ -148,39 +148,17 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
     if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features')
 
       if strcmpi(params.heart_signal, 'rr')
-        % Pre-detected beat latencies mode: convert seconds to sample indices
-        % and run minimal RR cleaning (skip peak detection, filtering, SQI)
+        % Pre-detected beat latencies mode: convert seconds to sample indices.
+        % Skips peak detection, filtering, SQI, and clean_rr (beats are
+        % assumed already clean; clean_rr can distort pre-detected intervals).
         fprintf('Using pre-detected beat latencies (%g beats provided).\n', length(params.beat_latencies));
         beat_sec = params.beat_latencies(:)';
         Rpeaks = round(beat_sec * EEG.srate);
         Rpeaks(Rpeaks < 1) = [];
         Rpeaks(Rpeaks > EEG.pnts) = [];
 
-        % Compute RR intervals and run clean_rr (seconds, same units as ECG/PPG path)
         RR = diff(Rpeaks) / EEG.srate;         % sec
-        RR_t = Rpeaks(1:end-1) / EEG.srate;    % sec
         fprintf('RR intervals: mean=%.0f ms, std=%.0f ms, n=%d\n', mean(RR)*1000, std(RR)*1000, length(RR));
-
-        % Clean RR artifacts (same as ECG/PPG path)
-        disp("Correcting abnormal RR intervals...")
-        sig_dummy = zeros(1, EEG.pnts);  % placeholder signal
-        [NN, NN_t, idx_rem, idx_interp] = clean_rr(RR_t, RR, sig_dummy(Rpeaks(1:end-1))');
-        badRR = sum(idx_rem) + sum(idx_interp);
-        flaggedRatio = badRR / length(RR) * 100;
-        if flaggedRatio > 0
-            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%.2f%%). \n', badRR, length(RR), flaggedRatio);
-        end
-
-        % Remove flagged beats from Rpeaks
-        Rpeaks_clean = Rpeaks(2:end);  % align with RR (first beat removed)
-        Rpeaks_clean(idx_rem) = [];
-        Rpeaks = [Rpeaks(1) Rpeaks_clean];  % keep first beat
-
-        % Store preprocessing outputs
-        EEG.brainbeats.preprocessings.removed_heartbeats = idx_rem;
-        EEG.brainbeats.preprocessings.interpolated_heartbeats = idx_interp;
-        EEG.brainbeats.preprocessings.NN = NN;
-        EEG.brainbeats.preprocessings.NN_times = NN_t;
 
       else  % ECG or PPG path (original code)
 
@@ -291,7 +269,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % RR_t(1) = [];       % always ignore 1st hearbeat
         Rpeaks = Rpeaks.(elec);
         % Rpeaks(1) = [];     % always ignore 1st hearbeat
-        Npeaks = Npeaks.(elec);
+        if exist('Npeaks','var'), Npeaks = Npeaks.(elec); end
         NN_t = NN_t.(elec);
         NN = NN.(elec);
         pol = pol.(elec); % ECG signal polarity
