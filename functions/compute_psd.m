@@ -3,8 +3,8 @@
 % 50% overlap, outputting the power spectral density (PSD).
 % 
 % Usage:
-% [psd, freqs] = get_psd(eeg_data,winSize,taperM,overlap,nfft,Fs,freqRange,type,useGPU);
-% [psd, freqs] = get_psd(EEG.data,EEG.srate*2,'hamming',50,[],EEG.srate,[1 100],'psd',true);
+% [psd, freqs] = compute_psd(eeg_data,winSize,taperM,overlap,nfft,Fs,freqRange,type,useGPU);
+% [psd, freqs] = compute_psd(EEG.data,EEG.srate*2,'hamming',50,[],EEG.srate,[1 100],'psd',true);
 % 
 % - eeg_data with channels in 1st dimension and data in 2nd dimension (default = EEG.data)
 % - window size in frames (default = 2 s window).

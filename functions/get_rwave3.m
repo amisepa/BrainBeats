@@ -92,4 +92,3 @@ end
 if isempty(Rwave)
     rwave = -1;
 end
-

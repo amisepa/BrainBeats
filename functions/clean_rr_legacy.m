@@ -5,14 +5,15 @@
 % and EXTRAPVAL = NaN (NaN+NaN*1i for complex values) for the other methods.
 
 % INPUTS:
-%   t_rr - time of the rr interval data
-%   rr - a single row of rr interval data (in s)
-%   vis - plot (1) or not (0)
+%   t_rr   - time of the rr interval data
+%   rr     - a single row of rr interval data (in s)
+%   rPeaks - sample indices of detected R-peaks (same length as rr)
+%   params - parameter struct
 %
 % OUTPUTS:
-%   nn - normal normal interval data
-%   t_nn - time of NN interval
-%   fs - sample rate (Hz)
+%   NN            - normal normal interval data
+%   t_NN          - time of NN interval
+%   nPeaks        - sample indices of surviving/interpolated peaks
 %   flagged_beats - percent of original data removed
 %
 % PLEASE CITE:
@@ -29,7 +30,7 @@
 %
 % Copyright (C), BrainBeats, Cedric Cannard, 2022
 
-function [NN, t_NN, flagged_beats] = clean_rr(t_rr, rr, params)
+function [NN, t_NN, nPeaks, flagged_beats] = clean_rr_legacy(t_rr, rr, rPeaks, params)
 
 %% Parameters
 fs = params.fs;
@@ -46,7 +47,7 @@ end
 if isfield(params,'rr_gaplim') && ~isempty(params.rr_gaplim)
     gaplimit = params.rr_gaplim;
 else
-    gaplimit = 2;    % default = 2 s 
+    gaplimit = 2;    % default = 2 s
 end
 if isfield(params,'rr_changelim') && ~isempty(params.rr_changelim)
     changeLimit = params.rr_changelim;
@@ -63,51 +64,57 @@ end
 %% Run
 
 % prep
-% t_rr(1) = [];  % remove 1st heartbeat
-Rpeaks = repmat('N', [length(rr) 1]);
+% t_rr(1)   = [];   % remove 1st heartbeat
+rPeaks    = rPeaks(:);
+% rPeaks(1) = [];   % keep in sync with t_rr/rr
+Rpeaks    = repmat('N', [length(rr) 1]);
 
 % Remove data that are too close together (not counted in total signal removed)
 idx_remove = find(diff(t_rr) < 1/fs);
-rr(idx_remove+1) = [];
-t_rr(idx_remove) = [];
-Rpeaks(idx_remove) = [];
+rr(idx_remove+1)      = [];
+t_rr(idx_remove)      = [];
+Rpeaks(idx_remove)    = [];
+rPeaks(idx_remove)    = [];
 clear idx_remove;
 
 % Remove artifact Rpeaks (not counted in total signal removed)
-idx_remove = strcmp('|', Rpeaks); % find artifacts
-rr(idx_remove) = [];
+idx_remove = strcmp('|', Rpeaks);
+rr(idx_remove)     = [];
 Rpeaks(idx_remove) = [];
-t_rr(idx_remove) = [];
+t_rr(idx_remove)   = [];
+rPeaks(idx_remove) = [];
 
 % find artifacts
 idx_remove2 = strcmp('~', Rpeaks);
-rr(idx_remove2) = [];
+rr(idx_remove2)     = [];
 Rpeaks(idx_remove2) = [];
-t_rr(idx_remove2) = [];
+t_rr(idx_remove2)   = [];
+rPeaks(idx_remove2) = [];
 clear idx_remove idx_remove2
 
 % Remove large RR intervals caused by gaps (not counted in total signal removed)
 idx_remove = find(rr >= gaplimit);
-rr(idx_remove) = [];
-t_rr(idx_remove) = [];
+rr(idx_remove)     = [];
+t_rr(idx_remove)   = [];
 Rpeaks(idx_remove) = [];
+rPeaks(idx_remove) = [];
 clear idx_remove;
 
 % Find non-R peaks
 goodbeats = strcmp(cellstr(Rpeaks),'N');
-badbeats = ~goodbeats;
-outliers = false(length(badbeats),1);
+badbeats  = ~goodbeats;
+outliers  = false(length(badbeats),1);
 
 % remove beats after non-R beats
 for i = 1:length(badbeats)
     if badbeats(i)
-        outliers(i) = 1;
+        outliers(i)   = 1;
         outliers(i+1) = 1;
     end
 end
 
 % remove extra points that may have been introduced at the end of the file
-if (length(outliers) > length(badbeats))
+if length(outliers) > length(badbeats)
     z = length(outliers);
     outliers(z) = [];
 end
@@ -131,77 +138,81 @@ end
 
 % Remove or interpolate outliers
 idx_outliers = find(outliers == 1);
-numOutliers = length(idx_outliers);
-% rr_original = rr;
+numOutliers  = length(idx_outliers);
 rr(idx_outliers) = NaN;
 if strcmp(interpMeth, 'remove')
-    NN_Outliers = rr;
+    NN_Outliers    = rr;
     NN_Outliers(idx_outliers) = [];
-    t_Outliers = t_rr;
+    t_Outliers     = t_rr;
     t_Outliers(idx_outliers) = [];
+    nPeaks_Outliers = rPeaks;
+    nPeaks_Outliers(idx_outliers) = [];
 else
-    NN_Outliers = interp1(t_rr,rr,t_rr,interpMeth);
-    t_Outliers = t_rr;
+    NN_Outliers     = interp1(t_rr, rr, t_rr, interpMeth);
+    t_Outliers      = t_rr;
+    % Interpolated peak positions: nearest real peak for removed beats
+    rPeaks_nan      = double(rPeaks);
+    rPeaks_nan(idx_outliers) = NaN;
+    nPeaks_Outliers = round(interp1(t_rr(~isnan(rPeaks_nan)), rPeaks(~isnan(rPeaks_nan)), t_rr, 'linear', NaN));
 end
 
-% Identify non-physiologic beats
-toohigh = NN_Outliers > upperphysiolim;
-toolow = NN_Outliers < lowerphysiolim;
+% Identify and interpolate non-physiologic beats
+toohigh  = NN_Outliers > upperphysiolim;
+toolow   = NN_Outliers < lowerphysiolim;
 idx_toolow = find(toolow == 1);
 NN_NonPhysBeats = NN_Outliers;
 NN_NonPhysBeats(idx_toolow) = NaN;
 numOutliers = numOutliers + length(idx_toolow);
 if strcmp(interpMeth, 'remove')
     NN_NonPhysBeats(idx_toolow) = [];
-    t_NonPhysBeats = t_Outliers;
+    t_NonPhysBeats  = t_Outliers;
     t_NonPhysBeats(idx_toolow) = [];
+    nPeaks_NonPhys  = nPeaks_Outliers;
+    nPeaks_NonPhys(idx_toolow) = [];
 else
-    NN_NonPhysBeats = interp1(t_Outliers,NN_NonPhysBeats,t_Outliers,interpMeth);
-    t_NonPhysBeats = t_Outliers;
-    flagged_beats = logical(outliers(:) + toohigh(:) + toolow(:));
+    NN_NonPhysBeats = interp1(t_Outliers, NN_NonPhysBeats, t_Outliers, interpMeth);
+    t_NonPhysBeats  = t_Outliers;
+    flagged_beats   = logical(outliers(:) + toohigh(:) + toolow(:));
+    nPeaks_np       = double(nPeaks_Outliers);
+    nPeaks_np(idx_toolow) = NaN;
+    nPeaks_NonPhys  = round(interp1(t_Outliers(~isnan(nPeaks_np)), nPeaks_Outliers(~isnan(nPeaks_np)), t_Outliers, 'linear', NaN));
 end
 
-% Interpolate beats that are too Fast
-toohigh = NN_NonPhysBeats > upperphysiolim;
-idx_outliers_2ndPass = find(logical(toohigh(:)) ~= 0);
+% Interpolate beats that are too fast
+toohigh2 = NN_NonPhysBeats > upperphysiolim;
+idx_outliers_2ndPass = find(logical(toohigh2(:)) ~= 0);
 NN_TooFastBeats = NN_NonPhysBeats;
 NN_TooFastBeats(idx_outliers_2ndPass) = NaN;
 numOutliers = numOutliers + length(idx_outliers_2ndPass);
+
 if strcmp(interpMeth, 'remove')
     flagged_beats = numOutliers;
     NN_TooFastBeats(idx_outliers_2ndPass) = [];
-    t_TooFastBeats = t_NonPhysBeats;
+    t_TooFastBeats  = t_NonPhysBeats;
     t_TooFastBeats(idx_outliers_2ndPass) = [];
+    nPeaks_Fast     = nPeaks_NonPhys;
+    nPeaks_Fast(idx_outliers_2ndPass) = [];
 else
-    NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,'spline','extrap');
-    % NN_TooFastBeats = interp1(t_NonPhysBeats,NN_TooFastBeats,t_NonPhysBeats,interpMeth,'extrap');
-    t_TooFastBeats = t_NonPhysBeats;
+    NN_TooFastBeats = interp1(t_NonPhysBeats, NN_TooFastBeats, t_NonPhysBeats, interpMeth, 'extrap');
+    t_TooFastBeats  = t_NonPhysBeats;
+    nPeaks_tf       = double(nPeaks_NonPhys);
+    nPeaks_tf(idx_outliers_2ndPass) = NaN;
+    nPeaks_Fast     = round(interp1(t_NonPhysBeats(~isnan(nPeaks_tf)), nPeaks_NonPhys(~isnan(nPeaks_tf)), t_NonPhysBeats, 'linear', NaN));
 end
 
-% if params.vis_cleaning
-%     figure('color','w');
-%     plot(t_rr,rr_original,t_Outliers,NN_Outliers);
-%     legend('raw','interp1(after outliers removed)')
-%     hold on
-%     plot(t_NonPhysBeats,NN_NonPhysBeats+.01);
-%     hold on; plot(t_NonPhysBeats,toolow,'o')
-%     legend('raw','interp1(after outliers removed)',...
-%         'interp2(after too low)','toolow')
-%     hold on; plot(t_TooFasyBeats,NN_TooFastBeats);
-%     legend('raw','interp1(after outliers removed)',...
-%         'interp2(after too low)','toolow','interp3 (after too fast removed)')
-% end
-
-% Remove erroneous data at the end of a record (i.e. a un-physiologic point
-% caused by removing data at the end of a record)
+% Remove erroneous data at the end of a record
 while NN_TooFastBeats(end) > upperphysiolim
-    NN_TooFastBeats(end) = [];  t_TooFastBeats(end) = [];
+    NN_TooFastBeats(end) = [];
+    t_TooFastBeats(end)  = [];
+    nPeaks_Fast(end)     = [];
 end
 
-NN = NN_TooFastBeats;
-t_NN = t_TooFastBeats;
+NN     = NN_TooFastBeats;
+t_NN   = t_TooFastBeats;
+nPeaks = nPeaks_Fast;
 
 end
+
 
 %% clean RR intervals that change more than a given threshold
 % (eg., th = 0.2 = 20%) with respect to the median value of the previous 5
@@ -216,29 +227,24 @@ end
 
 function idxRRtoBeRemoved = FindSpikesInRR(RR, th)
 
-if size(RR,1)>size(RR,2)
+if size(RR,1) > size(RR,2)
     RR = RR';
 end
 
 % Forward search
-FiveRR_MedianVal = medfilt1(RR,5); % compute as median RR(-i-2: i+2)
-
-% shift of three position to align with to corresponding RR
+FiveRR_MedianVal = medfilt1(RR,5);
 FiveRR_MedianVal = [RR(1:5) FiveRR_MedianVal(3:end-3)];
-rr_above_th = (abs(RR-FiveRR_MedianVal)./FiveRR_MedianVal)>=th;
-
-RR_forward = RR;
+rr_above_th      = (abs(RR-FiveRR_MedianVal)./FiveRR_MedianVal) >= th;
+RR_forward       = RR;
 RR_forward(rr_above_th) = NaN;
 
 % Backward search
-RRfilpped = fliplr(RR);
-FiveRR_MedianVal = medfilt1(RRfilpped,5); % compute as median RR(-i-2: i+2)
-% shift of three position to aligne with to corresponding RR
-FiveRR_MedianVal = [RRfilpped(1:5) FiveRR_MedianVal(3:end-3)];
-rr_above_th = find(abs(RRfilpped-FiveRR_MedianVal)./FiveRR_MedianVal>=th);
-rr_above_th = sort(length(RR)-rr_above_th+1);
-
-RR_backward = RRfilpped;
+RRflipped        = fliplr(RR);
+FiveRR_MedianVal = medfilt1(RRflipped,5);
+FiveRR_MedianVal = [RRflipped(1:5) FiveRR_MedianVal(3:end-3)];
+rr_above_th      = find(abs(RRflipped-FiveRR_MedianVal)./FiveRR_MedianVal >= th);
+rr_above_th      = sort(length(RR)-rr_above_th+1);
+RR_backward      = RRflipped;
 RR_backward(rr_above_th) = NaN;
 
 % Combine

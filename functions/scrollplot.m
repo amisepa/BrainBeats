@@ -1,90 +1,123 @@
 function scrollplot(varargin)
-    % Extract inputs
-    toPlot1 = varargin{1};      % Data to plot: {time, signal, 'color', ...}
-    scrollOrient = varargin{2}; % 'X' for horizontal or 'Y' for vertical scroll
-    toDisplay = varargin{3};    % Window size (in seconds or units of X-axis)
+    % scrollplot - Scrollable time series plot with optional overlays.
+    %
+    % Scrolling via:
+    %   - Slider bar at the bottom of the axes
+    %   - Left/Right arrow keys (pan by 50% of window)
+    %   - Shift + arrow keys (pan by 10% of window, fine control)
+    %
+    % Usage:
+    %   scrollplot(toPlot1, scrollOrient, windowSize)
+    %   scrollplot(toPlot1, scrollOrient, windowSize, toPlot2, toPlot3, ...)
+    %
+    % Inputs:
+    %   toPlot1      - {time, signal, 'prop', val, ...} for main signal
+    %   scrollOrient - {'X'} (only horizontal supported)
+    %   windowSize   - visible window width in x-axis units (e.g. seconds)
+    %   toPlot2, ... - (optional) additional overlay series as cell arrays
 
-    toPlot2 = [];
-    toPlot3 = [];
-    if nargin >= 4, toPlot2 = varargin{4}; end
-    if nargin == 5, toPlot3 = varargin{5}; end
+    toPlot1      = varargin{1};
+    % scrollOrient = varargin{2};  % always X, kept for API compatibility
+    win_size     = varargin{3};
+    extraPlots   = {};
+    if nargin > 3
+        extraPlots = varargin(4:end);
+    end
 
-    % Enforce shape compatibility for primary data
-    x = toPlot1{1}(:);  % force column vector
-    y = toPlot1{2}(:);  % force column vector
+    % Enforce column vectors
+    x = toPlot1{1}(:);
+    y = toPlot1{2}(:);
     if length(x) ~= length(y)
-        error('X and Y inputs must have the same number of elements.');
+        error('scrollplot: X and Y must have the same number of elements.');
     end
     toPlot1{1} = x;
     toPlot1{2} = y;
 
-    % Convert window size to fraction
-    toDisplay = toDisplay / max(x);
+    % Axis limits
+    x_min    = min(x, [], 'omitnan');
+    x_max    = max(x, [], 'omitnan');
+    win_size = min(win_size, x_max - x_min);  % clamp to data range
 
-    % Plot main data
-    p = plot(toPlot1{:}, 'LineWidth', 1);
+    % Plot main signal
+    p  = plot(toPlot1{:}, 'LineWidth', 1);
     ax = p.Parent;
-    XX = p.XData;
-    YY = p.YData;
+    fig = ax.Parent;
 
-    % Compute initial X-limits
-    totxlim = [min(XX, [], 'omitnan'), max(XX, [], 'omitnan')];
-    xlim_init = [totxlim(1), totxlim(1) + toDisplay * diff(totxlim)];
-    set(ax, 'XLim', xlim_init);
-    updateYLim(ax, XX, YY);
-
+    set(ax, 'XLim', [x_min, x_min + win_size]);
+    updateYLim();
     hold on
-    if ~isempty(toPlot2), plot(toPlot2{:}); end
-    if ~isempty(toPlot3), plot(toPlot3{:}); end
 
-    % Scroll initialization
-    superscroll_obj = superscroll(ax, scrollOrient);
-    autoscrollbar(superscroll_obj, p);
-
-    % Add listener for axis updates
-    addlistener(ax, 'XLim', 'PostSet', @(src, evt) handleScroll(ax, XX, YY, totxlim, toDisplay));
-
-    % === Nested Functions ===
-    function updateYLim(ax, XData, YData)
-        xlims = get(ax, 'XLim');
-        visible = XData >= xlims(1) & XData <= xlims(2);
-        Yvis = YData(visible);
-
-        if ~isempty(Yvis) && any(~isnan(Yvis))
-            ymin = min(Yvis);
-            ymax = max(Yvis);
-            peak_to_peak = ymax - ymin;
-
-            if peak_to_peak > 200  % autoscale
-                margin = 0.1 * peak_to_peak;
-                set(ax, 'YLim', [ymin - margin, ymax + margin]);
-            else  % fixed range
-                set(ax, 'YLim', [-100, 100]);
-            end
+    % Plot overlays
+    for k = 1:length(extraPlots)
+        if ~isempty(extraPlots{k})
+            plot(extraPlots{k}{:});
         end
     end
 
-    % function updateYLim(ax, XData, YData)
-    %     if isempty(YData) || all(isnan(YData))
-    %         return;
-    %     end
-    %     y_min = min(YData, [], 'omitnan');
-    %     y_max = max(YData, [], 'omitnan');
-    %     margin = 0.05 * (y_max - y_min);
-    %     set(ax, 'YLim', [y_min - margin, y_max + margin]);
-    % end
+    % --- Slider ---
+    % Placed in normalized figure coords below the current axes position
+    ax_pos = get(ax, 'Position');  % [left bottom width height] normalized
+    slider_h = 0.03;
+    slider = uicontrol(fig, 'Style', 'slider', ...
+        'Units',    'normalized', ...
+        'Position', [ax_pos(1), ax_pos(2) - slider_h - 0.005, ax_pos(3), slider_h], ...
+        'Min',      x_min, ...
+        'Max',      max(x_min + 1e-6, x_max - win_size), ...
+        'Value',    x_min, ...
+        'Callback', @sliderCallback);
 
-    function handleScroll(ax, XData, YData, totxlim, toDisplayFrac)
-        winWidth = toDisplayFrac * diff(totxlim);
-        cur_xlim = get(ax, 'XLim');
-        % Clamp X-limits
-        if cur_xlim(1) < totxlim(1)
-            cur_xlim = [totxlim(1), totxlim(1) + winWidth];
-        elseif cur_xlim(2) > totxlim(2)
-            cur_xlim = [totxlim(2) - winWidth, totxlim(2)];
+    % Shrink axes slightly to make room for slider
+    set(ax, 'Position', [ax_pos(1), ax_pos(2) + slider_h, ax_pos(3), ax_pos(4) - slider_h]);
+
+    % --- Keyboard scrolling ---
+    set(fig, 'KeyPressFcn', @keyCallback);
+
+    % === Callbacks ===
+    function sliderCallback(src, ~)
+        t0 = src.Value;
+        set(ax, 'XLim', [t0, t0 + win_size]);
+        updateYLim();
+    end
+
+    function keyCallback(~, evt)
+        step_large = win_size * 0.9;   % arrow key: 90% step (10% overlap), e.g. 1-10s -> 9-18s
+        step_small = win_size * 0.1;   % shift+arrow: 10% step (fine control)
+        cur = get(ax, 'XLim');
+        t0  = cur(1);
+
+        if strcmp(evt.Modifier, 'shift')
+            step = step_small;
+        else
+            step = step_large;
         end
-        set(ax, 'XLim', cur_xlim);
-        updateYLim(ax, XData, YData);
 
+        switch evt.Key
+            case 'rightarrow'
+                t0 = min(t0 + step, x_max - win_size);
+            case 'leftarrow'
+                t0 = max(t0 - step, x_min);
+            otherwise
+                return
+        end
+
+        set(ax, 'XLim', [t0, t0 + win_size]);
+        set(slider, 'Value', max(slider.Min, min(slider.Max, t0)));
+        updateYLim();
+    end
+
+    function updateYLim()
+        xlims   = get(ax, 'XLim');
+        visible = x >= xlims(1) & x <= xlims(2);
+        Yvis    = y(visible);
+        if ~isempty(Yvis) && any(~isnan(Yvis))
+            ymin = min(Yvis);
+            ymax = max(Yvis);
+            pp   = ymax - ymin;
+            % if pp > 200
+                set(ax, 'YLim', [ymin - 0.2*pp, ymax + 0.2*pp]);
+            % else
+            %     set(ax, 'YLim', [-150, 100]);
+            % end
+        end
     end
 end

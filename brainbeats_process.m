@@ -156,7 +156,6 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         Rpeaks = round(beat_sec * EEG.srate);
         Rpeaks(Rpeaks < 1) = [];
         Rpeaks(Rpeaks > EEG.pnts) = [];
-
         RR = diff(Rpeaks) / EEG.srate;         % sec
         fprintf('RR intervals: mean=%.0f ms, std=%.0f ms, n=%d\n', mean(RR)*1000, std(RR)*1000, length(RR));
 
@@ -168,15 +167,16 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             CARDIO = pop_resample(CARDIO,EEG.srate);
         end
 
-        % Filter heart signals
+        % % Filter heart signals? --> done inside get_rr function in case
+        % users want to preserve raw signal
         % if strcmpi(params.heart_signal, 'ecg')
-        %     CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',1);
-        %     CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',35);
+            % CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',3);
+        %     % CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',25);
         % elseif strcmpi(params.heart_signal, 'ppg')
-        if strcmpi(params.heart_signal, 'ppg')
-            CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.8);
-            CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',5);
-        end
+        % % if strcmpi(params.heart_signal, 'ppg')
+        %     CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.5);
+        %     CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',3);
+        % end
 
         % Get RR and NN intervals from ECG/PPG signals
         % note: when several electrodes are provided, use the elec with best
@@ -188,7 +188,8 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         for iElec = 1:nElec
             elec = sprintf('elec%g',iElec);
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR_ori(signal(iElec,:), CARDIO.times, params);
+            % [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR_legacy(signal(iElec,:), CARDIO.times, params);
+            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), ~, hr] = get_RR(signal(iElec,:), CARDIO.times, params);
 
             % % Fix values if PPG had a different sampling rate than EEG (this
             % should now be avoided by resampling above, but just in case)
@@ -230,7 +231,9 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
 
             % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
             disp("Correcting abnormal RR intervals...")
-            [NN.(elec), NN_t.(elec), Npeaks.(elec), idx_bad.(elec)] = clean_rr(RR_t.(elec), RR.(elec), signal(iElec, Rpeaks.(elec)), Rpeaks.(elec));
+            % [NN.(elec), NN_t.(elec), Npeaks.(elec), idx_bad.(elec)] = clean_rr_legacy(RR_t.(elec), RR.(elec), Rpeaks.(elec), params); % from physionet (legacy)
+            [nn, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(RR_t.(elec), RR.(elec),  sig(iElec, Rpeaks.(elec)), Rpeaks.(elec), ...
+                'interpolate_missing', true, 'ecg_signal', sig(iElec,:), 'sig_t', CARDIO.times, 'fs', params.fs);
             flaggedRatio.(elec) = idx_bad.(elec) / length(idx_bad.(elec)) *100; 
         end
         

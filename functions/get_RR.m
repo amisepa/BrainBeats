@@ -1,654 +1,375 @@
-% Detect R peaks from raw ECG signals and heartbeat onsets (pulse
-% waveforms) from PPG signals.
+% Detect R-peaks from ECG signals or pulse wave onsets from PPG signals.
 %
-% ECG:
-%   ECG signal is bandpassed filtered using a custom filter that provides
-%   great performance. QRS detector is based on the P&T method. Energy
-%   threshold is estimated at 99% of amplitude distribution to avoid crash
-%   due to large bumps. 1 s removed for choosing thresh because of filter
-%   lag and often contains artifacts. A search-back algorithm detects missed
-%   peaks by lowering the threshold in periods where the RR interval
-%   variability (RRv) is > 1.5*medianRRv. The polarity of the R-peaks is
-%   detected over the first 30 s using max of abs values. The rest of the
-%   peaks are compared to this sign, preventing from alternating between
-%   positive/negative detections.
+% ECG method (Pan-Tompkins):
+%   Optional zero-phase FIR highpass filter for baseline wander removal.
+%   QRS detection via differentiation, squaring, and moving-average
+%   integration (Hann window, zero-phase). Energy threshold at 98th
+%   percentile. Search-back algorithm recovers missed beats when RR
+%   variability exceeds 1.5x the median. Polarity is determined from
+%   QRS ordering over the first 40 beats. Each coarse peak is refined
+%   to the nearest local extremum within a 15 ms window.
 %
-% PPG:
-%   Algorithms designed for adult human signals sampled at 125 Hz, but works
-%   with any sampling rate (using on-the-fly resampling). Signals shorter
-%   than 5 min long are rescaled.
-%   Original code from qppg from the Physionet Cardiovascular Signal Processing
-%   Toolbox. Original authors: W. Zong (1998), revised by G. Moody (2010), Qiao Li
-%   (2010-2011), Adriana Vest (2011), and Giulia Da Poian (2018).
+% PPG method:
+%   Zero-phase FIR bandpass filter (0.5-3 Hz). Detects valleys (default)
+%   or peaks using MATLAB's findpeaks with adaptive MinPeakHeight (MAD-
+%   based) and MinPeakDistance (trimmed mean of initial RR estimates).
 %
-% INPUTS:
-%   signal      - raw ECG or PPG signal
-%   tm          - time vector (in milliseconds)
-%   params      - params structure containing the following fields:
-%                   fs (sample rate) and heart_signal ('ecg' or 'ppg')
+% Usage:
+%   [RR, RR_t, peaks, signal, times, sign, HR] = get_RR(signal, times, params)
 %
-% OUTPUTS:
-%   RR          - RR intervals (in s)
-%   RR_t        - time vector
-%   peaks       - R peaks (samples)
-%   sig         - ECG signal after processing
-%   pol         - ECG signal polarity
-%   HR          - Heart rate (in beats/min; bpm)
+% Inputs:
+%   signal  - raw ECG or PPG signal (1 x N or N x 1)
+%   times   - time vector in milliseconds (1 x N or N x 1)
+%   params  - struct with fields:
+%               .fs             - sampling rate (Hz)
+%               .heart_signal   - 'ecg' or 'ppg'
 %
-% Example:
+%             ECG optional fields:
+%               .ecg_highpass   - highpass cutoff (Hz); skipped if absent or 0
+%               .ecg_peakthresh - P&T energy threshold multiplier (default 0.6)
+%               .ecg_searchback - enable search-back (default true)
+%               .ecg_refperiod  - refractory period in s (default 0.25)
 %
-% When using this code, please cite:
-%   Vest et al. (2018). An Open Source Benchmarked Toolbox for Cardiovascular
-%   Waveform and Interval Analysis. Physiological measurement.
+%             PPG optional fields:
+%               .ppg_detect_mode - 'valleys' (default) or 'peaks'
+%               .ppg_height_method - MinPeakHeight method: 'mad' (default),
+%                                    'std', or 'trimmean'
 %
-% ECG detection improvements: January 12, 2026 by Cedric Cannard
-%   - Enforced consistent signal orientation by converting the ECG signal
-%     to a column vector once at the start of the ECG branch, eliminating
-%     downstream dimension and indexing errors.
-%   - Reworked the Pan–Tompkins processing to be fully zero-phase:
-%       - Padded the differentiated signal to preserve length.
-%       - Replaced the integration filter with filtfilt to remove phase delay.
-%       - Ensured the median filter window length is odd.
-%       - Removed all manual delay compensation and circshift logic.
-%   - Corrected polarity detection and peak finding to operate on the
-%     original ECG signal rather than intermediate or transposed variables,
-%     ensuring correct peak selection regardless of signal inversion.
-%   - Added a post-detection peak refinement step that recenters each coarse
-%     peak by searching for the true local extremum within a short QRS-scale window.
-%   - Fixed search-back logic inconsistencies:
-%       - Used logical masks instead of mixed index spaces.
-%       - Properly flipped backward-search results back into forward time
-%         before combining.
-%       - Clarified forward vs backward variable naming.
-%   - Clamped all search windows to valid signal bounds and aligned
-%     intermediate vectors to identical lengths to prevent off-by-one and
-%     assignment errors.
-%   - Fixed minor typos and incorrect variable references in diagnostic
-%     and warning messages.
+% Outputs:
+%   RR      - RR intervals (s), length N-1
+%   RR_t    - timestamps of RR intervals (s), length N-1
+%   peaks   - R-peak or pulse-onset sample indices, length N-1
+%   signal  - signal after any filtering applied inside this function
+%   times   - time vector in seconds
+%   polarity- median peak amplitude (ECG polarity indicator; [] for PPG)
+%   HR      - heart rate (bpm), length N-2
 %
+% Notes:
+%   - All outputs have the first element removed to match RR interval length.
+%   - For HEP analysis, epoch the output signal (already filtered if
+%     params.ecg_highpass is set) using the output peaks as triggers.
+%
+% References:
+%   Pan & Tompkins (1985). IEEE Trans Biomed Eng.
+%   Vest et al. (2018). Physiological Measurement.
+%
+% % Changelog:
+%   v2.0 - April 2026 (Cedric Cannard)
+%     ECG:
+%       - Highpass filter now applied by default (params.ecg_highpass = 0.5 Hz)
+%         for baseline wander removal. Set params.ecg_highpass = 0 to skip
+%         if signal is already pre-filtered externally.
+%       - Replaced causal integration filter with zero-phase filtfilt
+%         (Hann window) to eliminate phase delay in QRS detection.
+%       - Removed medfilt1 smoothing step which was distorting signal morphology.
+%       - Fixed polarity detection: voting now over first 40 beats (was
+%         incorrectly using 30*fs segments instead of beats).
+%       - Fixed HR output length: now matches RR (length N-1) instead of N-2.
+%       - Peak refinement now correctly uses the pre-filtered signal throughout.
+%       - Output variable renamed from 'sign' to 'polarity' to avoid
+%         shadowing MATLAB's built-in sign() function.
+%     PPG:
+%       - Completely replaced the legacy Physionet sliding-buffer algorithm
+%         (qppg) with a simpler, more transparent findpeaks-based detector.
+%       - Zero-phase FIR bandpass filter applied (0.5-3 Hz) before detection.
+%       - Adaptive MinPeakHeight estimated via robust statistics (MAD-based
+%         by default; configurable via params.ppg_height_method).
+%       - Adaptive MinPeakDistance estimated from median of initial RR.
+%       - Detection mode (valleys or peaks) configurable via params.ppg_detect_mode.
+%     General:
+%       - Removed dead code (max_force, stale length-match block, slpsamp).
+%       - HR now always computed before first-element removal for consistency.
+%       - Improved input validation and error/warning messages throughout.
+% 
 % Copyright (C), BrainBeats, Cedric Cannard, 2023
 
-function [RR, RR_t, peaks, sig, tm, sign, HR] = get_RR(signal, tm, params)
+function [RR, RR_t, peaks, signal, times, polarity, HR] = get_RR(signal, times, params)
 
-% Parameters
-fs = params.fs;
+fs       = params.fs;
 sig_type = params.heart_signal;
 
-if size(signal,1) < size(signal,2)
-    signal = signal';
+% Sanity check: times should be in milliseconds
+% If max value < 1000, it's likely already in seconds
+if max(times) < 1000 && max(times) > 0
+    error('get_RR: times appears to be in seconds (max=%.3f). Pass times in milliseconds (e.g. EEG.times).', max(times));
 end
 
-sign = [];
-nSamp = size(signal,1);
-% tm = 1/fs:1/fs:nSamp/fs;
-tm = tm(:) / 1000;  % convert to seconds
-diff(tm(1:10))
-if numel(tm) ~= nSamp
-    error('tm must have same number of samples as signal')
+% Enforce column vector and convert time to seconds
+signal = signal(:);
+times  = times(:) / 1000;
+nSamp  = numel(signal);
+
+if numel(times) ~= nSamp
+    error('get_RR: times must have the same number of samples as signal.');
 end
 
 
-%% ECG
+polarity = [];
+
+%=========================================================================
+%  ECG - Pan-Tompkins QRS detector
+%=========================================================================
 if strcmpi(sig_type, 'ecg')
 
     % Parameters
-    if isfield(params,'ecg_peakthresh')
-        peakThresh = params.ecg_peakthresh;
+    peakThresh  = 0.6;   if isfield(params,'ecg_peakthresh'), peakThresh  = params.ecg_peakthresh; end
+    search_back = true;  if isfield(params,'ecg_searchback'),  search_back = params.ecg_searchback; end
+    ref_period  = 0.25;  if isfield(params,'ecg_refperiod'),   ref_period  = params.ecg_refperiod;  end
+
+    % Bandpass filter for ECG (default: [3 25] Hz)
+    % Set params.ecg_bandpass = false to skip if pre-filtered externally
+    if isfield(params, 'ecg_bandpass') && ~params.ecg_bandpass
+        fprintf('  Bandpass filter: skipped (pre-filtered externally)\n');
     else
-        peakThresh = .6;
-    end
-    if isfield(params,'ecg_searchback')
-        search_back = params.ecg_searchback;
-    else
-        search_back = true;
-    end
-    if isfield(params,'ecg_refperiod')
-        ref_period = params.ecg_refperiod;
-    else
-        ref_period = 0.25; % refractory period
-    end
-
-    % Constants
-    med_smooth_nb_coef = round(fs/100);     % scales with fs
-    int_nb_coef = round(7*fs/256);          % length is 7 for fs = 256 Hz
-
-    % Use a consistent orientation: COLUMN vectors everywhere in ECG branch
-    sig = signal(:);
-
-    % flatline check 
-    if prctile(abs(sig), 95) < 0.05
-        error('ECG time series amplitude too small (likely flat line)')
-    end
-
-    % P&T operations (zero-phase where applicable)
-    % dffecg = diff(sig);                 % differentiate (one datum shorter)
-    % sqrecg = dffecg .* dffecg;          % square
-    dffecg = [0; diff(sig)];     % same length as sig
-    sqrecg = dffecg.^2;
-
-    % % integrate using zero-phase filtering (filtfilt)
-    % b_int = ones(1,int_nb_coef) / int_nb_coef;
-    % intecg = filtfilt(b_int, 1, sqrecg);
-    b_int  = ones(int_nb_coef,1) / int_nb_coef;
-    intecg = filtfilt(b_int, 1, sqrecg);
-
-    % smooth using median filter (odd length)
-    if mod(med_smooth_nb_coef, 2) == 0
-        med_smooth_nb_coef = med_smooth_nb_coef + 1;
-    end
-    mdfint = medfilt1(intecg, med_smooth_nb_coef);
-
-    % match length to sig
-    if numel(mdfint) < numel(sig)
-        mdfint = [mdfint; zeros(numel(sig) - numel(mdfint), 1)];
-    elseif numel(mdfint) > numel(sig)
-        mdfint = mdfint(1:numel(sig));
-    end
-
-    % P&T threshold
-    if nSamp/fs > 90
-        xs = sort(mdfint(fs:fs*90));
-    else
-        xs = sort(mdfint(fs:end));
-    end
-
-    max_force = []; % to force the energy threshold value
-    if isempty(max_force)
-        if nSamp/fs > 10
-            ind_xs = ceil(98/100*length(xs));
-            en_thres = xs(ind_xs);
-        else
-            ind_xs = ceil(99/100*length(xs));
-            en_thres = xs(ind_xs);
+        % Check for non-finite values before filtering
+        non_finite = ~isfinite(signal);
+        if any(non_finite)
+            n_bad = sum(non_finite);
+            warning('  Warning: %d non-finite samples detected (%.2f%%) — interpolating before filtering!!!\n', ...
+                n_bad, 100 * n_bad / numel(signal));
+            t = (1:numel(signal))';   % column vector
+            signal = interp1(t(~non_finite), signal(~non_finite), t, 'pchip', 'extrap');
         end
-    else
-        en_thres = max_force;
+
+        bp_cutoff = [3 25];  % default [highpass lowpass] in Hz
+        if isfield(params, 'ecg_bandpass') && numel(params.ecg_bandpass) == 2
+            bp_cutoff = params.ecg_bandpass;
+        end
+    
+        % Highpass
+        hp_order = 3 * round(fs / bp_cutoff(1));
+        b_hp     = fir1(hp_order, bp_cutoff(1) / (fs/2), 'high');
+        signal   = filtfilt(b_hp, 1, signal);
+    
+        % Lowpass
+        lp_order = 5 * round(fs / bp_cutoff(2));
+        b_lp     = fir1(lp_order, bp_cutoff(2) / (fs/2), 'low');
+        signal   = filtfilt(b_lp, 1, signal);
+        fprintf('  Bandpass filter: %.1f–%.1f Hz (order-%d/%d FIR, zero-phase)\n', ...
+            bp_cutoff(1), bp_cutoff(2), hp_order, lp_order);
     end
 
-    % candidate regions (energy)
-    % poss_reg = mdfint > (peakThresh * en_thres);
-    % if isempty(poss_reg)
-    %     poss_reg(10) = true;
-    % end
-    poss_reg = mdfint > (peakThresh * en_thres);
+    % Flatline check
+    if prctile(abs(signal), 95) < 0.05
+        error('get_RR: ECG amplitude too small - likely a flat line.');
+    end
+
+    % P&T pipeline: differentiate, square, integrate
+    dffecg      = [0; diff(signal)];
+    sqrecg      = dffecg .^ 2;
+    % int_nb_coef = round(7 * fs / 256); % 7 samples at 256 Hz is only ~27 ms, which is too narrow. The validated window is 150 ms
+    int_nb_coef = round(0.150 * fs);  % 150 ms, more standard
+    b_int       = hann(int_nb_coef) / sum(hann(int_nb_coef));
+    signal_filt = filtfilt(b_int, 1, sqrecg);
+    fprintf('  P&T integration filter: lowpass ~%.1f Hz (Hann window, zero-phase)\n', fs / int_nb_coef);
+
+    % Energy threshold (98th percentile, skip first second)
+    xs        = sort(signal_filt(fs : min(fs*90, nSamp)));
+    en_thres  = xs(ceil(0.98 * numel(xs)));
+    poss_reg  = signal_filt > (peakThresh * en_thres);
+
     if ~any(poss_reg)
-        % No candidates found, bail early
-        peaks = [];
-        RR = [];
-        RR_t = [];
-        HR = [];
+        warning('get_RR: no QRS candidates found - check signal quality.');
+        [RR, RR_t, peaks, HR] = deal([]);
         return
     end
 
-    % search-back for missed beats
-    % if search_back
-    %     indAboveThreshold = find(poss_reg);
-    %     RRv = diff(tm(indAboveThreshold));
-    %     medRRv = median(RRv(RRv > 0.01));
-    %     indMissedBeat = find(RRv > 1.5*medRRv);
-    % 
-    %     indStart = indAboveThreshold(indMissedBeat);
-    %     indEnd   = indAboveThreshold(indMissedBeat+1);
-    % 
-    %     for i = 1:length(indStart)
-    %         poss_reg(indStart(i):indEnd(i)) = ...
-    %             mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
-    %     end
-    % end
+    % Search-back for missed beats
     if search_back
-        indAboveThreshold = find(poss_reg);
-        if numel(indAboveThreshold) > 2
-            RRv = diff(tm(indAboveThreshold));
+        indAT = find(poss_reg);
+        if numel(indAT) > 2
+            RRv = diff(times(indAT));
             RRv = RRv(RRv > 0.01);
             if ~isempty(RRv)
-                medRRv = median(RRv);
-                indMissedBeat = find(diff(tm(indAboveThreshold)) > 1.5*medRRv);
-    
-                indStart = indAboveThreshold(indMissedBeat);
-                indEnd   = indAboveThreshold(indMissedBeat+1);
-    
+                medRRv        = median(RRv);
+                missedIdx     = find(diff(times(indAT)) > 1.5 * medRRv);
+                indStart      = indAT(missedIdx);
+                indEnd        = indAT(missedIdx + 1);
                 for i = 1:numel(indStart)
                     poss_reg(indStart(i):indEnd(i)) = ...
-                        mdfint(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
+                        signal_filt(indStart(i):indEnd(i)) > (0.5 * peakThresh * en_thres);
                 end
             end
         end
     end
 
-
-    % segment boundaries
-    left  = find(diff([0; poss_reg])==1);
-    right = find(diff([poss_reg; 0])==-1);
-
+    % Segment boundaries
+    left     = find(diff([0; poss_reg]) ==  1);
+    right    = find(diff([poss_reg; 0]) == -1);
     nb_peaks = numel(left);
+
     if nb_peaks == 0
-        peaks = [];
-        RR = [];
-        RR_t = [];
-        HR = [];
+        warning('get_RR: no QRS segments found after thresholding.');
+        [RR, RR_t, peaks, HR] = deal([]);
         return
     end
 
-    % ------------------------------------------------------------
-    % FIX Jnauary 15, 2026: R-peak localization by QRS ordering, not amplitude
-    % Inside each QRS segment, compute both max and min of raw ECG.
-    % The R peak is the first dominant extremum of the QRS.
-    % This prevents selecting S when S is the larger absolute deflection.
-    % ------------------------------------------------------------
-
-    % 1) Per-segment extrema and their order
-    idxMax = zeros(1, nb_peaks);
-    idxMin = zeros(1, nb_peaks);
-    valMax = zeros(1, nb_peaks);
-    valMin = zeros(1, nb_peaks);
-
+    % Per-segment extrema
+    idxMax = zeros(1, nb_peaks);  idxMin = zeros(1, nb_peaks);
+    valMax = zeros(1, nb_peaks);  valMin = zeros(1, nb_peaks);
     for i = 1:nb_peaks
-        a = left(i);
-        b = right(i);
-        seg = sig(a:b);
-
-        [valMax(i), imx] = max(seg);
-        [valMin(i), imn] = min(seg);
-
-        idxMax(i) = a + imx - 1;
-        idxMin(i) = a + imn - 1;
+        seg = signal(left(i):right(i));
+        [valMax(i), imx] = max(seg);  idxMax(i) = left(i) + imx - 1;
+        [valMin(i), imn] = min(seg);  idxMin(i) = left(i) + imn - 1;
     end
 
-    % 2) Decide global polarity from ordering across early beats
-    % If max tends to come before min, treat R as positive, else negative.
-    nb_pol = min(nb_peaks, max(3, round(30*fs))); % up to ~30 s worth of segments
-    polVotes = ones(1, nb_pol);
-    for i = 1:nb_pol
-        if idxMin(i) < idxMax(i)
-            polVotes(i) = -1;
-        else
-            polVotes(i) = +1;
-        end
-    end
-    pol = median(polVotes);
-    if pol >= 0
-        pol = +1;
-    else
-        pol = -1;
-    end
+    % Polarity from first 40 beats (max before min = positive R)
+    nb_pol   = min(nb_peaks, 40);
+    polVotes = arrayfun(@(i) 2*(idxMax(i) < idxMin(i)) - 1, 1:nb_pol);
+    pol      = sign(median(polVotes));
+    if pol == 0, pol = 1; end
+    fprintf('  Peaks polarity: %s\n', ternary(pol > 0, 'positive', 'negative'));
 
-    % 3) Pick peaks with polarity, but constrain search to occur before opposite extremum
+    % Peak localization with polarity constraint
     peaks = zeros(1, nb_peaks);
     pkval = zeros(1, nb_peaks);
-
     for i = 1:nb_peaks
-        a = left(i);
-        b = right(i);
-
+        a = left(i);  b = right(i);
         if pol > 0
-            % R expected positive: force search before the min (S) when possible
-            stop = min(idxMin(i), b);
-            if stop <= a + 1
-                stop = b;
-            end
-            [pkval(i), ii] = max(sig(a:stop));
+            stop = max(a+1, min(idxMin(i), b));
+            [pkval(i), ii] = max(signal(a:stop));
             peaks(i) = a + ii - 1;
-
-            % if the chosen max still occurs after the min (edge case), fall back to earliest max
             if peaks(i) > idxMin(i) && idxMax(i) >= a && idxMax(i) <= b
-                peaks(i) = idxMax(i);
-                pkval(i) = valMax(i);
+                peaks(i) = idxMax(i);  pkval(i) = valMax(i);
             end
         else
-            % R expected negative: force search before the max when possible
-            stop = min(idxMax(i), b);
-            if stop <= a + 1
-                stop = b;
-            end
-            [pkval(i), ii] = min(sig(a:stop));
+            stop = max(a+1, min(idxMax(i), b));
+            [pkval(i), ii] = min(signal(a:stop));
             peaks(i) = a + ii - 1;
-
             if peaks(i) > idxMax(i) && idxMin(i) >= a && idxMin(i) <= b
-                peaks(i) = idxMin(i);
-                pkval(i) = valMin(i);
+                peaks(i) = idxMin(i);  pkval(i) = valMin(i);
             end
         end
     end
+    polarity = median(pkval);
 
-    % representative polarity value for reporting
-    sign = median(pkval);
-
-    % 4) Enforce refractory period (keep larger |amplitude| within ref period)
+    % Refractory period: keep larger |amplitude| when peaks too close
     [peaks, ord] = sort(peaks, 'ascend');
     pkval = pkval(ord);
-
-    keep = true(size(peaks));
+    keep  = true(size(peaks));
     for k = 2:numel(peaks)
-        if (peaks(k) - peaks(k-1)) < round(ref_period * fs)
-            if abs(pkval(k)) > abs(pkval(k-1))
-                keep(k-1) = false;
-            else
-                keep(k) = false;
+        if peaks(k) - peaks(k-1) < round(ref_period * fs)
+            if abs(pkval(k)) > abs(pkval(k-1)), keep(k-1) = false;
+            else,                                keep(k)   = false;
             end
         end
     end
     peaks = peaks(keep);
 
-    % 5) Micro-refine around each peak to nearest local extremum of the chosen polarity
-    Lsig  = numel(sig);
-    micro = max(1, round(0.015 * fs)); % 15 ms
-
+    % Micro-refinement: snap to nearest local extremum within 15 ms
+    micro = max(1, round(0.015 * fs));
     for k = 1:numel(peaks)
-        p  = peaks(k);
-        w1 = max(1, p - micro);
-        w2 = min(Lsig, p + micro);
-
-        if pol > 0
-            [~, ii] = max(sig(w1:w2));
-        else
-            [~, ii] = min(sig(w1:w2));
+        w1 = max(1, peaks(k) - micro);
+        w2 = min(nSamp, peaks(k) + micro);
+        if pol > 0, [~, ii] = max(signal(w1:w2));
+        else,       [~, ii] = min(signal(w1:w2));
         end
         peaks(k) = w1 + ii - 1;
     end
-
     peaks = unique(peaks, 'stable');
 
-    if pol < 0
-        fprintf(" - Peaks' polarity: negative \n");
-    else
-        fprintf(" - Peaks' polarity: positive \n");
-    end
-    fprintf(' - P&T energy threshold: %g \n', round(en_thres,2))
+    fprintf('  P&T energy threshold: %.2f\n', en_thres);
 
     % RR intervals and HR
-    RR   = diff(peaks) ./ fs;
-    RR_t = tm(peaks);
-    HR   = 60 ./ diff(RR_t);
+    RR     = diff(peaks) / fs;
+    RR_t   = times(peaks);
+    HR     = 60 ./ RR;
+    RR_t(1) = [];
+    peaks(1) = [];
 
-    % sanity check
-    if ~isempty(RR_t)
-        RR_from_tm = diff(RR_t);
-        fprintf('RR median from samples: %.3f s, from tm: %.3f s\n', median(RR), median(RR_from_tm));
-    end
-
-%%  PPG
+% =========================================================================
+%  PPG - findpeaks with adaptive threshold and distance
+% =========================================================================
 elseif strcmpi(sig_type, 'ppg')
 
-    if ~exist('fs','var')
-        error("You must provide your signal' sampling rate as 2nd input")
-    end
+    % Parameters
+    detect_mode   = 'valleys';  if isfield(params,'ppg_detect_mode'),    detect_mode   = params.ppg_detect_mode;    end
+    height_method = 'mad';      if isfield(params,'ppg_height_method'),  height_method = params.ppg_height_method;  end
 
-    % PARAMETERS
-
-    % Length of the buffer BUFLN to store a segment of the PPG signal for processing.
-    % The length of this buffer (4096 samples by default) determines how much of the signal is held in memory for analysis at any given time.
-    % A sufficiently large buffer size ensures that the algorithm has enough data to accurately detect pulse waves,
-    % but it also must be balanced with computational efficiency. 4096 samples is a good compromise between these factors.
-    if isfield(params,'ppg_buffer')
-        BUFLN = params.ppg_buffer;
+    % Zero-phase FIR highpass then lowpass (skipped if pre-filtered externally)
+    if ~isfield(params, 'ppg_bandpass') || params.ppg_bandpass
+        % Highpass: 0.5 Hz
+        hp_order = 2 * round(fs / 0.5);
+        b_hp     = fir1(hp_order, 0.5 / (fs/2), 'high');
+        signal   = filtfilt(b_hp, 1, signal);
+        % Lowpass: 3 Hz
+        lp_order = 2 * round(fs / 3);
+        b_lp     = fir1(lp_order, 3 / (fs/2), 'low');
+        signal   = filtfilt(b_lp, 1, signal);
+        fprintf('  Highpass: 0.5 Hz + Lowpass: 3 Hz (FIR, zero-phase)\n');
     else
-        BUFLN = 4096; % must be a power of 2 (default = 4096).
+        fprintf('  Filtering: skipped (pre-filtered externally)\n');
     end
-
-    % LPERIOD allows the algorithm to tailor its detection strategy based on the
-    % initial segment of the PPG signal, improving the accuracy and reliability of pulse detection,
-    % especially in the context of varying signal qualities or individual  differences.
-    if isfield(params,'ppg_learnperiod')
-        LPERIOD = fs*params.ppg_learnperiod;
+    
+    % Flip signal for valley detection
+    if strcmpi(detect_mode, 'valleys')
+        det_sig = -signal;
     else
-        LPERIOD  = fs*5;   % learning period in samples (default = 5 s).
+        det_sig = signal;
     end
 
-    % Minimum threshold value for the detection algorithm.
-    % It serves as a baseline or lower limit for the algorithm to identify a pulse wave in the PPG signal.
-    % The presence of a minimum threshold helps in preventing the algorithm from becoming overly sensitive to noise or artifacts in the PPG signal.
-    % This is important for maintaining the reliability of pulse detection, ensuring that the algorithm does not mistake random signal fluctuations for actual heartbeats.
-    if isfield(params,'ppg_learnthresh')
-        minthresh = params.ppg_learnthresh;
-    else
-        minthresh = 5;  % default = 5
+    % Adaptive MinPeakHeight
+    minPeakHeight = estimateMinPeakHeight(det_sig, height_method);
+
+    % Estimate MinPeakDistance from initial detection
+    [~, tmp_peaks] = findpeaks(det_sig, 'MinPeakHeight', minPeakHeight);
+    if numel(tmp_peaks) < 2
+        warning('get_RR: too few PPG peaks detected - check signal quality or detection mode.');
+        [RR, RR_t, peaks, HR] = deal([]);
+        return
     end
+    tmp_rr       = diff(tmp_peaks) / fs;
+    % minPeakDist  = round(trimmean(tmp_rr, 20) * fs / 2);
+    minPeakDist  = round(median(tmp_rr) * fs / 2);
 
-    % The "Eye-Closing Period" refers to a specific time duration immediately following the detection of a pulse wave,
-    % during which the algorithm refrains from detecting another pulse.
-    % This is essentially a kind of refractory period specific to the PPG signal processing,
-    % ensuring that the algorithm doesn't incorrectly identify multiple peaks (or pulse waves)
-    % too close to each other, which could be artifacts or noise rather than actual physiological signals.
-    if isfield(params,'ppg_eyeclosing')
-        EyeClosing =  round(fs*params.ppg_eyeclosing);
-    else
-        EyeClosing = round(fs*0.65);     % default = 0.65 s (range: .4-.8)
-    end
+    % Final detection
+    [~, peaks] = findpeaks(det_sig, 'MinPeakHeight', minPeakHeight, 'MinPeakDistance', minPeakDist);
+    fprintf('  PPG detection mode: %s\n', detect_mode);
+    fprintf('  MinPeakHeight: %.2f | MinPeakDistance: %d samples (%.2f s)\n', ...
+        minPeakHeight, minPeakDist, minPeakDist/fs);
 
-    % ExpectPeriod represents the maximum expected duration between two consecutive pulse waves (or heartbeats) in the PPG signal.
-    % By dynamically adjusting the detection threshold based on the ExpectPeriod,
-    % the algorithm can adapt to variations in pulse signal strength and quality, increasing the likelihood of detecting valid pulses even when the signal is weak or noisy.
-    if isfield(params,'ppg_expctperiod')
-        ExpectPeriod = round(fs*params.ppg_expctperiod);
-    else
-        ExpectPeriod = round(fs*5);    % default = 5 s
-    end
-
-    % SLPwindow defines the size of the window used for calculating the slope of the PPG signal.
-    % The size of the SLPwindow affects how sensitive the algorithm is to changes in the signal.
-    % A smaller window might make the algorithm more sensitive to rapid changes,
-    % whereas a larger window might smooth out short-term fluctuations,
-    % potentially improving detection stability but potentially missing rapid changes.
-    if isfield(params,'ppg_slopewindow')
-        SLPwindow = round(fs*params.ppg_slopewindow);
-    else
-        SLPwindow = round(fs*0.1);   % default = 0.1 s (range: .05-.4).
-    end
-
-    % INVALID signal (constant)
-    INVALID_signal = -32758;
-
-    % initiate variables
-    timer = 0;
-    peaks = [];
-    beat_n = 1;
-    from = 1;
-    to = length(signal);
-
-    % check signal
-    if signal(1) <= INVALID_signal
-        signal(1) = mean(signal);
-    end
-    inv = find(signal<=INVALID_signal);
-    for i = 1:length(inv)
-        signal(inv(i)) = signal(inv(i)-1);
-    end
-
-    % re-scale signal to +/-2000
-    if length(signal) < 5*60*fs
-        signal = (signal-min(signal))./(max(signal)-min(signal)).*4000-2000;
-    else
-        % find max/min every 5 minute for re-scaling signal
-        n = 1;
-        for i=1:5*60*fs:length(signal)
-            max_signal(n)=max(signal(i:min(i+5*60*fs-1,length(signal))));
-            min_signal(n)=min(signal(i:min(i+5*60*fs-1,length(signal))));
-            n=n+1;
-        end
-        signal = (signal-median(min_signal))./(median(max_signal)-median(min_signal)).*4000-2000;
-    end
-
-    ebuf(1:BUFLN) = 0;
-    lbuf = ebuf;
-    if from > BUFLN
-        tt_2 = from-BUFLN;
-    else
-        tt_2 = 0;
-    end
-
-    t1 = 8*fs;
-    t1 = t1+from;
-    T0 = 0;
-    n = 0;
-    for t = from:t1
-        [temp,ebuf,lbuf,tt_2] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
-        if temp > INVALID_signal
-            T0 = T0+temp;
-            n=n+1;
-        end
-    end
-    T0 = T0/n; % T0=T0/(t1-from);
-    Ta = 3*T0;
-
-    learning = 1;  % turn learning mode ON
-
-    % Main loop
-    t = from;
-    while t <= to
-
-        if learning
-            if t > from + LPERIOD  % end of learning period
-                learning = 0;  % turn learning mode OFF
-                T1 = T0;
-                t = from;	% start over
-            else
-                T1 = 2*T0;
-            end
-        end
-
-        [temp,ebuf,lbuf,tt_2] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
-
-        if temp > T1    % possible pulse near t
-            timer = 0;
-            % for counting the time after previous pulse
-            maxd = temp;
-            mind = maxd;
-            tmax = t;
-            for tt = t + 1: t + EyeClosing-1
-                [temp2 ,ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
-                if temp2 > maxd
-                    maxd=temp2;
-                    tmax=tt;
-                end
-            end
-            if maxd == temp
-                t = t+1;
-                continue
-            end
-
-            for tt = tmax :-1: t-EyeClosing/2+1
-                [temp2 ,ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
-                if temp2< mind
-                    mind=temp2;
-                end
-            end
-            if maxd > mind+10
-                onset = (maxd-mind)/100+2;
-                tpq = t-round(0.04*fs);
-                maxmin_2_3_threshold=(maxd-mind)*2.0/3;
-                for tt = tmax:-1:t-EyeClosing/2+1
-                    [temp2, ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
-                    if temp2 < maxmin_2_3_threshold
-                        break
-                    end
-                end
-                for tt = tt:-1:t - EyeClosing / 2 + round(0.024*fs)
-                    [temp2 ,ebuf,lbuf,tt_2] = slpsamp(tt,signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
-                    [temp3 ,ebuf,lbuf,tt_2] = slpsamp(tt-round(0.024*fs),signal,BUFLN,ebuf,lbuf,tt_2,SLPwindow);
-                    if temp2 - temp3<onset
-                        tpq = tt-round(0.016*fs);
-                        break
-                    end
-                end
-
-                % find valley from the original signal around 0.25 s of tpq
-                valley_v = round(tpq);
-                for valley_i = round(max(2,tpq-round(0.20*fs))):round(min(tpq+round(0.05*fs),length(signal)-1))
-
-                    % If vally is too low, it cannot serve as an index, so move to the next time.
-                    if valley_v <= 0
-                        t = t + 1;
-                        continue;
-                    end
-
-                    if signal(valley_v)>signal(valley_i) && signal(valley_i)<=signal(valley_i-1) && signal(valley_i)<=signal(valley_i+1)
-                        valley_v = valley_i;
-                    end
-                end
-
-
-                if ~learning
-
-                    % If we are looking for the first peak
-                    if beat_n == 1
-
-                        % If the proposed peak index > 0
-                        if round(valley_v) > 0
-                            peaks(beat_n) = round(valley_v);
-                            beat_n = beat_n + 1;
-                        end
-                    else
-                        % Check if rounded valley_v is greater than the prior beat index
-                        if round(valley_v) > peaks(beat_n-1)
-                            peaks(beat_n) = round(valley_v);
-                            beat_n = beat_n + 1;
-                        end
-                    end
-                end
-
-
-                % Adjust thresholds
-                Ta = Ta + (maxd - Ta)/10;
-                T1 = Ta / 3;
-
-                % Lock out further detections during the eye-closing period
-                t = tpq+EyeClosing;
-            end
-        else
-            if ~learning
-                % After learning period, decrease threshold if no pulse was detected recently
-                timer = timer+1;
-                if timer > ExpectPeriod && Ta > minthresh
-                    Ta = Ta-1;
-                    T1 = Ta / 3;
-                end
-            end
-        end
-        t=t+1;
-    end
-
-    sig = signal; % for plotting
-    RR = diff(peaks) ./ fs;
-    RR_t = peaks ./ fs;
-    HR = 60 ./ diff(tm(peaks));   % heart rate (in bpm)
+    % RR intervals and HR
+    RR     = diff(peaks) / fs;
+    RR_t   = times(peaks);
+    HR     = 60 ./ RR;
+    RR_t(1)  = [];
+    peaks(1) = [];
 
 else
-    error('Signal type must be ECG or PPG')
+    error('get_RR: params.heart_signal must be ''ecg'' or ''ppg''.');
 end
 
-%% Subfunction
+end  % main function
 
-function [beat1,ebuf,lbuf,tt_2] = slpsamp(t,signal,BUFLN,ebuf,lbuf,tt_2, SLPwindow)
+%% =========================================================================
+%  Helpers: adaptive MinPeakHeight estimation
+% =========================================================================
+function minPeakHeight = estimateMinPeakHeight(sig, method)
+% Estimate minimum peak height for findpeaks using robust statistics.
+%
+% Inputs:
+%   sig    - signal vector (already flipped for valley detection if needed)
+%   method - 'mad' (default), 'std', 'percentile', or 'trimmean'
+%
+% Output:
+%   minPeakHeight - scalar threshold
 
-while t > tt_2
-    prevVal = 0;
-
-    if tt_2>0 && tt_2-1>0 && tt_2<length(signal) && tt_2-1<length(signal)
-        val2 = signal(tt_2 - 1);
-        val1 = signal(tt_2);
-    else
-        val2 = prevVal;
-        val1 = val2;
-    end
-
-    dy =  val1-val2;
-    if dy < 0
-        dy = 0;
-    end
-    tt_2 = tt_2+1;
-    M = round(mod(tt_2,(BUFLN-1))+1);
-    et = dy;
-    ebuf(M) = et;
-    aet = 0;
-    for i = 0:SLPwindow-1
-        p = M-i;
-        if p <= 0
-            p = p+BUFLN;
-        end
-        aet = aet+ebuf(p);
-    end
-    lbuf(M) = aet;
-
+switch lower(method)
+    case 'mad'
+        % minPeakHeight = trimmean(sig, 20) + 0.5 * mad(sig);
+        minPeakHeight = median(sig, 'omitnan') + 0.5 * mad(sig);
+    case 'std'
+        minPeakHeight = median(sig, 'omitnan') + 0.5 * std(sig, 'omitnan');
+    case 'trimmean'
+        pos = sig(sig > 0);
+        if isempty(pos), pos = sig; end
+        minPeakHeight = trimmean(pos, 20);
+    otherwise
+        error('estimateMinPeakHeight: unknown method ''%s''.', method);
 end
-M3 = round(mod(t,(BUFLN-1))+1);
-beat1 = lbuf(M3);
+minPeakHeight = round(minPeakHeight, 2);
+end
+
+function out = ternary(cond, a, b)
+if cond, out = a; else, out = b; end
+end

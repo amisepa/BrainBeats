@@ -1,6 +1,5 @@
 
-% Detect R peaks from raw ECG signals and heartbeat onsets (pulse
-% waveforms) from PPG signals.
+% From physionet
 %
 % ECG:
 %   ECG signal is bandpassed filtered using a custom filter that provides
@@ -41,7 +40,7 @@
 %
 % Copyright (C), BrainBeats, Cedric Cannard, 2023
 
-function [RR, RR_t, Rpeaks, sig, tm, sign, HR] = get_RR_ori(signal, tm, params)
+function [RR, RR_t, Rpeaks, sig, tm, sign, HR] = get_RR_legacy(signal, tm, params)
 
 % Parameters
 fs = params.fs;
@@ -124,7 +123,7 @@ if strcmpi(sig_type, 'ecg')
     dffecg = diff(sig');  % (4) differentiate (one datum shorter)
     sqrecg = dffecg.*dffecg; % (5) square ecg
     intecg = filter(ones(1,int_nb_coef),1,sqrecg); % (6) integrate
-    mdfint = medfilt1(intecg,med_smooth_nb_coef);  % (7) smooth
+    mdfint = medfilt1(intecg, med_smooth_nb_coef);  % (7) smooth
     delay  = ceil(int_nb_coef/2);
     mdfint = circshift(mdfint,-delay); % remove filter delay for scanning back through ECG
 
@@ -134,7 +133,6 @@ if strcmpi(sig_type, 'ecg')
     else
         xs = sort(mdfint(fs:end));
     end
-
     max_force = [];    % to force the energy threshold value
     if isempty(max_force)
         if nSamp/fs>10
@@ -233,6 +231,8 @@ if strcmpi(sig_type, 'ecg')
     RR_t = Rpeaks ./ fs;       % RR timestamps (always ignore 1st heartbeat)
     % RR_t = cumsum(Rpeaks);        % alternative method
     HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
+    RR_t(1) = [];  % to match length of RR
+    Rpeaks(1) = []; % to match length of RR
 
     % % Visualize
     % if params.vis_cleaning
@@ -496,7 +496,9 @@ elseif strcmpi(sig_type, 'ppg')
     sig = signal; % for plotting
     RR = diff(Rpeaks) ./ fs;
     RR_t = Rpeaks ./ fs;
-    HR = 60 ./ diff(tm(Rpeaks));   % heart rate (in bpm)
+    HR = round(60 ./ diff(tm(Rpeaks)),2);   % heart rate (in bpm)
+    RR_t(1) = [];  % to match length of RR
+    Rpeaks(1) = []; % to match length of RR
 
 else
     error('Signal type must be ECG or PPG')
