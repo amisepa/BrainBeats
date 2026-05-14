@@ -77,7 +77,7 @@ plot(sig_t, sig,         'color', '#0072BD'); hold on;
 plot(RR_t,  sig(Rpeaks), '.', 'MarkerSize', 7, 'color', 'r');
 plot(NN_t,  nn_amp,      '.', 'MarkerSize', 7, 'color', [0.6350 0.0780 0.1840]);
 axis tight
-ylim([-std(sig,'omitnan')*7  std(sig,'omitnan')*7])
+ylim([-std(sig,'omitnan')*10  std(sig,'omitnan')*10])
 if strcmp(sigtype, 'ecg')
     title('Entire ECG time series + R-peaks');
     ylabel('μV');
