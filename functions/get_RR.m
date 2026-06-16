@@ -125,16 +125,16 @@ if numel(times) ~= nSamp
     error('get_RR: times must have the same number of samples as signal.');
 end
 
-% Remove NaN samples (e.g. from padding or concatenation artifacts)
-nan_mask = isnan(signal) | isnan(times);
-if any(nan_mask)
-    n_nan = sum(nan_mask);
-    warning('get_RR: removing %d NaN sample(s) (%.2f%%) from signal and times.', ...
-        n_nan, 100 * n_nan / nSamp);
-    signal = signal(~nan_mask);
-    times  = times(~nan_mask);
-    nSamp  = numel(signal);
-end
+% % Remove NaN samples (e.g. from padding or concatenation artifacts)
+% nan_mask = isnan(signal) | isnan(times);
+% if any(nan_mask)
+%     n_nan = sum(nan_mask);
+%     warning('get_RR: removing %d NaN sample(s) (%.2f%%) from signal and times.', ...
+%         n_nan, 100 * n_nan / nSamp);
+%     signal = signal(~nan_mask);
+%     times  = times(~nan_mask);
+%     nSamp  = numel(signal);
+% end
 
 polarity = [];
 

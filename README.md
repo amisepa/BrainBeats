@@ -101,9 +101,10 @@ The BrainBeats toolbox, implemented as an EEGLAB plugin, allows joint processing
 
 ## Step-by-step tutorial
 
-See our publication for a step-by-step tutorial using the sample dataset: https://www.jove.com/t/65829/brainbeats-as-an-open-source-eeglab-plugin-to-jointly-analyze-eeg
+JoVe video tutorial: https://www.jove.com/v/65829/author-spotlight-advancing-study-brain-heart-interplay-with
 
-Full-text preprint: https://www.biorxiv.org/content/10.1101/2023.06.01.543272v3.full
+JoVe publication tutorial: https://www.jove.com/t/65829/brainbeats-as-an-open-source-eeglab-plugin-to-jointly-analyze-eeg
+
 
 ## Version history
 
