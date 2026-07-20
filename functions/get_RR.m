@@ -1,16 +1,18 @@
 % Detect R-peaks from ECG signals or pulse wave onsets from PPG signals.
 %
 % ECG method (Pan-Tompkins):
-%   Zero-phase FIR bandpass filter (default 5-35 Hz) for QRS isolation.
+%   Zero-phase FIR bandpass filter (default 3-35 Hz) for QRS isolation.
 %   QRS detection via differentiation, squaring, and moving-average
 %   integration (Hann window, 150 ms, zero-phase). Energy threshold at
 %   98th percentile. Search-back recovers missed beats when an RR interval
-%   exceeds 1.5x the local median. Polarity is estimated in non-overlapping
-%   chunks (default 60s) using prctile(99) vs prctile(1), escalating to
-%   180s then the full recording if chunks are inconsistent (>15% minority);
-%   each P&T segment inherits its chunk polarity, so DC shifts between
-%   concatenated sessions are handled automatically. Each coarse peak is
-%   refined to the nearest local extremum within a 15 ms window.
+%   exceeds 1.5x the local median. Polarity is determined by a single
+%   global vote across all detected QRS segments: for each segment the
+%   dominant deflection amplitude (positive vs negative) casts a vote,
+%   and the majority sets the global polarity (medical standard, consistent
+%   with Pan-Tompkins). An adaptive chunked mode is available for
+%   concatenated recordings with DC shifts between sessions (see
+%   params.ecg_adaptive_pol). Each coarse peak is refined to the nearest
+%   local extremum within a 15 ms window.
 %
 % PPG method:
 %   Zero-phase FIR bandpass filter (0.5-3 Hz). Detects valleys (default)
@@ -30,13 +32,21 @@
 %   .heart_signal - signal type: 'ecg' or 'ppg'
 %
 % Optional ECG params fields:
-%   .ecg_bandpass   - [hp lp] bandpass cutoffs in Hz (default: [3 35])
-%                     set to false to skip filtering (if pre-filtered externally)
-%   .ecg_peakthresh - P&T energy threshold multiplier (default: 0.2)
-%                     lower = more sensitive, higher = more conservative
-%   .ecg_searchback - enable search-back for missed beats (default: true)
-%   .ecg_refperiod  - refractory period in s; beats closer than this are
-%                     deduplicated by amplitude (default: 0.25 s)
+%   .ecg_bandpass      - [hp lp] bandpass cutoffs in Hz (default: [3 35])
+%                        set to false to skip filtering (if pre-filtered externally)
+%   .ecg_peakthresh    - P&T energy threshold multiplier (default: 0.25)
+%                        lower = more sensitive, higher = more conservative
+%   .ecg_searchback    - enable search-back for missed beats (default: true)
+%   .ecg_refperiod     - refractory period in s; beats closer than this are
+%                        deduplicated by amplitude (default: 0.35 s)
+%   .ecg_polarity      - force polarity: 1 (upright R-wave) or -1 (inverted lead)
+%                        overrides all automatic detection (default: [], auto)
+%   .ecg_adaptive_pol  - use adaptive chunked polarity instead of global QRS vote
+%                        (default: false). Useful for concatenated recordings
+%                        with DC shifts between sessions. When true, polarity is
+%                        estimated in escalating chunk sizes (nSamp/4 -> nSamp/2
+%                        -> full recording) until chunks are consistent (<30%
+%                        minority); each P&T segment inherits its chunk polarity.
 %
 % Optional PPG params fields:
 %   .ppg_bandpass      - apply bandpass filter (default: true)
@@ -60,31 +70,66 @@
 %     so that each RR interval is paired with the timestamp of its
 %     trailing peak (consistent with HRV convention).
 %   - For HEP analysis: epoch the output signal using output peaks as
-%     triggers. The signal returned is bandpass-filtered (5-35 Hz by
-%     default), suitable for direct use as HEP input.
+%     triggers. The signal returned is bandpass-filtered (3-35 Hz by
+%     default), suitable for direct use as HEP trigger input.
 %   - To skip bandpass filtering (e.g. signal already preprocessed):
 %       params.ecg_bandpass = false;
+%
+% Examples:
+%   % Basic ECG usage (medical-standard polarity, auto-detected):
+%   params.fs           = 256;
+%   params.heart_signal = 'ecg';
+%   [RR, RR_t, peaks, ecg_filt, times_s, polarity, HR] = get_RR(ecg, EEG.times, params);
+%
+%   % Force polarity manually (e.g. known inverted lead):
+%   params.ecg_polarity = -1;
+%   [RR, RR_t, peaks, ecg_filt, times_s, polarity, HR] = get_RR(ecg, EEG.times, params);
+%
+%   % Use adaptive chunked polarity for concatenated sessions:
+%   params.ecg_adaptive_pol = true;
+%   [RR, RR_t, peaks, ecg_filt, times_s, polarity, HR] = get_RR(ecg, EEG.times, params);
+%
+%   % PPG with default valley detection:
+%   params.fs           = 256;
+%   params.heart_signal = 'ppg';
+%   [RR, RR_t, peaks, ppg_filt, times_s, ~, HR] = get_RR(ppg, EEG.times, params);
+%
+%   % PPG with peak detection and custom bandpass:
+%   params.ppg_detect_mode = 'peaks';
+%   params.ppg_bandpass    = false;   % already filtered externally
+%   [RR, RR_t, peaks, ppg_filt, times_s, ~, HR] = get_RR(ppg, EEG.times, params);
 %
 % References:
 %   Pan & Tompkins (1985). IEEE Trans Biomed Eng, 32(3), 230-236.
 %   Vest et al. (2018). Physiological Measurement, 39(10).
 %
 % Changelog:
-%   v2.2 - April 2026 (Cedric Cannard)
+%   v2.3 - June 2026 
+%     ECG:
+%       - Replaced adaptive chunked polarity (default) with medical-standard
+%         global QRS-segment vote, consistent with Pan-Tompkins (1985).
+%         For each detected QRS window, positive vs negative peak amplitude
+%         determines a local vote; the majority across all beats sets the
+%         global polarity. Operates on bandpass-filtered QRS windows, making
+%         it robust to baseline wander and T/P waves.
+%       - Adaptive chunked polarity preserved as opt-in via
+%         params.ecg_adaptive_pol = true (recommended only for concatenated
+%         recordings with DC shifts between sessions).
+%       - Added params.ecg_polarity for manual polarity override (+1/-1),
+%         taking priority over all automatic detection.
+%       - Updated header documentation and added usage examples.
+%
+%   v2.2 - April 2026
 %     ECG:
 %       - Replaced single global polarity vote with adaptive chunked polarity:
-%         starts at 60s chunks, escalates to 180s then full recording if
-%         polarity is inconsistent across chunks (minority fraction >15%).
-%         Handles both DC shifts between concatenated sessions (60s chunks
-%         adapt locally) and biphasic QRS morphology where equal positive/
-%         negative amplitudes cause small chunks to flip (larger chunks
-%         stabilize the vote).
+%         starts at nSamp/4s chunks, escalates to nSamp/2 then full recording
+%         if polarity is inconsistent across chunks (minority fraction >30%).
 %       - prctile(99/1) used within each chunk for spike robustness.
 %       - Each P&T segment inherits the polarity of its chunk; polarity
 %         can flip at chunk boundaries within one recording.
 %       - Micro-refinement uses per-beat chunk polarity throughout.
 %
-%   v2.1 - April 2026 (Cedric Cannard)
+%   v2.1 - April 2026 
 %     ECG:
 %       - Fixed polarity detection: replaced fragile QRS-ordinal vote
 %         (idxMax < idxMin) with global amplitude comparison (|max| vs
@@ -94,7 +139,7 @@
 %       - Simplified peak localization loop.
 %
 %   v2.0 - April 2026 (Cedric Cannard)
-%       - Replaced ecg_highpass with ecg_bandpass ([hp lp] Hz, default [5 35]).
+%       - Replaced ecg_highpass with ecg_bandpass ([hp lp] Hz, default [3 35]).
 %       - Replaced causal integration filter with zero-phase filtfilt (Hann window).
 %       - Removed medfilt1 smoothing step.
 %       - Fixed HR output length.
@@ -125,37 +170,32 @@ if numel(times) ~= nSamp
     error('get_RR: times must have the same number of samples as signal.');
 end
 
-% % Remove NaN samples (e.g. from padding or concatenation artifacts)
-% nan_mask = isnan(signal) | isnan(times);
-% if any(nan_mask)
-%     n_nan = sum(nan_mask);
-%     warning('get_RR: removing %d NaN sample(s) (%.2f%%) from signal and times.', ...
-%         n_nan, 100 * n_nan / nSamp);
-%     signal = signal(~nan_mask);
-%     times  = times(~nan_mask);
-%     nSamp  = numel(signal);
-% end
-
 polarity = [];
-
 %=========================================================================
 %  ECG - Pan-Tompkins QRS detector
 %=========================================================================
 if strcmpi(sig_type, 'ecg')
 
     % --- Default parameters -------------------------------------------
-    bp_cutoff   = [3 35];   % bandpass [hp lp] Hz
-    peakThresh  = 0.2;      % P&T energy threshold multiplier
-    search_back = true;     % search-back for missed beats
-    ref_period  = 0.25;     % refractory period (s)
+    bp_cutoff        = [3 35];   % bandpass [hp lp] Hz
+    peakThresh       = 0.35;      % P&T energy threshold multiplier
+    search_back      = true;     % search-back for missed beats
+    ref_period       = 0.25;     % refractory period (s)
+    ecg_polarity     = [];       % [] = auto; 1 = force positive; -1 = force negative
+    adaptive_pol     = false;    % false = medical-standard global vote (default)
+                                 % true  = adaptive chunked polarity (legacy)
 
-    if isfield(params, 'ecg_bandpass')  && numel(params.ecg_bandpass) == 2, bp_cutoff   = params.ecg_bandpass;  end
-    if isfield(params, 'ecg_peakthresh'),  peakThresh  = params.ecg_peakthresh; end
-    if isfield(params, 'ecg_searchback'),  search_back = params.ecg_searchback; end
-    if isfield(params, 'ecg_refperiod'),   ref_period  = params.ecg_refperiod;  end
+    if isfield(params, 'ecg_bandpass')     && numel(params.ecg_bandpass) == 2, bp_cutoff   = params.ecg_bandpass;  end
+    if isfield(params, 'ecg_peakthresh'),    peakThresh  = params.ecg_peakthresh; end
+    if isfield(params, 'ecg_searchback'),    search_back = params.ecg_searchback; end
+    if isfield(params, 'ecg_refperiod'),     ref_period  = params.ecg_refperiod;  end
+    if isfield(params, 'ecg_adaptive_pol'),  adaptive_pol = params.ecg_adaptive_pol; end
+    if isfield(params, 'ecg_polarity') && ~isempty(params.ecg_polarity)
+        ecg_polarity = sign(params.ecg_polarity);
+    end
     % ------------------------------------------------------------------
 
-    % Bandpass filter for ECG
+    % Bandpass filter
     if isfield(params, 'ecg_bandpass') && isequal(params.ecg_bandpass, false)
         fprintf('  Bandpass filter: skipped (pre-filtered externally)\n');
     else
@@ -163,7 +203,7 @@ if strcmpi(sig_type, 'ecg')
         non_finite = ~isfinite(signal);
         if any(non_finite)
             n_bad = sum(non_finite);
-            warning('get_RR: %d non-finite samples (%.2f%%) — interpolating before filtering.', ...
+            warning('get_RR: %d non-finite samples (%.2f%%) - interpolating before filtering.', ...
                 n_bad, 100 * n_bad / numel(signal));
             t      = (1:numel(signal))';
             signal = interp1(t(~non_finite), signal(~non_finite), t, 'pchip', 'extrap');
@@ -235,86 +275,141 @@ if strcmpi(sig_type, 'ecg')
     end
 
     % -----------------------------------------------------------------
-    % Adaptive polarity: escalating chunk size + per-beat assignment.
+    % Polarity detection
     %
-    % Polarity is estimated in non-overlapping chunks using prctile(99)
-    % vs prctile(1) — large windows make this robust against spikes.
-    % Each P&T segment inherits the polarity of its chunk, allowing the
-    % detector to handle DC shifts between concatenated sessions.
-    %
-    % If polarity is inconsistent across chunks (minority fraction >15%),
-    % the chunk size is escalated (60s -> 180s -> full recording). This
-    % handles subjects with biphasic QRS morphology where positive and
-    % negative deflections have similar amplitude, causing small chunks
-    % to flip polarity arbitrarily. Larger chunks average over more beats
-    % and produce a stable majority vote.
-    %
-    % Consistency threshold: if >15% of chunks vote against the majority,
-    % the current chunk size is considered unreliable and escalated.
+    % Priority order:
+    %   1. params.ecg_polarity: manual override (+1 or -1), skips all detection.
+    %   2. params.ecg_adaptive_pol = true: adaptive chunked polarity (legacy
+    %      mode, useful for concatenated sessions with DC shifts between them).
+    %   3. Default (medical standard, P&T): single global vote across all
+    %      detected QRS segments. For each segment, the dominant deflection
+    %      (positive vs negative peak amplitude) determines the local vote;
+    %      the majority across all beats sets the global polarity. This is
+    %      robust to baseline wander and T/P waves because it operates on
+    %      the bandpass-filtered QRS windows themselves, not the raw signal.
     % -----------------------------------------------------------------
-    chunk_sizes    = [ floor(nSamp/fs/4), floor(nSamp/fs/2), Inf];   % seconds: try in order, Inf = whole file
-    inconsist_thr  = 0.3;             % escalate if minority fraction > this
 
-    chunk_pol = [];
-    chunk_n   = 0;
-    used_chunk_s = NaN;
+    if ~isempty(ecg_polarity)
+        % 1. Manual override
+        pol_seg = repmat(ecg_polarity, 1, nb_peaks);
+        fprintf('  Polarity: forced %s (params.ecg_polarity = %d)\n', ...
+            ternary(ecg_polarity > 0, 'positive', 'negative'), ecg_polarity);
 
-    for cs = chunk_sizes
-        if isinf(cs)
-            chunk_n  = nSamp;
-            n_chunks = 1;
-        else
-            chunk_n  = round(cs * fs);
-            n_chunks = max(1, floor(nSamp / chunk_n));
+    elseif adaptive_pol
+        % 2. Adaptive chunked polarity (legacy)
+        chunk_sizes   = [floor(nSamp/fs/4), floor(nSamp/fs/2), Inf];
+        inconsist_thr = 0.3;
+        chunk_pol     = [];
+        chunk_n       = 0;
+        used_chunk_s  = NaN;
+
+        for cs = chunk_sizes
+            if isinf(cs)
+                chunk_n  = nSamp;
+                n_chunks = 1;
+            else
+                chunk_n  = round(cs * fs);
+                n_chunks = max(1, floor(nSamp / chunk_n));
+            end
+
+            chunk_pol = zeros(1, n_chunks);
+            for c = 1:n_chunks
+                i1  = (c-1) * chunk_n + 1;
+                i2  = min(c * chunk_n, nSamp);
+                seg = signal(i1:i2);
+                seg_hi = prctile(seg, 99);
+                seg_lo = prctile(seg,  1);
+                chunk_pol(c) = sign(abs(seg_hi) - abs(seg_lo));
+                if chunk_pol(c) == 0, chunk_pol(c) = 1; end
+            end
+
+            n_minority    = sum(chunk_pol ~= mode(chunk_pol));
+            minority_frac = n_minority / n_chunks;
+
+            if isinf(cs)
+                used_chunk_s = Inf;
+                break;
+            elseif minority_frac <= inconsist_thr
+                used_chunk_s = cs;
+                break;
+            else
+                fprintf('  Polarity inconsistent at %ds chunks (%.0f%% minority) - escalating\n', ...
+                    cs, 100 * minority_frac);
+            end
         end
 
-        chunk_pol = zeros(1, n_chunks);
+        n_pos_chunks = sum(chunk_pol > 0);
+        n_neg_chunks = sum(chunk_pol < 0);
+        if isinf(used_chunk_s)
+            fprintf('  Chunk polarity (full recording): %d/%d positive, %d/%d negative\n', ...
+                n_pos_chunks, n_chunks, n_neg_chunks, n_chunks);
+        else
+            fprintf('  Chunk polarity (%ds): %d/%d positive, %d/%d negative\n', ...
+                used_chunk_s, n_pos_chunks, n_chunks, n_neg_chunks, n_chunks);
+        end
+
+        seg_mid = round((left + right) / 2);
+        pol_seg = ones(1, nb_peaks);
         for c = 1:n_chunks
-            i1  = (c-1) * chunk_n + 1;
-            i2  = min(c * chunk_n, nSamp);
-            seg = signal(i1:i2);
-            seg_hi = prctile(seg, 99);
-            seg_lo = prctile(seg,  1);
-            chunk_pol(c) = sign(abs(seg_hi) - abs(seg_lo));
-            if chunk_pol(c) == 0, chunk_pol(c) = 1; end
+            i1 = (c-1) * chunk_n + 1;
+            i2 = min(c * chunk_n, nSamp);
+            in_chunk = seg_mid >= i1 & seg_mid <= i2;
+            pol_seg(in_chunk) = chunk_pol(c);
         end
 
-        n_minority = sum(chunk_pol ~= mode(chunk_pol));
-        minority_frac = n_minority / n_chunks;
-
-        if isinf(cs)
-            used_chunk_s = Inf;
-            break;  % last resort — always accept
-        elseif minority_frac <= inconsist_thr
-            used_chunk_s = cs;
-            break;  % consistent enough — use this chunk size
-        else
-            fprintf('  Polarity inconsistent at %ds chunks (%.0f%% minority) — escalating\n', ...
-                cs, 100 * minority_frac);
-        end
-    end
-
-    n_pos_chunks = sum(chunk_pol > 0);
-    n_neg_chunks = sum(chunk_pol < 0);
-    if isinf(used_chunk_s)
-        fprintf('  Chunk polarity (full recording): %d/%d positive, %d/%d negative\n', ...
-            n_pos_chunks, n_chunks, n_neg_chunks, n_chunks);
     else
-        fprintf('  Chunk polarity (%ds): %d/%d positive, %d/%d negative\n', ...
-            used_chunk_s, n_pos_chunks, n_chunks, n_neg_chunks, n_chunks);
+        % 3. Medical-standard global vote (default): one vote per QRS segment
+        % % Based on amplitude:
+        votes = zeros(1, nb_peaks);
+        for i = 1:nb_peaks
+            seg       = signal(left(i):right(i));
+            peak_pos  = max(seg);
+            peak_neg  = abs(min(seg));
+            votes(i)  = sign(peak_pos - peak_neg);
+            if votes(i) == 0, votes(i) = 1; end
+        end
+        pol_global = sign(sum(votes));
+        if pol_global == 0, pol_global = 1; end
+        pol_seg    = repmat(pol_global, 1, nb_peaks);
+        fprintf('  Polarity: %s (global QRS vote, %d/%d segments)\n', ...
+            ternary(pol_global > 0, 'positive', 'negative'), ...
+            sum(votes == pol_global), nb_peaks);
+
+        % Sometimes S is bigger than R, leading to incorrect R-peak detections.
+        % R always comes before S regardless of their relative amplitudes, 
+        % so timing can be more robust than amplitude comparison:
+        % votes = zeros(1, nb_peaks);
+        % for i = 1:nb_peaks
+        %     seg          = signal(left(i):right(i));
+        %     [~, idx_pos] = max(seg);
+        %     [~, idx_neg] = min(seg);
+        %     % Upright QRS: positive R-peak precedes negative S-trough
+        %     votes(i) = sign(idx_neg - idx_pos);
+        %     if votes(i) == 0, votes(i) = 1; end
+        % end
+        % pol_global = sign(sum(votes));
+        % if pol_global == 0, pol_global = 1; end
+        % pol_seg    = repmat(pol_global, 1, nb_peaks);
+        % fprintf('  Polarity: %s (timing-based QRS vote, %d/%d segments)\n', ...
+        %     ternary(pol_global > 0, 'positive', 'negative'), ...
+        %     sum(votes == pol_global), nb_peaks);
     end
 
-    % Assign each P&T segment the polarity of its chunk
-    seg_mid = round((left + right) / 2);
-    pol_seg = ones(1, nb_peaks);
-    for c = 1:n_chunks
-        i1 = (c-1) * chunk_n + 1;
-        i2 = min(c * chunk_n, nSamp);
-        in_chunk = seg_mid >= i1 & seg_mid <= i2;
-        pol_seg(in_chunk) = chunk_pol(c);
-    end
+    % Auto-flip inverted signal so R-peaks are always positive.
+    % Applies to all polarity modes. Disable with params.ecg_flip_signal = false.
+    flip_signal = true;
+    if isfield(params, 'ecg_flip_signal'), flip_signal = params.ecg_flip_signal; end
 
-    % Peak localization: max or min of each P&T segment per its chunk polarity
+    pol_majority = sign(sum(pol_seg));
+    if pol_majority == 0, pol_majority = 1; end
+
+    if pol_majority < 0 && flip_signal
+        signal   = -signal;
+        pol_seg(:) = 1;
+        fprintf('  Signal flipped: inverted lead corrected to positive polarity\n');
+    end
+    
+    % Peak localization: max or min of each P&T segment per its polarity
     peaks = zeros(1, nb_peaks);
     pkval = zeros(1, nb_peaks);
     for i = 1:nb_peaks
@@ -328,7 +423,7 @@ if strcmpi(sig_type, 'ecg')
     end
 
     polarity = median(pkval);
-    pol      = sign(median(pol_seg));  % majority — used as fallback only
+    pol      = sign(median(pol_seg));  % majority - used as fallback only
     if pol == 0, pol = 1; end
 
     % Refractory period: keep larger |amplitude| when peaks too close
@@ -346,9 +441,9 @@ if strcmpi(sig_type, 'ecg')
 
     % Micro-refinement: snap to nearest local extremum within 15 ms.
     % Uses pol_seg (per-segment polarity) aligned to the kept peaks.
-    % After refractory filtering peaks is a subset — reindex pol_seg to match.
-    pol_seg_kept = pol_seg(ord);   % reorder to match sorted peaks
-    pol_seg_kept = pol_seg_kept(keep);  % apply same keep mask
+    % After refractory filtering peaks is a subset - reindex pol_seg to match.
+    pol_seg_kept = pol_seg(ord);
+    pol_seg_kept = pol_seg_kept(keep);
     micro = max(1, round(0.015 * fs));
     for k = 1:numel(peaks)
         w1 = max(1, peaks(k) - micro);
@@ -368,6 +463,8 @@ if strcmpi(sig_type, 'ecg')
     HR      = 60 ./ RR;
     RR_t(1)  = [];
     peaks(1) = [];
+
+
 
 % =========================================================================
 %  PPG - findpeaks with adaptive threshold and distance
