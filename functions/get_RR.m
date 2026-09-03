@@ -34,11 +34,30 @@
 % Optional ECG params fields:
 %   .ecg_bandpass      - [hp lp] bandpass cutoffs in Hz (default: [3 35])
 %                        set to false to skip filtering (if pre-filtered externally)
-%   .ecg_peakthresh    - P&T energy threshold multiplier (default: 0.25)
+%   .ecg_peakthresh    - P&T energy threshold multiplier (default: 0.35)
 %                        lower = more sensitive, higher = more conservative
 %   .ecg_searchback    - enable search-back for missed beats (default: true)
 %   .ecg_refperiod     - refractory period in s; beats closer than this are
-%                        deduplicated by amplitude (default: 0.35 s)
+%                        deduplicated by amplitude (default: 0.25 s)
+%
+%   /!\ THESE TWO DEFAULTS WERE TRANSPOSED IN THIS HEADER UNTIL 2026-08-28.
+%       It read peakthresh 0.25 / refperiod 0.35, while the code below has
+%       always assigned peakthresh 0.35 (line ~182) and refperiod 0.25
+%       (line ~183). The CODE is what ran, so 0.35 / 0.25 are the values
+%       behind every peak train this function has ever produced. Corrected
+%       in the header, deliberately -- NOT in the code.
+%
+%   /!\ DO NOT "RESTORE" refperiod TO 0.35 s WITHOUT RE-VALIDATING. On a slow
+%       heart the T-wave can fall BETWEEN the two values -- e.g. a recording
+%       with the T at ~348 ms after R, inside 0.35 s and outside 0.25 s -- so
+%       0.35 s would dedupe a real beat against its own T-wave and delete one
+%       of the pair. It would also shift peaks on ordinary recordings and
+%       invalidate any validation against existing trains. Note this parameter
+%       is NOT what keeps T-waves out: the Pan-Tompkins energy front end
+%       (differentiate, square, 150 ms Hann integration, 98th-percentile
+%       threshold) leaves the low-slope T below threshold, which is why get_RR
+%       is robust where gradient-based detectors are not. Lowering peakthresh
+%       to 0.25 would likewise admit more candidates, not fewer.
 %   .ecg_polarity      - force polarity: 1 (upright R-wave) or -1 (inverted lead)
 %                        overrides all automatic detection (default: [], auto)
 %   .ecg_adaptive_pol  - use adaptive chunked polarity instead of global QRS vote

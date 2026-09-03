@@ -178,6 +178,45 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         %     CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',3);
         % end
 
+        % Flag bad portions of the cardiovascular signal before peak detection
+        % ------------------------------------------------------------------
+        % DETECT_ECG_ARTIFACTS marks the stretches get_RR should never see
+        % (muscle bursts, cable movement, electrode pull, non-finite samples).
+        % Whatever is cut from CARDIO must be cut from EEG over the same time
+        % range, or the R-peak markers inserted later land on the wrong EEG
+        % samples. Optional, and it shortens the recording, so it is left
+        % commented: uncomment to use.
+        %
+        % % 1) Flag. HFthresh 15 catches gross artifacts only (5 is stricter);
+        % %    AmpThresh 6 adds slow movement, Inf leaves that mask off.
+        % [~, bad_seg] = detect_ecg_artifacts(CARDIO, 'HFthresh',15, ...
+        %     'AmpThresh',6, 'Plot',true);
+        %
+        % if ~isempty(bad_seg)
+        %     % 2) The same time ranges in EEG samples. Identical to bad_seg in
+        %     %    HEP-mode, where CARDIO was resampled to EEG.srate above.
+        %     bad_sec = [bad_seg(:,1)-1, bad_seg(:,2)] / CARDIO.srate;
+        %     seg_eeg = [round(bad_sec(:,1)*EEG.srate)+1, round(bad_sec(:,2)*EEG.srate)];
+        %     seg_eeg(:,2) = min(seg_eeg(:,2), EEG.pnts);
+        %
+        %     % 3) Record which samples survive, so VIS_ARTIFACTS can put the
+        %     %    cleaned data back on the original time axis to compare.
+        %     EEG_before = EEG;
+        %     EEG.etc.clean_sample_mask = true(1,EEG.pnts);
+        %     for iSeg = 1:size(seg_eeg,1)
+        %         EEG.etc.clean_sample_mask(seg_eeg(iSeg,1):seg_eeg(iSeg,2)) = false;
+        %     end
+        %
+        %     % 4) Cut both. pop_select shifts event latencies and drops the
+        %     %    events that fall inside the removed ranges.
+        %     EEG    = pop_select(EEG, 'nopoint', seg_eeg);
+        %     CARDIO = pop_select(CARDIO, 'nopoint', bad_seg);
+        %
+        %     % 5) Inspect: the removed stretches show as gaps against the
+        %     %    original. Press 'd' in the figure for the difference view.
+        %     vis_artifacts(EEG, EEG_before);
+        % end
+
         % Get RR and NN intervals from ECG/PPG signals
         % note: when several electrodes are provided, use the elec with best
         % quality for subsequent analysis. Structures are used to avoid issues
