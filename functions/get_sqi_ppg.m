@@ -690,11 +690,9 @@ y2modify=y;
 % ylength=min(y,y1);
 [S,R] = size(y);
 [R2,Q] = size(y1);
-if R ~= R2
-    difference=dist(y,y1');
-else
-    difference=dist(y,y1);
-end
+% Euclidean distance between the two beats (was dist(), which needs the
+% Deep Learning Toolbox; for two vectors it is exactly this norm)
+difference = norm(y(:) - y1(:));
     
 meany1=sqrt(sum(y1.^2));
 r=difference/meany1;
