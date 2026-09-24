@@ -229,6 +229,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
             % [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR_legacy(signal(iElec,:), CARDIO.times, params);
             [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), ~, hr] = get_RR(signal(iElec,:), CARDIO.times, params);
+            HR.(elec) = hr;   % keep per electrode: beat counts differ across electrodes
 
             % % Fix values if PPG had a different sampling rate than EEG (this
             % should now be avoided by resampling above, but just in case)
@@ -248,24 +249,26 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
             maxThresh = 20; % max portion of artifacts (20% default from Vest et al. 2019)
             if strcmpi(params.heart_signal, 'ecg')
-                sqi(iElec,:) = get_sqi_ecg(Rpeaks.(elec), signal(iElec,:), params.fs);
+                sqi.(elec) = get_sqi_ecg(Rpeaks.(elec), signal(iElec,:), params.fs);
             elseif strcmpi(params.heart_signal, 'ppg')
-                [sqi(iElec,:),~,annot] = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs);
+                [sqi.(elec),~,annot] = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs);
             else
                 errdlg("Heart channel should be either 'ECG' or 'PPG' ")
             end
-            SQI_mu(iElec,:) = round(mean(sqi(iElec,:), 'omitnan'),2);
-            SQI_badRatio(iElec,:) = round(sum(sqi(iElec,:) < SQIthresh) / length(sqi(iElec,:))*100,1);
-            if SQI_mu(iElec,:) < .9
-                warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9. See Vest et al. (2017) for more detail. \n",  SQI_mu(iElec,:))
+            % per-electrode structs: beat counts differ across electrodes, so
+            % SQI values cannot share one numeric array
+            SQI_mu.(elec) = round(mean(sqi.(elec), 'omitnan'),2);
+            SQI_badRatio.(elec) = round(sum(sqi.(elec) < SQIthresh) / length(sqi.(elec))*100,1);
+            if SQI_mu.(elec) < .9
+                warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9. See Vest et al. (2017) for more detail. \n",  SQI_mu.(elec))
             else
-                fprintf("Mean SQI is within recommendations (>0.9): %g\n",  SQI_mu(iElec,:));
+                fprintf("Mean SQI is within recommendations (>0.9): %g\n",  SQI_mu.(elec));
             end
-            if SQI_badRatio(iElec,:) > 20
-                warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
-                warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh),'Signal quality warning 1')
+            if SQI_badRatio.(elec) > 20
+                warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio.(elec), maxThresh)
+                warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio.(elec), maxThresh),'Signal quality warning 1')
             else
-                fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio(iElec,:), maxThresh)
+                fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio.(elec), maxThresh)
             end
 
             % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
@@ -273,7 +276,9 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
             % [NN.(elec), NN_t.(elec), Npeaks.(elec), idx_bad.(elec)] = clean_rr_legacy(RR_t.(elec), RR.(elec), Rpeaks.(elec), params); % from physionet (legacy)
             [nn, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(RR_t.(elec), RR.(elec),  sig(iElec, Rpeaks.(elec)), Rpeaks.(elec), ...
                 'interpolate_missing', true, 'ecg_signal', sig(iElec,:), 'sig_t', CARDIO.times, 'fs', params.fs);
-            flaggedRatio.(elec) = idx_bad.(elec) / length(idx_bad.(elec)) *100; 
+            flaggedRatio.(elec) = sum(idx_bad) / length(idx_bad) * 100;   % idx_bad is a logical vector
+            Npeaks.(elec) = nPeaks;
+            NN.(elec) = nn;  NN_t.(elec) = nn_t;   % clean_rr returns lowercase locals
         end
         
         % Keep only ECG data of electrode with the lowest number of RR
@@ -284,6 +289,7 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         % badRR = idx_bad.(elec);
         sig_t = sig_t(best_elec,:);
         sig = sig(best_elec,:);
+        HR = HR.(elec);
         RR = RR.(elec);
         RR_t = RR_t.(elec);
         RR_t(1) = [];       % always ignore 1st hearbeat
@@ -295,8 +301,8 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         NN_t(1) = [];
         NN = NN.(elec);
         % pol = pol.(elec); % ECG signal polarity
-        SQI_mu = SQI_mu(best_elec,:);
-        SQI_badRatio = SQI_badRatio(best_elec,:);
+        SQI_mu = SQI_mu.(elec);
+        SQI_badRatio = SQI_badRatio.(elec);
         % idx_rem = idx_rem.(elec);
         % idx_interp = idx_interp.(elec);
         if flaggedRatio > 0
