@@ -1,5 +1,6 @@
 % RUN_HEP - Epoch EEG data around heartbeats for heartbeat-evoked potential
-% (HEP) and heartbeat-related spectral perturbation (HRSP) analyses.
+% (HEP), heartbeat-related spectral perturbation (HRSP) and phase coupling
+% (HEPC) analyses.
 %
 % Steps:
 %   1. Epoch window: params.hep_window in ms (default [-300 600]), or
@@ -13,12 +14,20 @@
 %      (boundary events are kept, so epochs spanning a data gap are dropped).
 %   4. If params.clean_eeg, remove bad epochs and artifactual ICA components
 %      (see CLEAN_EEG), then crop the epochs to the window.
-%   5. If params.hep_baseline is 'regression', regression-based baseline
+%   5. HRSP and HEPC (params.hep_tf: all channels, in HEP.brainbeats.hrsp;
+%      otherwise only the plotted channel) and the surrogate heartbeat
+%      control (params.hep_surrogates: number of surrogates, results in
+%      HEP.brainbeats.surrogate), see COMPUTE_HEP_TF. They are computed from
+%      the continuous data at the heartbeats of the final epochs; with
+%      params.clean_eeg, the continuous data get the same cleaning as the
+%      epochs (linear map estimated from the epochs before and after it).
+%   6. If params.hep_baseline is 'regression', regression-based baseline
 %      correction (Alday, 2019; see BASELINE_REGRESSION). Otherwise no
 %      baseline correction, since the pre-R-peak window contains activity
 %      from the previous cardiac cycle.
-%   6. Plot (params.vis_outputs; HEP, ERP image and HRSP on the padded
-%      epochs) and save (params.save, as <filename>_HEP.set).
+%   7. Plot (params.vis_outputs: HEP, ERP image, HRSP/HEPC and, with
+%      surrogates, the HEP against the surrogate range) and save
+%      (params.save, as <filename>_HEP.set).
 %
 % Usage:
 %   HEP = run_HEP(EEG, CARDIO, params, Rpeaks)
@@ -103,6 +112,8 @@ types = repmat({'R-peak'},1,length(evt));
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).latency] = evt{:};
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).type] = types{:};
 [EEG.event(1,nEv+1:nEv+length(Rpeaks)).urevent] = urevents{:};
+beatNum = num2cell(1:length(Rpeaks));
+[EEG.event(1,nEv+1:nEv+length(Rpeaks)).beat] = beatNum{:};   % to find each epoch's heartbeat again
 EEG = eeg_checkset(EEG, 'eventconsistency');   % sort events by latency
 
 % Add the heart channel back, rescaled to the EEG range (mainly to check
@@ -133,16 +144,18 @@ if params.vis_outputs
     try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % EEGLAB background color
     set(gcf,'Name','Inter-beat intervals (IBI) distribution','NumberTitle','Off','Toolbar','none','Menu','none')
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
+    finish_figure(gcf)
 end
 
 % Epoch around the R-peaks only (not around other events in the file), with
-% 650 ms of padding on each side for the time-frequency decomposition
-% (HRSP: 5-cycle wavelets at 5 Hz span 1 s)
-pad = 650;   % ms (half a 5-cycle wavelet at 5 Hz + margin)
+% 650 ms of padding on each side so that the same heartbeats can be used for
+% the time-frequency measures (3 SD of a 5-cycle wavelet at 4 Hz = 600 ms)
+pad = 650;   % ms
 HEPwide = pop_epoch(EEG,{'R-peak'},(epochWin + [-pad pad])/1000,'epochinfo','yes');
 
 % Remove bad epochs, run ICA, and remove bad components
 if params.clean_eeg
+    rawWide = HEPwide;   % to apply the same cleaning to the continuous data below
     [HEPwide, params] = clean_eeg(HEPwide,params);
     HEPwide.brainbeats.preprocessings.removed_eeg_trials = params.removed_eeg_trials;
     HEPwide.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
@@ -194,6 +207,79 @@ if isfield(params,'hep_baseline') && strcmpi(params.hep_baseline,'regression')
 end
 HEP.brainbeats.preprocessings.hep_window = epochWin;   % ms
 
+% Channel shown in the plots: Fz, else Cz, else the first channel
+elecName = 'Fz';
+elecNum = find(strcmpi({HEP.chanlocs.labels}, elecName));
+if isempty(elecNum)
+    elecName = 'Cz';
+    elecNum = find(strcmpi({HEP.chanlocs.labels}, elecName));
+    if isempty(elecNum)
+        elecNum = 1;
+        elecName = HEP.chanlocs(elecNum).labels;
+    end
+end
+
+% Time-frequency measures (HRSP, HEPC) and surrogate heartbeat control,
+% computed from the continuous data at the same heartbeats as the HEP epochs.
+% With EEG cleaning, the continuous data get the same (linear) cleaning as
+% the epochs: channel interpolation and ICA component removal, estimated
+% from the epochs before and after cleaning.
+doTF = isfield(params,'hep_tf') && params.hep_tf;
+nSurr = 0;
+if isfield(params,'hep_surrogates') && ~isempty(params.hep_surrogates), nSurr = params.hep_surrogates; end
+if doTF || nSurr > 0 || params.vis_outputs
+    heartIdx = false(1,HEP.nbchan);
+    if isfield(params,'heart_channels') && ~isempty(params.heart_channels)
+        heartIdx = ismember(lower({HEP.chanlocs.labels}), lower(params.heart_channels));
+    end
+    Xc = double(EEG.data);
+    if params.clean_eeg
+        keptTrials = setdiff(1:rawWide.trials, params.removed_eeg_trials);
+        Xr = reshape(double(rawWide.data(:,:,keptTrials)), rawWide.nbchan, []);
+        Yc = reshape(double(HEPwide.data), HEPwide.nbchan, []);
+        T = (Yc*Xr') * pinv(Xr*Xr');
+        err = norm(Yc - T*Xr, 'fro') / norm(Yc, 'fro');
+        if err > 1e-3
+            warning('The EEG cleaning of the epochs is not reproduced exactly on the continuous data (relative error %.1e).', err)
+        end
+        Xc = T * Xc;
+        clear Xr Yc
+    end
+    % continuous sample of each epoch's heartbeat
+    beatIdx = arrayfun(@(e) HEP.event(e.event(1)).beat, HEP.epoch);
+    hepBeats = Rpeaks(beatIdx);
+    bnd = [];
+    if ~isempty(EEG.event) && any(strcmp({EEG.event.type}, 'boundary'))
+        bnd = [EEG.event(strcmp({EEG.event.type}, 'boundary')).latency];
+    end
+    if doTF || nSurr > 0
+        tfChans = find(~heartIdx);        % all EEG channels
+    else
+        tfChans = elecNum;                % plotted channel only
+    end
+    tfFreqs = 4:30;
+    if isfield(params,'hep_tf_freqs') && ~isempty(params.hep_tf_freqs)
+        tfFreqs = params.hep_tf_freqs(1):params.hep_tf_freqs(end);
+    end
+    if doTF, fprintf('Computing HRSP and HEPC on %g channels... \n', numel(tfChans)); end
+    if nSurr > 0, fprintf('Surrogate heartbeat control (%g surrogates)... \n', nSurr); end
+    [tf, surr] = compute_hep_tf(Xc(tfChans,:), EEG.srate, hepBeats, epochWin, ...
+        struct('freqs',tfFreqs, 'nSurr',nSurr, 'boundaries',bnd, 'tf', doTF || params.vis_outputs, ...
+        'hep_times',HEP.times));
+    tf.channels = {HEP.chanlocs(tfChans).labels};
+    if doTF
+        HEP.brainbeats.hrsp = rmfield(tf, 'hep');
+    end
+    if nSurr > 0
+        surr.channels = tf.channels;
+        surr.times = tf.times; surr.hep_times = tf.hep_times; surr.freqs = tf.freqs;
+        surr.hep.real = tf.hep;   % HEP of the same heartbeats (from the continuous data)
+        HEP.brainbeats.surrogate = surr;
+        fprintf('Surrogate control: %g/%g HEP points (channels x latencies) differ from the surrogates (FDR-corrected p < .05). \n', ...
+            sum(surr.hep.p_fdr(:) < .05), numel(surr.hep.p_fdr))
+    end
+end
+
 
 %% Plot heartbeat-evoked potentials (HEP) and heartbeat-related spectral
 % perturbations (HRSP). HEP effects are usually reported 200-600 ms after
@@ -204,6 +290,7 @@ if params.vis_outputs
     if params.vis_cleaning
         pop_eegplot(HEP,1,1,1);
         set(gcf,'Name','Final output','NumberTitle','Off','Toolbar','none','Menu','none');
+        finish_figure(gcf)
     end
 
     % Trimmed-mean HEP at each electrode (click on one to enlarge it)
@@ -215,6 +302,7 @@ if params.vis_outputs
     try icadefs; set(gcf, 'color', BACKCOLOR); catch; end
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
     set(gcf,'Toolbar','none','Menu','none');
+    finish_figure(gcf)
 
     % Average HEP of all channels
     figure
@@ -242,41 +330,55 @@ if params.vis_outputs
             'Heartbeat-evoked potentials (HEP) - all electrodes','verbose','off');
     end
 
-    % Single-trial HEPs over time (ERP image) at Fz, else Cz, else the first channel
-    elecName = 'Fz';
-    elecNum = find(strcmpi({HEP.chanlocs.labels}, elecName));
-    if isempty(elecNum)
-        elecName = 'Cz';
-        elecNum = find(strcmpi({HEP.chanlocs.labels}, elecName));
-        if isempty(elecNum)
-            elecNum = 1;
-            elecName = HEP.chanlocs(elecNum).labels;
-        end
-    end
+    % Single-trial HEPs over time (ERP image), with the surrogate 95% envelope
     subplot(2,1,2)
     pop_erpimage(HEP,1, elecNum,[],sprintf('Heartbeat-evoked potentials (HEP) over time for channel %s',elecName), ...
         10,1,{'R-peak'},[],'','yerplabel','\muV','erp','on','cbar','on' );
     colormap("parula")
     set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
     set(gcf,'Name','HEP','NumberTitle','Off')
+    finish_figure(gcf)
 
-    % HRSP and inter-trial coherence at the same channel (Lee et al., 2024):
-    % 5-cycle Morlet wavelets, 5-20 Hz in 1-Hz steps, computed on the padded
-    % epochs so the whole window is free of edge effects. Power is expressed
-    % in dB relative to its mean over the whole epoch window (cardiac cycle),
-    % since the pre-R-peak window is not a neutral baseline (it holds the
-    % previous cycle and, once smeared by the wavelets, the QRS).
-    % Bootstrap statistics, FDR-corrected.
+    if nSurr > 0
+        iS = find(strcmp(surr.channels, elecName));
+        figure('color','w'); hold on
+        fill([surr.hep_times fliplr(surr.hep_times)], [surr.hep.null_lo(iS,:) fliplr(surr.hep.null_hi(iS,:))], ...
+            [.8 .8 .8], 'EdgeColor','none');
+        plot(surr.hep_times, tf.hep(iS,:), 'k', 'LineWidth', 2);
+        sig = surr.hep.p_fdr(iS,:) < .05;
+        plot(surr.hep_times(sig), tf.hep(iS,sig), 'r.', 'MarkerSize', 12);
+        xline(0,'k--'); xlabel('Latency (ms)'); ylabel('Potential (µV)');
+        title(sprintf('HEP at %s vs %g surrogate heartbeat trains (gray: 95%% of surrogates; red: FDR p < .05)', elecName, nSurr));
+        set(gcf,'Name','HEP surrogate control','NumberTitle','Off')
+        finish_figure(gcf)
+    end
+
+    % HRSP and HEPC at the same channel: 5-cycle Morlet wavelets, 4-30 Hz,
+    % power in dB relative to its mean over the cardiac cycle (the pre-R-peak
+    % window is not a neutral baseline: it holds the previous cycle and, once
+    % smeared by the wavelets, the QRS). Contours: FDR-corrected p < .05
+    % against the surrogates, if the surrogate control was computed.
+    iT = find(strcmp(tf.channels, elecName));
     figure('color','w');
-    tout = epochWin(1):10:epochWin(2);
-    pop_newtimef(HEPwide,1,elecNum,[HEPwide.times(1) HEPwide.times(end)],5, ...
-        'freqs',[5 20],'nfreqs',16,'freqscale','linear','timesout',tout, ...
-        'baseline',epochWin,'plotphase','off','padratio',2, ...
-        'alpha',0.05,'mcorrect','fdr','naccu',1000, ...
-        'caption',sprintf('HRSP - channel %s (p = 0.05, FDR-corrected)',elecName));
+    subplot(1,2,1)
+    imagesc(tf.times, tf.freqs, squeeze(tf.hrsp(iT,:,:))); axis xy
+    lim = max(abs(tf.hrsp(iT,:)),[],'all'); set(gca,'CLim',[-lim lim]); colorbar
+    xline(0,'k--'); xlabel('Latency (ms)'); ylabel('Frequency (Hz)');
+    title(sprintf('HRSP at %s (dB)', elecName))
+    subplot(1,2,2)
+    imagesc(tf.times, tf.freqs, squeeze(tf.hepc(iT,:,:))); axis xy; colorbar
+    xline(0,'k--'); xlabel('Latency (ms)'); ylabel('Frequency (Hz)');
+    title(sprintf('HEPC at %s (pairwise phase consistency)', elecName))
+    if nSurr > 0
+        iS = find(strcmp(surr.channels, elecName));
+        subplot(1,2,1); hold on
+        contour(tf.times, tf.freqs, double(squeeze(surr.hrsp.p_fdr(iS,:,:)) < .05), [.5 .5], 'k', 'LineWidth', 1.5);
+        subplot(1,2,2); hold on
+        contour(tf.times, tf.freqs, double(squeeze(surr.hepc.p_fdr(iS,:,:)) < .05), [.5 .5], 'k', 'LineWidth', 1.5);
+    end
     colormap("parula")
-    set(gcf,'Toolbar','none','Menu','none');
-    set(gcf,'Name','Heartbeat-related spectral perturbations (HRSP) and ITC','NumberTitle','Off')
+    set(gcf,'Name','Heartbeat-related spectral perturbations (HRSP) and phase coupling (HEPC)','NumberTitle','Off')
+    finish_figure(gcf)
 
 end
 

@@ -194,6 +194,27 @@ if params.heart
         end
     end
 
+    % HEP time-frequency measures (HRSP, HEPC) for all channels, and the
+    % surrogate heartbeat control (number of surrogates, 0 = none)
+    idx = find(strcmpi(varargin,'hep_tf'));
+    if ~isempty(idx)
+        params.hep_tf = logical(varargin{idx+1});
+    end
+    idx = find(strcmpi(varargin,'hep_tf_freqs'));
+    if ~isempty(idx)
+        params.hep_tf_freqs = varargin{idx+1};
+        if ~isnumeric(params.hep_tf_freqs) || numel(params.hep_tf_freqs) ~= 2 || params.hep_tf_freqs(1) < 1
+            error("'hep_tf_freqs' must be [low high] in Hz (e.g. [4 30]).")
+        end
+    end
+    idx = find(strcmpi(varargin,'hep_surrogates'));
+    if ~isempty(idx)
+        params.hep_surrogates = varargin{idx+1};
+        if ~isscalar(params.hep_surrogates) || params.hep_surrogates < 0
+            error("'hep_surrogates' must be the number of surrogates (e.g. 100), or 0 for none.")
+        end
+    end
+
     % PPG pulse arrival time, to shift PPG beats back to the heartbeat for
     % HEP: a delay in ms, or the label of an ECG channel to estimate it from
     idx = find(strcmpi(varargin,'ppg_transit'));

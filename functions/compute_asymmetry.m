@@ -98,6 +98,7 @@ if vis
         headplotparams = { 'meshfile','mheadnew.mat','transform',[0.664455 -3.39403 -14.2521 -0.00241453 0.015519 -1.55584 11 10.1455 12],'material','metal' };
         headplot('setup',chanlocs(pairNums(:,1)),'tmp.spl',headplotparams{:}); % Generate temporary spline file
         headplot(asy,'tmp.spl','view',[-85 20],headplotparams{:});  % 3D headplot of asymmetry
+        finish_figure(gcf)
         title('Alpha asymmetry')
     catch
         warning("Sorry, 3D headplot failed. Could be because the mesh file was not on the path if using this function outside of BrainBeats.")

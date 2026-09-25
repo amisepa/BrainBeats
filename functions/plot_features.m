@@ -27,6 +27,7 @@ function plot_features(Features,params)
 % Copyright (C) - Cedric Cannard, 2023
 
 disp('Plotting features...')
+figs0 = findall(groot, 'Type', 'figure');   % figures open before
 
 % Fill in any missing params from the features themselves (useful when users
 % have computed features and want to replot them without redefining all the
@@ -298,3 +299,7 @@ if params.eeg_features && params.eeg_frequency
         warning('Failed to plot the 3D headplot of alpha asymmetry. This may happen if your EEG data are low-density (i.e., few EEG channels only)')
     end
 end
+
+% Draw all the figures created here
+figs = findall(groot, 'Type', 'figure');
+finish_figure(figs(~ismember(figs, figs0)))

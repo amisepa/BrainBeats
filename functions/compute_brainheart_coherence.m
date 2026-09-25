@@ -82,6 +82,7 @@ coherence.channels = {EEG.chanlocs.labels};
 if params.vis_outputs
 
     disp("Plotting brain-heart coherence outputs...")
+    figs0 = findall(groot, 'Type', 'figure');   % figures open before
 
     cardio_chan = strcmpi({EEG.chanlocs.labels},params.heart_channels);
     maxfreq = 40;
@@ -92,7 +93,7 @@ if params.vis_outputs
     subplot(2,2,1) % COHERENCE
     fc = squeeze(coh(cardio_chan,~cardio_chan,f<=maxfreq));  % heart row, all frequencies up to maxfreq
     imagesc(f(f<maxfreq),1:size(fc,1),fc);  % EEG channels x frequencies
-    clim([0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
     Ylabels = {EEG.chanlocs(~cardio_chan).labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
     xlabel('Frequency (Hz)');
@@ -100,7 +101,7 @@ if params.vis_outputs
     subplot(2,2,2)  % PARTIAL COHERENCE
     fc = squeeze(pcoh(cardio_chan,~cardio_chan,f<=maxfreq));
     imagesc(f(f<maxfreq),1:size(fc,1),fc);  % EEG channels x frequencies
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
     Ylabels = {EEG.chanlocs(~cardio_chan).labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
     xlabel('Frequency (Hz)');
@@ -108,7 +109,7 @@ if params.vis_outputs
     subplot(2,2,3)  % DIRECTED COHERENCE
     fc = squeeze(dc(cardio_chan,~cardio_chan,f<=maxfreq));  % from EEG channels to heart
     imagesc(f(f<maxfreq),1:size(fc,1),fc);  % EEG channels x frequencies
-    clim([0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     Ylabels = {EEG.chanlocs(~cardio_chan).labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
     xlabel('Frequency (Hz)');
@@ -116,7 +117,7 @@ if params.vis_outputs
     subplot(2,2,4)  % PARTIAL DIRECTED COHERENCE
     fc = squeeze(pdc(cardio_chan,~cardio_chan,f<=maxfreq));  % from EEG channels to heart
     imagesc(f(f<maxfreq),1:size(fc,1),fc);  % EEG channels x frequencies
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     Ylabels = {EEG.chanlocs(~cardio_chan).labels}; newticks = 1:2:length(Ylabels); newticks = unique(newticks);
     Ylabels  = Ylabels(newticks); set(gca,'YTick',newticks); set(gca,'YTickLabel', Ylabels,'FontWeight','normal');
     xlabel('Frequency (Hz)');
@@ -128,23 +129,23 @@ if params.vis_outputs
     subplot(2,2,1)  % delta
     fc = mean(coh(:,:,f<=3),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Delta','fontSize',12,'FontWeight','bold');
     subplot(2,2,2)  % theta
     fc = mean(coh(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
     ylabel(cb,'Coherence','Rotation',270,'fontSize',12,'fontweight','bold')
     title('Theta','fontSize',12,'FontWeight','bold');
     subplot(2,2,3)  % alpha
     fc = mean(coh(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Alpha','fontSize',12,'FontWeight','bold');
     subplot(2,2,4)  % beta
     fc = mean(coh(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Coherence','fontsize',12,'fontweight','bold','Rotation',270)
     ylabel(cb,'Coherence','Rotation',270,'fontSize',12,'fontweight','bold')
     title('Beta','fontSize',12,'FontWeight','bold');
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
@@ -154,22 +155,22 @@ if params.vis_outputs
     subplot(2,2,1)  % delta
     fc = mean(pcoh(:,:,f<=3),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Delta','fontSize',12,'FontWeight','bold');
     subplot(2,2,2)  % theta
     fc = mean(pcoh(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Theta','fontSize',12,'FontWeight','bold');
     subplot(2,2,3)  % alpha
     fc = mean(pcoh(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Alpha','fontSize',12,'FontWeight','bold');
     subplot(2,2,4)  % beta
     fc = mean(pcoh(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Beta','fontSize',12,'FontWeight','bold');
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
 
@@ -178,22 +179,22 @@ if params.vis_outputs
     subplot(2,2,1)  % delta
     fc = mean(dc(:,:,f<=3),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Delta','fontSize',12,'FontWeight','bold');
     subplot(2,2,2)  % theta
     fc = mean(dc(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Theta','fontSize',12,'FontWeight','bold');
     subplot(2,2,3)  % alpha
     fc = mean(dc(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Alpha','fontSize',12,'FontWeight','bold');
     subplot(2,2,4)  % beta
     fc = mean(dc(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Beta','fontSize',12,'FontWeight','bold');
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
 
@@ -202,25 +203,27 @@ if params.vis_outputs
     subplot(2,2,1)  % delta
     fc = mean(pdc(:,:,f<=3),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Delta','fontSize',12,'FontWeight','bold');
     subplot(2,2,2)  % theta
     fc = mean(pdc(:,:,f>=3 & f<=7),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Theta','fontSize',12,'FontWeight','bold');
     subplot(2,2,3)  % alpha
     fc = mean(pdc(:,:,f>=8 & f<=13),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Alpha','fontSize',12,'FontWeight','bold');
     subplot(2,2,4)  % beta
     fc = mean(pdc(:,:,f>13 & f<=30),3,'omitnan');  % mean for the band
     plot_topo(fc(cardio_chan,~cardio_chan), params.chanlocs, 1, 'psd');  % cardio in row, EEG in columns
-    clim([0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
+    set(gca,'CLim',[0 1]); cb = colorbar; ylabel(cb,'Partial directed coherence','fontsize',12,'fontweight','bold','Rotation',270)
     title('Beta','fontSize',12,'FontWeight','bold');
     set(findall(gcf,'type','axes'),'fontSize',11,'fontweight','bold');
 
+    figs = findall(groot, 'Type', 'figure');
+    finish_figure(figs(~ismember(figs, figs0)))
 end
 
 disp("Done computing Coherence measures.")

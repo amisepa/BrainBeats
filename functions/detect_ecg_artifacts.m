@@ -205,6 +205,7 @@ if doPlot
     title(sprintf('High-frequency power (>%g Hz)', hfCut));
     set(gca,'FontSize',11,'TickDir','out','Box','off');
     xlabel('Time (min)');
+    finish_figure(gcf)
 end
 
 end

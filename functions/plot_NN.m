@@ -96,3 +96,4 @@ legend('RR (before)', 'NN (after)');
 axis tight; box on
 
 set(findall(gcf,'type','axes'), 'fontSize', 11, 'fontweight', 'bold');
+finish_figure(gcf)

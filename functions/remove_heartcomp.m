@@ -94,7 +94,7 @@ if ~isempty(heart_comp)
             pop_selectcomps(EEG,1:max(heart_comp)); 
         end
         set(gcf,'Name','Heart component(s) removed','NumberTitle','Off')  % name
-        colormap('parula'); pause(0.1)
+        colormap('parula'); finish_figure(gcf)
     end
     
     % Subtract heart component(s) from the signals
@@ -118,6 +118,7 @@ if ~isempty(heart_comp)
         end
         vis_artifacts(EEG,oriEEG,'ShowSetname',false); 
         set(gcf, 'Toolbar', 'none', 'Menu', 'none','Name', 'Heart components removed', 'NumberTitle', 'Off');                    % remove toolbar and menu
+        finish_figure(gcf)
     end
     
     cfaAfter = cfa_amplitude(EEG.data(~idx,:), beats, EEG.srate);

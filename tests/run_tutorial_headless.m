@@ -136,6 +136,7 @@ T(end+1) = struct('name','hep_baseline_regression','fn', @() hep_blreg(L));
 T(end+1) = struct('name','hep_adaptive_window','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
     'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'},'hep_window','adaptive','clean_eeg',false,'save',0));
 T(end+1) = struct('name','hep_ppg_transit','fn', @() hep_ppg_transit(L));
+T(end+1) = struct('name','hep_tf_surrogates','fn', @() hep_tf_surr(L));
 end
 
 function EEG = bbp(EEG, varargin)
@@ -196,6 +197,19 @@ mE = mean(E.data(:,t,:),3);  mP = mean(EEG.data(:,t,:),3);
 r = mean(arrayfun(@(k) corr(mE(k,:)', mP(k,:)'), 1:size(mE,1)));
 assert(r > 0.7, 'PPG HEP does not match the ECG HEP after transit correction (r = %.2f)', r)
 fprintf('Pulse arrival time %.0f ms; HEP correlation with the ECG HEP r = %.2f\n', pat, r);
+end
+
+function EEG = hep_tf_surr(L)
+% HRSP/HEPC of all channels and 50 surrogates: the HEP rebuilt from the
+% continuous data must equal the epochs, and the stats must be complete
+EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',false,'hep_tf',true,'hep_surrogates',50,'save',0);
+tf = EEG.brainbeats.hrsp; S = EEG.brainbeats.surrogate;
+iE = ismember({EEG.chanlocs.labels}, S.channels);
+assert(max(abs(mean(EEG.data(iE,:,:),3) - S.hep.real),[],'all') < 1e-6, 'HEP from the continuous data differs from the epochs')
+assert(isequal(size(tf.hrsp), size(tf.hepc), size(S.hrsp.p_fdr)) && ~any(isnan(tf.hrsp(:))), 'Incomplete HRSP/HEPC outputs')
+fprintf('HRSP/HEPC: %d channels x %d freqs x %d times; %.1f%% of HEP points differ from the surrogates (FDR)\n', ...
+    size(tf.hrsp), 100*mean(S.hep.p_fdr(:) < .05));
 end
 
 function EEG = hep_blreg(L)

@@ -72,6 +72,10 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % 'adaptive' sets the epoch end from the subject's heart rate instead.
 % 'hep_baseline','regression' applies a regression-based baseline
 % correction (Alday, 2019) and stores the corrected epochs.
+% 'hep_tf',true exports the HRSP and HEPC of all channels, and
+% 'hep_surrogates',100 tests the heartbeat locking of the HEP, HRSP and HEPC
+% against 100 surrogate heartbeat trains (see EEG.brainbeats.hrsp and
+% EEG.brainbeats.surrogate).
 % Note: the toolbox detects the PPG channel as a non-EEG channel and asks
 % to remove it. This is expected: it does not process ECG and PPG at the
 % same time.

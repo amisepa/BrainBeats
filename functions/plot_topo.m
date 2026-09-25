@@ -56,7 +56,7 @@ if mode == 1
     % Scalp topo (color limits = data range; fails silently if all values are equal)
     topoplot(data, chanlocs,'emarker',{'.','k',7,1},'electrodes','on');
     try
-        clim([min(data) max(data)]);
+        set(gca,'CLim',[min(data) max(data)]);   % clim needs R2022a
     catch
     end
     colormap('parula');

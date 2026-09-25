@@ -48,6 +48,15 @@
 %                        baseline correction (Alday, 2019; see BASELINE_REGRESSION).
 %                        The corrected epochs are stored in the output EEG.data.
 %   'hep_baseline_win' - baseline window in ms (default [-300 -100])
+%   'hep_tf'           - compute the HRSP (heartbeat-related spectral
+%                        perturbations) and HEPC (heartbeat-evoked phase
+%                        coupling) of all EEG channels, stored in
+%                        EEG.brainbeats.hrsp (default false; see COMPUTE_HEP_TF)
+%   'hep_tf_freqs'     - HRSP/HEPC frequency range in Hz (default [4 30])
+%   'hep_surrogates'   - number of surrogate heartbeat trains (rigidly shifted
+%                        by up to +/-500 ms) to test the heartbeat locking of the
+%                        HEP (and HRSP/HEPC), e.g. 100 (default 0 = none).
+%                        Results in EEG.brainbeats.surrogate.
 %
 % EEG preprocessing options (with 'clean_eeg'):
 %   'highpass', 'lowpass' (Hz), 'filttype' ('noncausal' default, or 'causal'),
@@ -485,6 +494,7 @@ elseif strcmpi(params.analysis,'coherence')
     CARDIO.data = bsxfun(@minus, CARDIO.data, trimmean(CARDIO.data,20,2)); % demean to remove offset
     if params.vis_cleaning
         pop_eegplot(CARDIO,1,1,1);
+        finish_figure(gcf)
     end
 
     % Keep the time range covered by the NN series
@@ -623,6 +633,15 @@ switch params.analysis
         end
         if isfield(params,'hep_baseline')
             hepArgs = [hepArgs sprintf(',''hep_baseline'',''%s''', params.hep_baseline)];
+        end
+        if isfield(params,'hep_tf') && params.hep_tf
+            hepArgs = [hepArgs ',''hep_tf'',1'];
+        end
+        if isfield(params,'hep_tf_freqs') && ~isempty(params.hep_tf_freqs)
+            hepArgs = [hepArgs sprintf(',''hep_tf_freqs'',%s', mat2str(params.hep_tf_freqs))];
+        end
+        if isfield(params,'hep_surrogates') && params.hep_surrogates > 0
+            hepArgs = [hepArgs sprintf(',''hep_surrogates'',%g', params.hep_surrogates)];
         end
         com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''hep'',%s,''clean_eeg'',%g%s,%s);', ...
             heartArgs, params.clean_eeg, hepArgs, common);

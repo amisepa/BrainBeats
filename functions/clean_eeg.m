@@ -205,17 +205,18 @@ if params.clean_eeg_step == 0
     % Visualize removed channels
     if ~isempty(badChan) && params.vis_cleaning
         try
-            vis_artifacts(EEG,oriEEG,'ShowSetname',false); pause(0.01)
+            vis_artifacts(EEG,oriEEG,'ShowSetname',false);
         catch
             warning('failed to plot bad channels or artifacts with vis_artifacts(). Setting show_events to off and trying againg')
             try
-                vis_artifacts(EEG,oriEEG,'ShowSetname',false,'ShowEvents',false); pause(0.01)
+                vis_artifacts(EEG,oriEEG,'ShowSetname',false,'ShowEvents',false);
             catch
                 warning("vis_artifacts failed to plot the removed channels or artifacts. Please submit an issue on EEGLAB's page: https://github.com/sccn/eeglab/issues")
             end
         end
         try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
         set(gcf,'Toolbar','none','Menu','none');  % remove toolbar and menu
+        finish_figure(gcf)
         set(gcf,'Name','EEG channels removed','NumberTitle', 'Off')  % change figure name
     else
         disp("No bad channels detected.")
@@ -283,10 +284,11 @@ elseif params.clean_eeg_step == 1
 
         % Plot what has been removed
         if params.vis_cleaning
-            vis_artifacts(EEG,oriEEG,'ShowSetname',false); pause(0.01)
+            vis_artifacts(EEG,oriEEG,'ShowSetname',false);
             try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
             set(gcf,'Toolbar','none','Menu','none');  % remove toolbar and menu
             set(gcf,'Name','EEG (blue) and artifacts removed (red)','NumberTitle', 'Off')  % change figure name
+            finish_figure(gcf)
         end
     end
     
@@ -338,14 +340,14 @@ elseif params.clean_eeg_step == 1
         nComps = size(EEG.icaweights,1);
         if ~isempty(nComps) && nComps>0
             if nComps >= 24
-                pop_selectcomps(EEG,1:24); pause(0.01)
+                pop_selectcomps(EEG,1:24);
                 set(gcf,'Toolbar','none','Menu','none','Name','Independent components','NumberTitle','Off');  % remove toolbar and menu, set name
             else
-                pop_selectcomps(EEG,1:nComps); pause(0.01)
+                pop_selectcomps(EEG,1:nComps);
                 set(gcf,'Toolbar','none','Menu','none','Name','Independent components','NumberTitle','Off');  % remove toolbar and menu, set name
                 
             end
-            colormap("parula"); pause(0.01)
+            colormap("parula"); finish_figure(gcf)
         else
             warndlg("No independent components in your dataset. Somethig went wrong with your ICA decomposition.")
         end

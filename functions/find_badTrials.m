@@ -37,10 +37,13 @@ badTrials = unique([find(badRMS) find(badSNR)]);
 
 if ~isempty(badTrials) 
     if vis
-        eegplot(EEG.data(:,:,badTrials),'srate',EEG.srate,'events',EEG.event, ...
-            'eloc_file',EEG.chanlocs,'spacing',80,'title','Epochs removed','plottitle','Bad epochs');
-        set(gcf,'Toolbar', 'none', 'Menu', 'none');   % remove toolbar and menu
-        set(gcf,'Name','Bad epochs removed','NumberTitle','Off')  % name
+        % bad epochs only, with their own events; eegplot sets the channel
+        % spacing from the data (bad epochs are larger than usual)
+        BAD = pop_select(EEG, 'trial', badTrials);
+        eegplot(BAD.data,'srate',BAD.srate,'events',BAD.event,'eloc_file',BAD.chanlocs, ...
+            'winlength',min(5,numel(badTrials)),'title','Epochs removed','plottitle','Bad epochs');
+        set(gcf,'Menu', 'none','Name','Bad epochs removed','NumberTitle','Off')
+        finish_figure(gcf)
     end
 else
     disp("No bad trials detected")
