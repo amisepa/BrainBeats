@@ -1,20 +1,25 @@
 function scrollplot(varargin)
-    % scrollplot - Scrollable time series plot with optional overlays.
+    % SCROLLPLOT - Scrollable time series plot with optional overlays.
     %
+    % Plots in the current axes. The y-axis adapts to the visible data.
     % Scrolling via:
-    %   - Slider bar at the bottom of the axes
-    %   - Left/Right arrow keys (pan by 50% of window)
-    %   - Shift + arrow keys (pan by 10% of window, fine control)
+    %   - Slider bar below the axes
+    %   - Left/Right arrow keys (pan by 90% of the window)
+    %   - Shift + arrow keys (pan by 10% of the window, fine control)
     %
     % Usage:
     %   scrollplot(toPlot1, scrollOrient, windowSize)
     %   scrollplot(toPlot1, scrollOrient, windowSize, toPlot2, toPlot3, ...)
     %
     % Inputs:
-    %   toPlot1      - {time, signal, 'prop', val, ...} for main signal
-    %   scrollOrient - {'X'} (only horizontal supported)
-    %   windowSize   - visible window width in x-axis units (e.g. seconds)
-    %   toPlot2, ... - (optional) additional overlay series as cell arrays
+    %   toPlot1      - {time, signal, 'prop', val, ...} for the main signal
+    %   scrollOrient - {'X'} (ignored: only horizontal scrolling is supported)
+    %   windowSize   - visible window width in x-axis units (e.g. seconds),
+    %                  clamped to the data range
+    %   toPlot2, ... - (optional) overlay series as cell arrays of plot()
+    %                  inputs (e.g. {t, y, 'ro'}); empty ones are skipped
+    %
+    % Used by plot_NN.
 
     toPlot1      = varargin{1};
     % scrollOrient = varargin{2};  % always X, kept for API compatibility
@@ -80,7 +85,7 @@ function scrollplot(varargin)
     end
 
     function keyCallback(~, evt)
-        step_large = win_size * 0.9;   % arrow key: 90% step (10% overlap), e.g. 1-10s -> 9-18s
+        step_large = win_size * 0.9;   % arrow key: 90% step (10% overlap), e.g. 0-10 s -> 9-19 s
         step_small = win_size * 0.1;   % shift+arrow: 10% step (fine control)
         cur = get(ax, 'XLim');
         t0  = cur(1);
@@ -106,6 +111,7 @@ function scrollplot(varargin)
     end
 
     function updateYLim()
+        % Fit the y-axis to the visible part of the main signal (+/- 20% margin)
         xlims   = get(ax, 'XLim');
         visible = x >= xlims(1) & x <= xlims(2);
         Yvis    = y(visible);
@@ -113,11 +119,8 @@ function scrollplot(varargin)
             ymin = min(Yvis);
             ymax = max(Yvis);
             pp   = ymax - ymin;
-            % if pp > 200
-                set(ax, 'YLim', [ymin - 0.2*pp, ymax + 0.2*pp]);
-            % else
-            %     set(ax, 'YLim', [-150, 100]);
-            % end
+            if pp == 0, pp = max(abs(ymax), 1); end  % flat signal: YLim must increase
+            set(ax, 'YLim', [ymin - 0.2*pp, ymax + 0.2*pp]);
         end
     end
 end

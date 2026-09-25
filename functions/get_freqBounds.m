@@ -1,33 +1,66 @@
-% Find individualized frequency bounds based on power spectra distribution.
-% 
-% Input power in uv^2 (not normalized) is best!
-% 
-% Method developed by Corcoran et al. (2017) in the resting IAF toolbox.
-% 
-% Copyright (C) - Cedric Cannard, 2023, BrainBeats toolbox
+% GET_FREQBOUNDS - Individualized bounds of a frequency band from the shape
+% of the power spectrum (peak and surrounding minima within a search window).
+%
+% Adapts the restingIAF alpha-band method (Corcoran et al. 2018) to any band:
+% the spectrum is normalized by its mean (as in restingIAF), smoothed and
+% differentiated with a Savitzky-Golay filter, the highest peak above the
+% log10 1/f fit (+ mpow SD) is searched within w, and the band bounds are
+% the minima (or flattening of the slope) on either side of that peak.
+% Used by the 'individualized' option of get_eeg_features.
+%
+% Usage:
+%   [bounds, peak] = get_freqBounds(pwr, f, fs, w, winSize, mpow)
+%
+% Inputs:
+%   pwr     - power spectrum of one channel, in uV^2/Hz (not normalized or in dB)
+%   f       - frequencies of pwr (Hz)
+%   fs      - sample rate (Hz)
+%   w       - peak search window [low high] (Hz)
+%   winSize - pwelch window length in samples (scales the S-G derivatives, dt = fs/winSize)
+%   mpow    - threshold (SDs above the 1/f regression fit) for a peak to be
+%             distinguished from background noise (e.g. 1 for alpha, 0.25 for other bands)
+%
+% Outputs:
+%   bounds  - [lower upper] band bounds (Hz); NaN when no peak (or subpeak)
+%             is detected in w, or when a bound is not found
+%   peak    - peak frequency (Hz); NaN if no clear primary peak
+%
+% Reference:
+%   Corcoran, A.W., Alday, P.M., Schlesewsky, M., & Bornkessel-Schlesewsky, I.
+%   (2018). Toward a reliable, automated method of individual alpha frequency
+%   (IAF) quantification. Psychophysiology, 55(7), e13064.
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 function [bounds, peak] = get_freqBounds(pwr, f, fs, w, winSize, mpow)
 
+% normalize the spectrum by its mean (as restingIAF), so that the slope
+% criteria in findF1/findF2 (|d1| < 1) do not depend on the power units
+pwr = pwr(:) / mean(pwr);
+f = f(:);
+
+% frequency resolution
+fres = f(2)-f(1);
+
 % Parameters
-Fw = 11;            % SGF frame width (11 corresponding to a frequency span of ~2.69 Hz @ ~.24Hz frequency resolution)
-k = 5;              % SGF polynomial order (default = 5)
+Fw = 2*floor(2.69/fres/2) + 1;  % SGF frame width spanning ~2.69 Hz (11 bins @ ~.24Hz frequency resolution, restingIAF default)
+Fw = max(Fw, 5);
+k = min(5, Fw-2);   % SGF polynomial order (default = 5, must be < Fw)
 mdiff = .2;    % minimal height difference distinguishing a primary peak from
                 % competing peaks (default = 0.2; i.e. 20% peak height)
-% mpow = 1;       % error bound (SD) threshold to differentiate peaks from background spectral noise (default = 1)
 
-
-% fit 1st order poly (regression line) to normalised spectra (log-scaled)
-[pfit, sig] = polyfit(f, 10*log10(pwr), 1);     
+% fit 1st order poly (regression line) to the log10 spectrum
+[pfit, sig] = polyfit(f, log10(pwr), 1);
 
 % derive yval coefficients of fitted polynomial and delta (std dev) error estimate
-[yval, del] = polyval(pfit, f, sig);         
+[yval, del] = polyval(pfit, f, sig);
 
-% take [minPowThresh * Std dev] as upper error bound on background spectral noise
-minPow = yval + (mpow * del);                
+% take [minPowThresh * Std dev] as upper error bound on background spectral
+% noise (log10 units, compared with log10 of the peak power below)
+minPow = yval + (mpow * del);
 
 % apply Savitzky-Golay filter to fit curves to spectra & estimate 1st and 2nd derivatives
-% [d0, d1, d2] = sgfDiff(pwr, Fw, k, fs, winSize);
-% [d0, d1, d2] = sgfDiff(x, Fw, poly, Fs, tlen)
+% (sgfDiff in restingIAF)
 [~, g] = sgolay(k, Fw);      
 dt = fs/winSize;
 dx = zeros(length(pwr),3);
@@ -38,22 +71,16 @@ d0 = dx(:,1);        % smoothed signal post S-G diff filt
 d1 = dx(:,2);        % 1st derivative
 d2 = dx(:,3);        % 2nd derivative
 
-% frequency resolution
-% exp_tlen = nextpow2(winSize); 
-% fres = fs/2.^exp_tlen; 
-fres = f(2)-f(1);
-
-% take derivatives, find peak(s) and boundaries of the frequency band
-% [peak, pos1, pos2]  = peakBounds(d0, d1, d2, f, w, minPow, mdiff, fres);
-% [peakF, posZ1, posZ2] = peakBounds(d0, d1, d2, f, w, minPow, minDiff, fres)
+% find peak(s) and boundaries of the frequency band from the derivatives
+% (peakBounds in restingIAF, without the inflection points and Q)
 
 % evaluate derivative for zero-crossings
-[~, lower_lim] = min(abs(f-w(1)));      % set lower bound for alpha band
-[~, upper_lim] = min(abs(f-w(2)));      % set upper bound for alpha band
+[~, lower_lim] = min(abs(f-w(1)));      % set lower bound of the search window
+[~, upper_lim] = min(abs(f-w(2)));      % set upper bound of the search window
 
 negZ = zeros(1,4);  % zero-crossing count & frequency bin
-cnt = 0;     
-for k = lower_lim-1:upper_lim+1             % step through frequency bins in alpha band (start/end at bound -/+ 1 to make sure don't miss switch)
+cnt = 0;
+for k = max(lower_lim-1,1):min(upper_lim+1,length(d1)-1)   % step through frequency bins in the window (start/end at bound -/+ 1 to make sure don't miss switch, within the spectrum)
     if sign(d1(k)) > sign(d1(k+1))              % look for switch from positive to negative derivative values (i.e. downward zero-crossing)
        	[~, maxk] = max([d0(k), d0(k+1)]);      % ensure correct frequency bin is picked out (find larger of two values either side of crossing (in the smoothed signal))
        	if maxk == 1
@@ -89,7 +116,7 @@ else
             peak = negZ(1, 3); 
         else                        % ...if not...
             peak = NaN;
-            subBin = negZ(1, 2);                    % ... index as a subpeak for starting alpha bound search.
+            subBin = negZ(1, 2);                    % ... index as a subpeak for starting bound search.
         end
     else
         peak = NaN;                % ...otherwise, report NaNs
@@ -99,79 +126,22 @@ end
 
 
 % search for positive (upward going) zero-crossings (minima / valleys) either side of peak/subpeak(s)
-slen = round(1/fres);               % define number of bins included in shollow slope search (approximate span = 1 Hz)
+slen = round(1/fres);               % define number of bins included in shallow slope search (approximate span = 1 Hz)
 if isnan(peak) && isnan(subBin)       % if no evidence of peak activity, no parameter estimation indicated
-    
+
     pos1 = NaN;
     pos2 = NaN;
-    % f1 = NaN;
-    % f2 = NaN;
-    % inf1 = NaN;
-    % inf2 = NaN;
-    % Q = NaN;
-    % Qf = NaN;
 
 elseif isnan(peak)     % deal with spectra lacking a clear primary peak (similar strategy to peak; take highest subpeak as start point, look for minima)
-    
-    [f1, pos1] = findF1(f, d0, d1, negZ, minPow, slen, subBin); 
-    [f2, pos2] = findF2(f, d0, d1, negZ, minPow, slen, subBin); 
-        
-    % inflections / Q values not calculated as these spectra won't be included in averaged channel peak analyses 
-    % inf1 = NaN;     
-    % inf2 = NaN;
-    % Q = NaN;
-    % Qf = NaN;
+
+    [f1, pos1] = findF1(f, d0, d1, negZ, minPow, slen, subBin);
+    [f2, pos2] = findF2(f, d0, d1, negZ, minPow, slen, subBin);
 
 else            % now for the primary peak spectra
-    
-    [f1, pos1] = findF1(f, d0, d1, negZ, minPow, slen, peakBin);  
-    [f2, pos2] = findF2(f, d0, d1, negZ, minPow, slen, peakBin); 
-    
-    % define boundaries by inflection points (requires 2nd derivative of smoothed signal)
-    % inf1 = zeros(1,2);                  % initialise for zero-crossing count & frequency
-    % cnt = 0;                            % start counter at 0
-    % for k = 1:peakBin-1                 % step through frequency bins prior peak
-    %     if sign(d2(k)) > sign(d2(k+1))                  % look for switch from positive to negative derivative values (i.e. downward zero-crossing)
-    %         [~, mink] = min(abs([d2(k), d2(k+1)]));     % ensure correct frequency bin is picked out (find smaller of two values either side of crossing)
-    %         if mink == 1
-    %             min1 = k;
-    %         else
-    %             min1 = k+1;
-    %         end
-    %         cnt = cnt+1;                % advance counter by 1
-    %         inf1(cnt,1) = cnt;          % zero-crossing count
-    %         inf1(cnt,2) = f(min1);      % zero-crossing frequency
-    %     end
-    % end
-    % 
-    % % sort out appropriate estimates for output
-    % if size(inf1, 1) == 1               % if singular crossing --> report frequency
-    %     inf1 = inf1(1, 2);
-    % else
-    %     inf1 = sortrows(inf1, -2);      % sort by frequency values (descending)...
-    %     inf1 = inf1(1, 2);              % take highest frequency (bin nearest to peak)
-    % end
-    % 
-    % for k = peakBin+1:length(d2)-1                      % step through frequency bins post peak
-    %     if sign(d2(k)) < sign(d2(k+1))                  % look for upward zero-crossing
-    %         [~, mink] = min(abs([d2(k), d2(k+1)]));     % ensure frequency bin nearest zero-crossing point picked out (find smaller of two values either side of crossing)
-    %             if mink == 1
-    %                 min2 = k;
-    %             else
-    %                 min2 = k+1;
-    %             end
-    %             inf2 = f(min2);         % zero-crossing frequency
-    %             break                   % break loop (only need to record first crossing)
-    % 
-    %     end
-    % 
-    % end
-    % 
-    % % estimate approx. area under curve between inflection points either
-    % % side of peak, scale by inflection band width 
-    % Q = trapz(f(min1:min2), d0(min1:min2));
-    % Qf = Q / (min2-min1);
 
-end 
+    [f1, pos1] = findF1(f, d0, d1, negZ, minPow, slen, peakBin);
+    [f2, pos2] = findF2(f, d0, d1, negZ, minPow, slen, peakBin);
+
+end
 
 bounds = [pos1 pos2];

@@ -1,8 +1,29 @@
-%% Run some basic checks to ensure basic parameters and requirements are
-% met, install required plugins that are not already installed, and apply
-% some default parameters when missing.
+% RUN_CHECKS - Check data and parameters, install missing plugins, set defaults.
 %
-% Copyright (C) BrainBeats - Cedric Cannard 2023
+% Usage:
+%   [EEG, params, err] = run_checks(EEG, params)
+%
+% Checks (error dialog and err = true on failure): data are continuous;
+% params.heart_signal is 'ecg', 'ppg', 'rr' or 'off'; all
+% params.heart_channels exist in EEG.chanlocs (converted to a cell if
+% needed); channel coordinates are present when EEG features are plotted.
+% Offers to install clean_rawdata, ICLabel, Picard (icamethod 1) and
+% REST_cmd (ref 'infinity') when needed. If params.parpool, starts a pool
+% with the 'Processes' profile (cores - 1 workers) and puts BrainBeats first
+% on the workers' path; turns params.parpool off if that fails.
+%
+% Inputs:
+%   EEG    - EEGLAB EEG structure (EEG + heart channels)
+%   params - BrainBeats parameters (reads heart_signal, heart_channels,
+%            analysis, clean_eeg, vis_outputs, parpool)
+% Outputs:
+%   EEG    - with data converted to double
+%   params - with fs = EEG.srate and defaults when missing: hrv_features =
+%            false, eeg_features = false, icamethod = 2 (Infomax),
+%            ref = 'average', gong = true
+%   err    - true if a check failed (outputs then incomplete)
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 function [EEG, params, err] = run_checks(EEG, params)
 
@@ -10,52 +31,22 @@ fprintf('Running basic checks... \n')
 
 err = false;
 
-% Check if data format is compatible with chosen analysis and select analysis
-% if isfield(params,'analysis')
-% switch params.analysis
-% case 'features'
+% Only continuous data are supported (HEP epochs are created internally)
 if length(size(EEG.data)) ~= 2
     errordlg("Epoched EEG data detected. BrainBeats only supports continuous data at the moment.")
     err = true; return
 end
-% case 'epoched'
-%     if length(size(EEG.data)) ~= 3
-%         error("You selected HEP analysis but your data are not epoched.")
-%     end
-% end
-% else
-%     % Select analysis based on data format if not defined
-%     if length(size(EEG.data)) == 2
-%         params.analysis = 'continuous';
-%         disp("Analysis not defined. Continuous data detected: selecting 'feature-based mode' by default")
-%     elseif length(size(EEG.data)) == 3
-%         params.analysis = 'epoched';
-%         disp("Analysis not defined. Epoched data detected: selecting 'heart-beat evoked potential (HEP) mode' by default")
-%     else
-%         error("You did not define the analysis to run, and your data format was not recognized. " + ...
-%             "Should be 'continuous' or 'epoched', and something may be wrong with your data format ")
-%     end
-% end
-
-% % Any heart operations?
-% if ~isfield(params,'heart') || ~isempty(params.heart_signal) || ~isempty(params.heart_channels) || ...
-%         isfield(params,'hrv_features') || strcmpi(params.analysis,'hep')
-%     params.heart = true;
-% else
-%     params.heart = false;
-% end
 
 % Check heart signal type
 if ~contains(params.heart_signal, {'ecg' 'ppg' 'rr' 'off'})
     errordlg('Heart signal should be either ECG, PPG, RR, or off')
-    return
+    err = true; return
 end
 
 % Heart checks
 % Make sure Heart channel is a cell
 if ~strcmpi(params.heart_signal,'off') && ~strcmpi(params.heart_signal,'rr')
     if ~iscell(params.heart_channels)
-        % warning("Heart channel label should be a cell (e.g. {'ECG'} or {'AUX1' 'AUX2'}). Converting it to cell now.")
         params.heart_channels = {params.heart_channels};
     end
     
@@ -71,32 +62,17 @@ if ~strcmpi(params.heart_signal,'off') && ~strcmpi(params.heart_signal,'rr')
     if length(idx) ~= sum(idx)
         errordlg("At least one heart channel was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channels.")
         err = true; return
-        % else
-        %     fprintf("%g/%g heart channels confirmed in this dataset's channel list. \n", sum(idx), length(params.heart_channels))
-        % elseif length(idx) == 1 && sum(idx) == 0
-        %     errordlg("The heart channel label you typed was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channel.");
-        %     err = true; return
     end
 end
 
 % Includes HRV or not (for plotting only)
 if ~isfield(params,'hrv_features')
-    % if strcmp(params.analysis,{'features'}) && params.clean_heart
-        params.hrv_features = false;
-    % end
+    params.hrv_features = false;
 end
 
-% EEG checks
-% if isfield(params, 'eeg')
 % Includes EEG or not (for plotting only)
 if ~isfield(params,'eeg_features')
-    % if any(strcmp(params.analysis,{'hep' 'rm_heart'})) || (isfield(params, 'eeg_frequency') ...
-    %         && params.eeg_frequency) || (isfield(params, 'eeg_nonlinear') && params.eeg_nonlinear)
-    %     params.eeg_features = true;
-    % else
-        params.eeg_features = false;
-        % params.clean_eeg = false;
-    % end
+    params.eeg_features = false;
 end
 
 % Check for channel locations
@@ -122,7 +98,7 @@ end
 if params.clean_eeg
 
     if ~exist('clean_asr','file')
-        plugin_askinstall('clean_asr','clean_asr', 1);
+        plugin_askinstall('clean_rawdata','clean_asr', 1);
     end
     if ~exist('picard','file') && params.icamethod == 1
         plugin_askinstall('picard', 'picard', 1);
@@ -144,9 +120,6 @@ if strcmp(params.analysis,'rm_heart')
         plugin_askinstall('iclabel', 'iclabel', 1);
     end
 end
-% else
-% params.eeg = [];
-% end
 
 % Ensure data have double precision
 EEG.data = double(EEG.data);
@@ -155,47 +128,43 @@ EEG.data = double(EEG.data);
 params.fs = EEG.srate;
 
 
-% Initiate or block parallel computing
+% Initiate parallel computing if requested (parfor loops run serially
+% otherwise: see get_eeg_features)
 addons = ver;
-% ver('parallel')
 parpool_installed = any(contains({addons.Name}, 'Parallel'));
-if params.parpool 
-
+if params.parpool
     if parpool_installed
-        ps = parallel.Settings;
         fprintf('Parallel computing set to ON. \n')
-        ps.Pool.AutoCreate = true;
-        p = gcp('nocreate');
-        % delete(gcp('nocreate')) % shut down opened parpool
-        if isempty(p) % if not already on, launch it
-            disp('Initiating parrallel computing (all cores and threads -1)...')
-            c = parcluster; % cluster profile
-            % N = feature('numcores');          % only physical cores
-            N = getenv('NUMBER_OF_PROCESSORS'); % all processor (cores + threads)
-            if ischar(N), N = str2double(N); end
-            c.NumWorkers = N-2;  % update cluster profile to include all workers
-            c.parpool();
+        if isempty(gcp('nocreate')) % if not already on, launch it
+            N = feature('numcores');    % physical cores (works on all platforms)
+            fprintf('Initiating parallel computing (%g workers)...\n', max(1,N-1))
+            try
+                % 'Processes' profile explicitly: the default profile may be
+                % 'Threads', which parcluster does not accept
+                c = parcluster('Processes');
+                c.NumWorkers = max(1,N-1);
+                parpool(c, c.NumWorkers);
+            catch ME
+                warning('Could not start a parallel pool (%s). Turning parallel computing OFF.', ME.message)
+                params.parpool = false;
+            end
+        end
+
+        % Put BrainBeats first on the workers' path too: they start from the
+        % saved path, which can hold other functions with the same names
+        % (e.g. another compute_psd) ahead of the folders added on the client
+        pool = gcp('nocreate');
+        if ~isempty(pool)
+            bbpath = fileparts(which('eegplugin_BrainBeats.m'));
+            wait(parfevalOnAll(pool, @addpath, 0, fullfile(bbpath,'functions'), bbpath));
         end
     else
         warning("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
-        warningdlg("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
+        warndlg("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
         params.parpool = false;
     end
-
 else
     fprintf('Parallel computing set to OFF. \n')
-
-    % Block parallel pool if installed but user does not want to use it
-    if parpool_installed
-        p = gcp('nocreate');
-        if ~isempty(p)
-            delete(gcp('nocreate'));
-        end
-    
-        % Prevent parfor loops from launching parpool mode
-        ps = parallel.Settings;
-        ps.Pool.AutoCreate = false;  
-    end
 end
 
 if ~isfield(params,'gong')

@@ -1,61 +1,52 @@
 function [nn_intervals, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(rr_t, rr_intervals, peak_amp, rPeaks, varargin)
-% clean_rr - Clean RR interval series and interpolate missing heartbeats.
-%
-% Strategy:
-%   1. Estimate physiological min/max RR from the data itself (no hardcoded limits)
-%      by computing the distribution of intervals and excluding outliers via MAD
-%   2. Remove beats with abnormal amplitude (lenient threshold - respiration-driven
-%      amplitude modulation is normal; only flag true disconnection artifacts)
-%   3. Remove intervals outside the data-derived physiological range
-%   4. Detect gaps (missed beats) using a sliding-window local median
-%   5. Fill gaps by inserting synthetic beats at the correct timestamps,
-%      with signal amplitude read directly from the ECG/PPG at those times
+% CLEAN_RR - Clean an RR interval series into NN intervals and fill missed beats.
 %
 % Usage:
 %   [nn, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(rr_t, rr, peak_amp, rPeaks)
 %   [...] = clean_rr(..., 'ecg_signal', sig, 'fs', fs)
 %
-% Inputs:
-%   rr_t         - RR interval timestamps (s), same length as rr_intervals
-%   rr_intervals - RR interval durations (s)
-%   peak_amp     - amplitudes of detected peaks, same length as rr_intervals
-%   rPeaks       - R-peak sample indices, same length as rr_intervals
+% Inputs (one value per RR interval, as returned by get_RR):
+%   rr_t         - time of the peak closing each interval (s)
+%   rr_intervals - RR intervals (s)
+%   peak_amp     - signal amplitude at each peak ([] to skip the amplitude check)
+%   rPeaks       - peak sample indices
+% Optional name-value pairs:
+%   'interpolate_missing' - fill gaps with synthetic beats (default true, logical)
+%   'max_missing'         - max beats inserted per gap (default Inf)
+%   'mad_threshold'       - MAD multiplier for the lower RR limit (default 10)
+%   'amp_mad_threshold'   - MAD multiplier for amplitude outliers (default 15;
+%                           Inf disables)
+%   'win_size'            - local-median window (s, default 15)
+%   'gap_ratio'           - gap if interval > gap_ratio x local median (default 1.5)
+%   'ecg_signal'          - ECG/PPG signal, to place synthetic beats on samples
+%   'fs'                  - its sampling rate (Hz)
+%   'sig_t'               - its time axis in s (default (0:N-1)/fs)
 %
-% Optional name-value inputs:
-%   'interpolate_missing'  (default: true)  - fill gaps with synthetic beats
-%   'max_missing'          (default: Inf)   - max beats to insert per gap
-%   'mad_threshold'        (default: 10)     - MAD multiplier for RR outlier detection
-%   'amp_mad_threshold'    (default: 15)    - MAD multiplier for amplitude outlier
-%                                             detection. Intentionally lenient:
-%                                             ECG amplitude varies with respiration,
-%                                             posture, and electrode contact. Only
-%                                             true disconnection artifacts (flat line,
-%                                             rail) should be caught here. Set to Inf
-%                                             to disable amplitude-based removal.
-%   'win_size'             (default: 15)    - sliding window (s) for local median
-%   'gap_ratio'            (default: 1.5)   - gap flagged if interval > ratio * local_median
-%   'ecg_signal'           (default: [])    - raw ECG/PPG (samples x 1)
-%   'fs'                   (default: [])    - sampling rate (Hz)
-%   'sig_t'                (default: [])    - signal time axis (s); if empty, built from fs
+% Outputs (column vectors):
+%   nn_intervals - cleaned NN intervals (s)
+%   nn_t         - their timestamps (s)
+%   nPeaks       - peak sample indices; synthetic beats get the nearest
+%                  sample of ecg_signal, or NaN if no signal is given
+%   idx_bad      - true for gaps that remain unfilled
+%   idx_interp   - true for synthetic (inserted) intervals
 %
-% Outputs:
-%   nn_intervals - cleaned RR intervals (s)
-%   nn_t         - corresponding timestamps (s)
-%   nPeaks       - peak sample indices (NaN for synthetic beats without signal input)
-%   idx_bad      - logical: remaining unfilled suspicious intervals
-%   idx_interp   - logical: synthetically inserted intervals
+% Steps:
+%   1. Limits from the data: min RR = median - mad_threshold x MAD,
+%      bounded to [0.30 2.00] s (200-30 bpm).
+%   2. Beats with outlying amplitude are removed.
+%   3. Intervals shorter than min RR are removed; a removed interval is
+%      added to the next kept one so NN still spans two kept beats.
+%   4. Gaps: intervals > gap_ratio x the median of neighbors within win_size.
+%   5. Each gap is split into equal intervals by inserting
+%      round(gap / local median) - 1 synthetic beats.
 %
-% Changelog:
-%   v1.1 - April 2026 (Cedric Cannard)
-%     - Replaced isoutlier(...,'median') for amplitude checking with an
-%       explicit MAD-based threshold (amp_mad_threshold, default 15).
-%       isoutlier uses an implicit 3-MAD cutoff which is too aggressive
-%       for ECG: respiration-driven amplitude modulation, posture changes,
-%       and variable electrode contact all cause legitimate peak amplitude
-%       variation that should not trigger beat removal. The interval-based
-%       cleaning (Steps 3-5) is more reliable for ECG artifact rejection.
-%     - Added 'amp_mad_threshold' parameter so users can tune or disable
-%       amplitude-based removal (set to Inf to skip entirely).
+% Notes:
+%   amp_mad_threshold is deliberately lenient (15 MAD, not isoutlier's 3):
+%   ECG amplitude varies with respiration, posture and electrode contact;
+%   only disconnections or rail artifacts should be caught here. Long
+%   intervals are never removed, only flagged or filled (steps 4-5).
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 % Parse inputs
 p = inputParser;
@@ -97,13 +88,14 @@ nPeaks       = double(rPeaks(:));
 idx_bad      = false(n_orig, 1);
 idx_interp   = false(n_orig, 1);
 
-% Step 1: Data-driven physiological limits (no hardcoded values)
+% Step 1: Data-driven RR limits (max_rr is only reported; long intervals
+% are handled as gaps in Step 4)
 med_rr = median(nn_intervals, 'omitnan');
 mad_rr = mad(nn_intervals, 1);
 min_rr = med_rr - mad_threshold * mad_rr;
 max_rr = med_rr + mad_threshold * mad_rr;
 
-% Hard floor/ceiling at realistic human physiological extremes (30-200 bpm)
+% Bound the limits to human extremes (30-200 bpm)
 min_rr = max(min_rr, 0.30);   % 200 bpm
 max_rr = min(max_rr, 2.00);   % 30 bpm
 fprintf('\n--- clean_rr ---\n');
@@ -113,10 +105,9 @@ fprintf('  Min RR (data-derived): %.3f s (%.0f bpm)\n', min_rr, 60/min_rr);
 fprintf('  Max RR (data-derived): %.3f s (%.0f bpm)\n', max_rr, 60/max_rr);
 
 % Step 2: Remove beats with abnormal amplitude
-% Uses a lenient MAD threshold (default 20x) to catch only true
-% disconnection artifacts (flat line, signal rail). Normal ECG amplitude
-% variation from respiration or posture is expected and should not trigger
-% removal — interval-based cleaning in Steps 3-5 handles true ectopics.
+% Lenient MAD threshold (default 15x) to catch only disconnection artifacts
+% (flat line, signal rail). Amplitude varies normally with respiration and
+% posture; the interval-based Steps 3-5 handle ectopic and missed beats.
 if ~isempty(peak_amp) && length(peak_amp) == length(nn_intervals) && isfinite(amp_mad_threshold)
     amp_med      = median(peak_amp(:), 'omitnan');
     amp_mad      = mad(peak_amp(:), 1);
@@ -129,13 +120,26 @@ else
     amp_outliers = false(size(nn_intervals));
 end
 
-% Step 3: Remove only impossibly short intervals
+% Step 3: Remove intervals shorter than min_rr (and amplitude outliers)
 too_short = nn_intervals < min_rr;
 if any(too_short)
     fprintf('  Removing %d intervals below min RR (%.3f s)\n', sum(too_short), min_rr);
 end
 to_remove = amp_outliers | too_short;
 n_removed = sum(to_remove);
+% A removed beat ends its interval: fold that interval into the next kept one,
+% so each NN interval still spans the time between two kept beats (a false
+% beat splitting 0.8 s into 0.35 + 0.45 s gives back 0.8 s, not 0.45 s).
+% Step 4 then flags the merged interval as a gap if a real beat was removed.
+carry = 0;
+for i = 1:length(nn_intervals)
+    if to_remove(i)
+        carry = carry + nn_intervals(i);
+    elseif carry > 0
+        nn_intervals(i) = nn_intervals(i) + carry;
+        carry = 0;
+    end
+end
 nn_intervals(to_remove) = [];
 nn_t(to_remove)         = [];
 nPeaks(to_remove)       = [];
@@ -146,7 +150,8 @@ if isempty(nn_intervals)
     return;
 end
 
-% Step 4: Detect gaps with sliding-window local median
+% Step 4: Detect gaps against the local median of neighboring intervals
+% (+/- win_size/2 s, excluding the interval itself)
 n  = length(nn_intervals);
 local_med = zeros(n, 1);
 for i = 1:n
@@ -167,12 +172,14 @@ else
     fprintf('  No gaps detected\n');
 end
 
-% Step 5 (optional): Fill gaps with synthetic beats
+% Step 5 (optional): Fill gaps with synthetic beats, equally spaced
 if interpolate_missing && any(idx_bad)
 
     gap_indices    = find(idx_bad);
     n_interp_total = 0;
 
+    % last gap first, so earlier indices stay valid after insertion; the
+    % first interval is skipped (no preceding beat time)
     for k = length(gap_indices):-1:1
         i = gap_indices(k);
         if i < 2, continue; end
@@ -196,6 +203,7 @@ if interpolate_missing && any(idx_bad)
             new_peaks = NaN(n_missing, 1);
         end
 
+        % the gap becomes the last sub-interval; the others are inserted before it
         nn_intervals(i) = sub_ivs(end);
         idx_bad(i)      = false;
         nn_intervals = [nn_intervals(1:i-1); sub_ivs(1:end-1);              nn_intervals(i:end)];

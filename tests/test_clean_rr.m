@@ -1,14 +1,21 @@
-% test_clean_rr.m
-% Demonstrate that clean_rr distorts already-clean pre-detected beat intervals.
+% TEST_CLEAN_RR - Effect of clean_rr on beats already detected by the Muse.
 %
-% Loads Muse 2 beat_detections, feeds them through BrainBeats clean_rr,
-% and plots IBI distribution + time series before/after to show the problem.
+% Loads the Muse 2 beat detections in tests/data (test_beat_detections.csv,
+% with test_eeg.csv for the recording length), converts them to RR
+% intervals at 250 Hz, runs clean_rr on them (no amplitudes, so the
+% amplitude check is off) and plots the IBI time series and distribution
+% before/after. Beats detected elsewhere are already clean, which is why
+% 'rr' mode ('beat_latencies') skips clean_rr in brainbeats_process.
+%
+% Usage: run the script from MATLAB with EEGLAB installed. Figures are
+% saved in tests/figures (clean_rr_ibi_timeseries.png,
+% clean_rr_ibi_distribution.png).
 
 clear; close all;
 
-%% Setup
-if ~exist('eeg_checkset', 'file')
-    addpath('~/eeglab');
+%% Setup (EEGLAB must be on the MATLAB path)
+if ~exist('eeglab', 'file')
+    error('EEGLAB not found: add its folder to the MATLAB path (addpath(''path/to/eeglab'')) and run again.')
 end
 eeglab nogui;
 
@@ -21,16 +28,16 @@ dataDir = fullfile(testDir, 'data');
 figDir  = fullfile(testDir, 'figures');
 if ~exist(figDir, 'dir'), mkdir(figDir); end
 
-%% Load beat detections
+%% Load beat detections (beat times in s from the optics start)
 beats = readtable(fullfile(dataDir, 'test_beat_detections.csv'));
 beat_idx = beats.hrBeat == 1;
 beat_sec = beats.timestamp_sec(beat_idx);
 fprintf('Pre-detected beats: %d (mean IBI=%.0f ms)\n', length(beat_sec), mean(diff(beat_sec))*1000);
 
-%% Convert to RR intervals (same as brainbeats_process rr branch)
+%% Convert to RR intervals
 target_srate = 250;
 
-% Load EEG to get recording length for sample conversion
+% Load EEG to get the recording length in samples (sorted, unique timestamps)
 eeg_raw = readtable(fullfile(dataDir, 'test_eeg.csv'));
 [eeg_ts, ~] = sort(eeg_raw.ts);
 [eeg_ts, ~] = unique(eeg_ts);
@@ -38,24 +45,25 @@ t_start = eeg_ts(1);
 t_end   = eeg_ts(end);
 npnts = length(t_start:(1/target_srate):t_end);
 
+% Beat times to samples, keeping beats inside the recording
 Rpeaks = round(beat_sec * target_srate);
 Rpeaks(Rpeaks < 1) = [];
 Rpeaks(Rpeaks > npnts) = [];
 
+Rpeaks = Rpeaks(:)';  % ensure row vector
 RR   = diff(Rpeaks) / target_srate;       % seconds
-RR_t = Rpeaks(1:end-1) / target_srate;    % seconds
+RR_t = Rpeaks(2:end) / target_srate;      % seconds (beat ending each interval, as get_RR)
 fprintf('RR intervals: mean=%.0f ms, std=%.0f ms, n=%d\n', mean(RR)*1000, std(RR)*1000, length(RR));
 
-%% Run clean_rr
-sig_dummy = zeros(1, npnts);
-[NN, NN_t, idx_rem, idx_interp] = clean_rr(RR_t, RR, sig_dummy(Rpeaks(1:end-1))');
-fprintf('clean_rr: removed %d, interpolated %d out of %d intervals\n', sum(idx_rem), sum(idx_interp), length(RR));
+%% Run clean_rr (no amplitudes: amplitude check off)
+[NN, NN_t, nPeaks, idx_bad, idx_interp] = clean_rr(RR_t, RR, [], Rpeaks(2:end));
+nRem = length(RR) - (length(NN) - sum(idx_interp));
+idx_rem = true(1, nRem);   % for the summary count (removed beats are absent from the output)
+fprintf('clean_rr: removed %d, interpolated %d, unfilled gaps %d out of %d intervals\n', ...
+    nRem, sum(idx_interp), sum(idx_bad), length(RR));
 
-% Reconstruct post-clean_rr peaks (same logic as brainbeats_process)
-Rpeaks = Rpeaks(:)';  % ensure row vector
-Rpeaks_clean = Rpeaks(2:end);
-Rpeaks_clean(idx_rem) = [];
-Rpeaks_after = [Rpeaks(1) Rpeaks_clean];
+% Peaks after clean_rr, without the inserted beats (NaN when no signal is given)
+Rpeaks_after = [Rpeaks(1) nPeaks(~idx_interp)'];
 
 %% IBI series
 ibi_raw   = diff(beat_sec) * 1000;          % ms

@@ -1,9 +1,20 @@
 function [X,Zf] = filter_fast(B,A,X,Zi,dim)
-% Like filter(), but faster when both the filter and the signal are long.
-% [Y,Zf] = filter_fast(B,A,X,Zi,Dim)
+% FILTER_FAST - Like filter(), but faster when both the filter and the signal are long.
 %
-% Uses FFT convolution. The function is faster than filter when approx. length(B)>256 and
-% size(X,Dim)>1024, otherwise slower (due size-testing overhead).
+% Usage:
+%   [Y, Zf] = filter_fast(B, A, X, Zi, Dim)
+%
+% Inputs:
+%   B, A - filter coefficients (FFT convolution only when A == 1)
+%   X    - signal
+%   Zi   - (optional) initial conditions (default [])
+%   Dim  - (optional) dimension to filter (default first non-singleton)
+% Outputs:
+%   Y    - filtered signal (same class as X)
+%   Zf   - final conditions
+%
+% Uses FFT convolution when length(B) >= 256, size(X,Dim) >= 1024 and their
+% product >= 4e6; otherwise falls back to filter().
 %
 % See also:
 %   filter, fftfilt

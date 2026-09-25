@@ -1,7 +1,11 @@
 function [pSum, pChans, f] = restingIAF(data, nchan, cmin, fRange, Fs, w, Fw, k, varargin)
-% Primary function for running `restingIAF` analysis routine for estimating
-% two indices of individual alpha frequency (IAF): Peak alpha frequency
-% (PAF) and the alpha centre of gravity (CoG) or mean frequency.
+% RESTINGIAF - Individual alpha frequency (IAF) of resting-state EEG: peak
+% alpha frequency (PAF) and alpha centre of gravity (CoG, or mean frequency).
+%
+% Usage:
+%   [pSum, pChans, f] = restingIAF(data, nchan, cmin, fRange, Fs, w, Fw, k, ...
+%                                  mpow, mdiff, taper, tlen, tover, nfft, norm)
+%   (BrainBeats calls: restingIAF(signals, nChan, 1, [1 30], fs, [7 14], 11, 5))
 %
 % Calls on the Signal Processing Toolbox function `pwelch` to derive power
 % spectral density estimates of one or more vectors of EEG channel data,
@@ -30,17 +34,21 @@ function [pSum, pChans, f] = restingIAF(data, nchan, cmin, fRange, Fs, w, Fw, k,
 %
 % Outputs:
 %   pSum    = structure containing summary statistics of alpha-band parameters
+%             (paf, pafStd, muSpec, cog, cogStd, pSel, gSel, iaw)
 %   pChans  = structure containing channel-wise spectral and alpha parameter data
+%             (pxx, minPow, d0-d2, peaks, pos1, pos2, f1, f2, inf1, inf2, Q, Qf,
+%             gravs, selP, selG)
 %   f       = trimmed vector of frequency bins resolved by `pwelch`
 %
 % Inputs:
 %   data    = vector or matrix containing continuous EEG channel data
-%             (matrix rows = channels, cols = sample points)
+%             (matrix rows = channels, cols = sample points); channels
+%             containing NaNs are skipped
 %   nchan   = number of channels in data array
-%   cmin    = minimum number of channel estimtes that must be resolved in
+%   cmin    = minimum number of channel estimates that must be resolved in
 %             order to calculate average PAF/CoG estimates
-%   fRange  = frequency range to be included in analysis (e.g., [1, 40] Hz)
-%   Fs      = EEG sampling rate
+%   fRange  = frequency range to be included in analysis (integers, e.g., [1, 40] Hz)
+%   Fs      = EEG sampling rate (integer, >= 2*fRange(2))
 %   w       = bounds of alpha peak search window (e.g., [7 13])
 %   Fw      = frame width, Savitzky-Golay filter (corresponds to number of
 %             freq. bins spanned by filter; must be odd)
@@ -57,7 +65,7 @@ function [pSum, pChans, f] = restingIAF(data, nchan, cmin, fRange, Fs, w, Fw, k,
 %   nfft    = specify number of FFT points used to calculate PSD (default =
 %             next power of 2 above window length)
 %   norm    = normalise power spectra (default = true)
-%
+
 % setup inputParser
 p = inputParser;
 p.addRequired('data',...
@@ -143,7 +151,7 @@ for kx = 1:nchan
         end
 
         % calculate minPower vector
-        [pfit, sig] = polyfit(f, log(pChans(kx).pxx), 1);     % fit 1st order poly (regression line) to normalised spectra (log-scaled)
+        [pfit, sig] = polyfit(f, log10(pChans(kx).pxx), 1);     % fit 1st order poly (regression line) to normalised spectra (log-scaled)
         [yval, del] = polyval(pfit, f, sig);                    % derive yval coefficients of fitted polynomial and delta (std dev) error estimate
         pChans(kx).minPow = yval + (mpow * del);                % takes [minPowThresh * Std dev] as upper error bound on background spectral noise
 
@@ -214,25 +222,6 @@ function [d0, d1, d2] = sgfDiff(x, Fw, poly, Fs, tlen)
 %   Fw = frame width (i.e. number of samples, must be an odd integer)
 %   Fs = sampling rate (integer)
 %   tlen = taper length (i.e. number of samples of pwelch window, integer)
-
-% setup inputParser
-% p = inputParser;
-% p.addRequired('x',...
-%                 @(x) validateattributes(x, {'numeric'}, ...
-%                 {'vector'}));
-% p.addRequired('Fw',...
-%                 @(x) validateattributes(x, {'numeric'}, ...
-%                 {'scalar', 'integer', 'positive', 'odd'}));
-% p.addRequired('poly',...
-%                 @(x) validateattributes(x, {'numeric'}, ...
-%                 {'scalar', 'integer', 'positive', '<', Fw }));
-% p.addRequired('Fs',...
-%                 @(x) validateattributes(x, {'numeric'}, ...
-%                 {'scalar', 'integer', 'positive'}));
-% p.addRequired('tlen',...
-%                 @(x) validateattributes(x, {'numeric'}, ...
-%                 {'scalar', 'integer', 'positive'}));
-% p.parse(x, Fw, poly, Fs, tlen)
 
 [~, g] = sgolay(poly, Fw);
 dt = Fs/tlen;
@@ -331,7 +320,7 @@ end
 
 
 % search for positive (upward going) zero-crossings (minima / valleys) either side of peak/subpeak(s)
-slen = round(1/fres);    % define number of bins included in shollow slope search (approximate span = 1 Hz)
+slen = round(1/fres);    % define number of bins included in shallow slope search (approximate span = 1 Hz)
 
 if isnan(peakF) && isnan(subBin)       % if no evidence of peak activity, no parameter estimation indicated
 
@@ -478,7 +467,6 @@ function [selP, sums] = chanMeans(chanCogs, selG, peaks, specs, qf, cmin)
 % channel selection and weights
 selP = ~isnan(peaks);               % evaluate whether channel provides estimate of PAF
 
-% qWt = nansum(qf)/sum(selP);       % average area under peak (Qf) across viable channels (depricated: was used when calculating cross-recording comparisons)
 chanWts = qf/max(qf);               % channel weightings scaled in proportion to Qf value of channel manifesting highest Qf
 
 % average across peaks
@@ -586,7 +574,7 @@ end
 
 function [f2, posZ2] = findF2(f, d0, d1, negZ, minPow, slen, bin)
 % Searches 1st derivative for evidence of local minima or near horizontal
-% function post alpha peak. This location will be taken as the lower
+% function post alpha peak. This location will be taken as the upper
 % bound of the individual alpha band used to calculate CoG (f2).
 %
 % Part of the `restingIAF` package, (c) Andrew W. Corcoran, 2016-2017.
@@ -678,7 +666,7 @@ end
 
 t = zeros(1, length(d1));
 for kx = 1:length(d1)
-    t(kx) = abs(d1(kx) < 1);
+    t(kx) = abs(d1(kx)) < 1;   % slope magnitude < 1
 end
 
 if all(t == 1)

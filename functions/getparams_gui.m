@@ -1,10 +1,22 @@
-% Get parameters specified by user via GUI, stoted into the "params"
-% structure.
+% GETPARAMS_GUI - Get BrainBeats parameters from the user through EEGLAB GUIs.
 %
-% Example:
-%   params = getparams_gui(EEG)
+% Usage:
+%   [params, abort] = getparams_gui(EEG)
 %
-% Cedric Cannard, April 2023
+% A first window selects the analysis ('hep', 'features' or 'rm_heart'), the
+% heart signal type and channel(s), visualization and saving. A second window,
+% specific to the analysis and signal type, sets the preprocessing and
+% feature options. GUI values are then converted to the formats expected by
+% brainbeats_process (logicals, numbers, method names), and options of
+% disabled steps are removed. Internal, called by brainbeats_process.
+%
+% Inputs:
+%   EEG    - EEGLAB EEG structure (channel labels are listed for selection)
+% Outputs:
+%   params - BrainBeats parameters
+%   abort  - true if the user closed or cancelled a window
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 function [params, abort] = getparams_gui(EEG)
 
@@ -16,7 +28,7 @@ abort = false;
 analysis_types = { 'Heartbeat-evoked potentials (HEP)' 'Extract EEG & HRV features' 'Extract heart artifacts from EEG'};
 heart_types = { 'ECG' 'PPG' };
 
-% callback functions
+% callback functions (chanName reads EEG from the figure userdata set by inputgui)
 mode = "if get(gcbo,'value') == 2, set(findobj(gcbf,'userdata','analysis'),'enable','on'); else, set(findobj(gcbf,'userdata','analysis'),'enable','off'); end";
 chanName = "tmpEEG = get(gcbf, 'userdata'); tmpchanlocs = tmpEEG.chanlocs; [tmp tmpval] = pop_chansel({tmpchanlocs.labels},'withindex','on'); set(findobj(gcbf,'tag','heart_channels'),'string',tmpval); clear tmp tmpEEG tmpchanlocs tmpval";
 heartsig = "if get(gcbo,'value'), set(findobj(gcbf,'userdata','heartsig'),'enable','on'); else, set(findobj(gcbf,'userdata','heartsig'),'enable','off'); end";
@@ -42,10 +54,10 @@ uigeom = { [.3 .6] ...
     [1 .2] };
 
 % Launch GUI and get parameters from user
-[res,~,~,params] = inputgui(uigeom,uilist,'pophelp(''pop_BrainBeats'')','BrainBeats EEGLAB plugin',EEG);
+[res,~,~,params] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats EEGLAB plugin',EEG);
 if isempty(res), abort = true; return; end  % Abort if no input
     
-% Analysis choice and check data compatibility for that analysis
+% Analysis choice (popup index -> analysis name)
 if params.analysis == 1
     params.analysis = 'hep';
 elseif params.analysis == 2
@@ -75,7 +87,7 @@ else
     error('You must select your ECG/PPG channels from the list')
 end
 
-% options for EEG preprocessings
+% options for EEG preprocessing
 linefreq = {'60 Hz' '50'};
 refmethod = {'Average (default)' 'Infinity' 'Off'};
 filttype = {'Non-causal linear (default)' 'Causal nonlinear' };
@@ -99,7 +111,7 @@ hrvnorm = {'Yes' 'No (default)'};
 
 % options for EEG features
 freqrange = '[1 40]';
-wintype = {'hamming' 'hann' 'rectwin' 'blackmannharris'};
+wintype = {'hamming' 'hann' 'rectwin' 'blackmanharris'};
 freqbounds = {'Conventional (e.g., alpha = 8-13 Hz)' 'Individualized (e.g., alpha = 7.8-12.3 Hz)'};
 winlen = '2';
 eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Decibels + divided by total power'};
@@ -118,7 +130,7 @@ if strcmp(params.analysis, 'hep') && strcmp(params.heart_signal, 'ecg')
     % GUI
     uilist = { ...
         {'style' 'checkbox' 'string' 'Preprocess ECG' 'fontweight' 'bold' 'tag' 'clean_heart' 'callback' cleanHEART 'value' 1} ...
-        {} {'style' 'text' 'string' 'Peak threshold to detect R peaks:' } {'style' 'edit' 'string' '0.6' 'tag' 'ecg_peakthresh' 'enable' 'on' 'userdata' 'clean_heart' }  ...
+        {} {'style' 'text' 'string' 'Peak threshold to detect R peaks:' } {'style' 'edit' 'string' '0.35' 'tag' 'ecg_peakthresh' 'enable' 'on' 'userdata' 'clean_heart' }  ...
         {} {'style' 'text' 'string' 'Perform searchback to detect R peaks:' } {'style' 'popupmenu' 'string' searchback 'tag' 'ecg_searchback' 'enable' 'on' 'userdata' 'clean_heart' }  ...
         {} {'style' 'text' 'string' 'Refractory period to detect R peaks:' } {'style' 'edit' 'string' '0.25' 'tag' 'ecg_refperiod' 'enable' 'on' 'userdata' 'clean_heart' }  ...
         {} {'style' 'text' 'string' 'Physiologic limits to detect RR artifacts:' } {'style' 'edit' 'string' '[.375 2]' 'tag' 'rr_physlim' 'enable' 'on' 'userdata' 'clean_heart' }  ...
@@ -234,7 +246,7 @@ elseif strcmp(params.analysis, 'features') && strcmp(params.heart_signal, 'ecg')
     % GUI
     uilist = { ...
         {'style' 'checkbox' 'string' 'Preprocess ECG' 'fontweight' 'bold' 'tag' 'clean_heart' 'callback' cleanHEART 'value' 1} ...
-        {} {'style' 'text' 'string' 'Peak threshold to detect R peaks:' } {'style' 'edit' 'string' '0.6' 'tag' 'ecg_peakthresh' 'enable' 'on' 'userdata' 'clean_heart' }  ...
+        {} {'style' 'text' 'string' 'Peak threshold to detect R peaks:' } {'style' 'edit' 'string' '0.35' 'tag' 'ecg_peakthresh' 'enable' 'on' 'userdata' 'clean_heart' }  ...
         {} {'style' 'text' 'string' 'Perform searchback to detect R peaks:' } {'style' 'popupmenu' 'string' searchback 'tag' 'ecg_searchback' 'enable' 'on' 'userdata' 'clean_heart' }  ...
         {} {'style' 'text' 'string' 'Refractory period to detect R peaks:' } {'style' 'edit' 'string' '0.25' 'tag' 'ecg_refperiod' 'enable' 'on' 'userdata' 'clean_heart' }  ...
         {} {'style' 'text' 'string' 'Physiologic limits to detect RR artifacts:' } {'style' 'edit' 'string' '[.375 2]' 'tag' 'rr_physlim' 'enable' 'on' 'userdata' 'clean_heart' }  ...
@@ -311,9 +323,7 @@ elseif strcmp(params.analysis, 'features') && strcmp(params.heart_signal, 'ecg')
         .3 ...
         .3 ...
         };
-    % warning off  % for multi-line text warning
     [res,~,~,params2] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats: parameters for Features mode',EEG);
-    % warning on
     if isempty(res), abort = true; return; end % Abort if no input
 
 %% GUI for Features mode with PPG
@@ -414,7 +424,7 @@ elseif strcmp(params.analysis, 'rm_heart')
     % dropdown options
     linefreq = {'60 Hz (US)' '50 Hz (Europe)'};
     refmethod = {'Infinity (default)' 'Average' 'Off'};
-    filttype = {'Causal nonlinear' 'Non-causal linear (default)'};
+    filttype = {'Non-causal linear (default)' 'Causal nonlinear'};   % default first: preselected
     eeginterp = {'Yes (default)' 'No'};
     icamethod = {'Picard (fast)' 'Infomax (default)' 'Modified infomax (long but replicable)'};
 
@@ -442,8 +452,7 @@ elseif strcmp(params.analysis, 'rm_heart')
         {} {'style' 'text' 'string' 'ICA method to extract artifactual components:' } {'style' 'popupmenu' 'string' icamethod 'tag' 'icamethod' 'enable' 'on' 'userdata' 'clean_eeg' 'value' 2}  ...
         {'style' 'checkbox' 'string' 'Visualize preprocessings' 'tag' 'vis_cleaning' 'fontweight' 'bold' 'value' 1}  ...
         {} ...
-        {'style' 'text' 'string' 'Minimum confidence level to remove heart components (%)' 'fontweight' 'bold'}  {'style' 'edit' 'string' '80' 'tag' 'conf_thresh' 'enable' 'on'} {}...
-        {'style' 'checkbox' 'string' 'Boost mode (beta)' 'fontweight' 'bold' 'tag' 'boost' 'value' 0} ...
+        {'style' 'text' 'string' 'Minimum confidence level to remove heart components (%)' 'fontweight' 'bold'}  {'style' 'edit' 'string' '90' 'tag' 'conf_thresh' 'enable' 'on'} {}...
         };
     uigeom = {
         .3 ...
@@ -465,9 +474,8 @@ elseif strcmp(params.analysis, 'rm_heart')
         .3 ...
         .3 ...
         [.1 .03 .01] ...
-        .3 ...
         };
-    [res,~,~,params2] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats: parameters for HEP mode',EEG);
+    [res,~,~,params2] = inputgui(uigeom,uilist,'pophelp(''brainbeats_process'')','BrainBeats: parameters to remove heart components',EEG);
     if isempty(res), abort = true; return; end % Abort if no input
 
 end
@@ -504,7 +512,7 @@ if isfield(params, 'keep_heart') && ~isempty(params.keep_heart)
     params.keep_heart = logical(params.keep_heart);
 end
 if isfield(params, 'ecg_searchback') && ~isempty(params.ecg_searchback)
-    params.ecg_searchback = logical(params.ecg_searchback);
+    params.ecg_searchback = params.ecg_searchback == 1;   % 1 = 'Yes', 2 = 'No'
 end
 if isfield(params, 'hrv_features') && ~isempty(params.hrv_features)
     params.hrv_features = logical(params.hrv_features);
@@ -540,11 +548,16 @@ if isfield(params, 'gpu') && ~isempty(params.gpu)
 else
     params.gpu = false;
 end
-if isfield(params, 'boost') && ~isempty(params.boost)
-    params.boost = logical(params.boost);
+
+% Domains of a disabled feature group are off (as in getparams_cmd)
+if isfield(params, 'hrv_features') && ~params.hrv_features
+    [params.hrv_time, params.hrv_frequency, params.hrv_nonlinear] = deal(false);
+end
+if isfield(params, 'eeg_features') && ~params.eeg_features
+    [params.eeg_time, params.eeg_frequency, params.eeg_nonlinear] = deal(false);
 end
 
-% RR artfact correction method
+% RR artifact correction method (popup index -> interp1 method)
 if isfield(params, 'rr_correct') && ~isempty(params.rr_correct)
     switch params.rr_correct
         case 1
@@ -562,10 +575,10 @@ if isfield(params, 'rr_correct') && ~isempty(params.rr_correct)
         case 7
             params.rr_correct = 'spline';
         case 8
-            params.rr_correct = 'cubic';
+            params.rr_correct = 'v5cubic';  % cubic convolution (interp1)
         case 9
             params.rr_correct = 'makima';
-        case 'Remove'
+        case 10
             params.rr_correct = 'remove';
     end
 end
@@ -620,7 +633,7 @@ if isfield(params, 'asr_cutoff') && ~isempty(params.asr_cutoff)
     params.asr_cutoff = str2double(params.asr_cutoff);
 end
 if isfield(params, 'asr_mem') && ~isempty(params.asr_mem)
-    params.asr_mem = str2double(params.asr_mem);
+    params.asr_mem = str2double(params.asr_mem)/100;  % GUI in %, clean_eeg expects a fraction
 end
 if isfield(params, 'highpass_ecg') && ~isempty(params.highpass_ecg)
     params.highpass_ecg = str2double(params.highpass_ecg);
@@ -633,12 +646,13 @@ if isfield(params, 'conf_thresh') && ~isempty(params.conf_thresh)
 end
 
 % re-reference EEG
-if isfield(params, 'ref')
-    if params.ref == 1
+if isfield(params, 'ref') && isnumeric(params.ref)
+    tmp = lower(refmethod{params.ref});
+    if contains(tmp,'infinity')
         params.ref = 'infinity';
-    elseif params.ref == 2
+    elseif contains(tmp,'average')
         params.ref = 'average';
-    elseif params.ref == 3
+    else
         params.ref = 'off';
     end
 end
@@ -651,16 +665,16 @@ if isfield(params, 'linenoise')
         params.linenoise = 50;
     end        
     if isfield(params,'lowpass') && params.linenoise<params.lowpass
-        warndlg(sprintf('The lowpass filter you selected will not remove power line noise artifacts and can lead to serious issues. We recommend that you adjust the lowpass cutoff to at least %g Hz.', params.linenoise-10))
-        warning('The lowpass filter you selected will not remove power line noise artifacts and can lead to serious issues. We recommend that you adjust the lowpass cutoff to at least %g Hz.', params.linenoise-10)
+        warndlg(sprintf('The lowpass filter you selected will not remove power line noise artifacts and can lead to serious issues. We recommend that you adjust the lowpass cutoff to %g Hz or lower.', params.linenoise-10))
+        warning('The lowpass filter you selected will not remove power line noise artifacts and can lead to serious issues. We recommend that you adjust the lowpass cutoff to %g Hz or lower.', params.linenoise-10)
     end
 end
 
 % filter type
-if isfield(params, 'filttype')
-    if params.filttype == 1
+if isfield(params, 'filttype') && isnumeric(params.filttype)
+    if startsWith(lower(filttype{params.filttype}),'causal')
         params.filttype = 'causal';
-    elseif params.filttype == 2
+    else
         params.filttype = 'noncausal';
     end
 end
@@ -695,7 +709,7 @@ if isfield(params, 'hrv_freq_opts') && ~isempty(params.hrv_freq_opts)
     idx = find(strcmp(params.hrv_freq_opts,'hrvnorm'));
     if strcmp(params.hrv_freq_opts(idx+1),'1')
         params.hrv_norm = true;
-    elseif strcmp(params.hrv_freq_opts(3,:),'2')
+    elseif strcmp(params.hrv_freq_opts(idx+1),'2')
         params.hrv_norm = false;
     end
 
@@ -723,12 +737,12 @@ if isfield(params, 'eeg_freq_opts') && ~isempty(params.eeg_freq_opts)
     if contains(tmp,'Conventional')
         params.eeg_freqbounds = 'conventional';
     else
-        params.eeg_freqbounds = 'individualizaed';
+        params.eeg_freqbounds = 'individualized';
     end
 
     idx = find(strcmp(params.eeg_freq_opts,'eegnorm'));
     tmp = params.eeg_freq_opts{idx+1};
-    if contains(tmp,'none')
+    if contains(lower(tmp),'none')
         params.eeg_norm = 0;
     elseif contains(tmp,'default')
         params.eeg_norm = 1;  % decibels
@@ -739,9 +753,9 @@ if isfield(params, 'eeg_freq_opts') && ~isempty(params.eeg_freq_opts)
     idx = find(strcmp(params.eeg_freq_opts,'asynorm'));
     tmp = params.eeg_freq_opts{idx+1};
     if contains(tmp,'None')
-        params.asynorm = false;
+        params.asy_norm = false;
     else
-        params.asynorm = true;
+        params.asy_norm = true;
     end        
 
     params = rmfield(params, 'eeg_freq_opts');
@@ -778,7 +792,7 @@ if isfield(params, 'clean_heart') && params.clean_heart == 0  && ~strcmp(params.
     params = rmfield(params,'rr_physlimhigh');
 end
 
-% remove heart components
+% if EEG preprocessing is turned off (options kept for 'rm_heart')
 if ~params.clean_eeg && ~strcmp(params.analysis, 'rm_heart')
     params = rmfield(params,'ref');
     params = rmfield(params,'highpass');
@@ -821,12 +835,10 @@ uigeom = {
     };
 result = inputgui(uigeom, uilist, 'help(''get_hrv_features'')', 'HRV frequency domain parameters');
 if isempty(result), return, end
-% out = { 'hrvspec' spectypes{result{1}} 'winoverlap' result{2} 'hrvnorm' hrvnorm{result{3}} };
-out = { 'hrvspec' result{1} 'winoverlap' result{2} 'hrvnorm' result{3} };
+% Store the choices in the 'hrv_freq_opts' edit field of the parent GUI
+% (popup indices, parsed in the main function)
+out = { 'hrvspec' num2str(result{1}) 'winoverlap' result{2} 'hrvnorm' num2str(result{3}) };
 set(findobj(gcbf, 'tag', 'hrv_freq_opts'), 'string', out );
-% set(findobj(gcbf, 'tag', 'hrv_spec'), 'string', result{1} );
-% set(findobj(gcbf, 'tag', 'hrv_overlap'), 'string',  str2double(result{2})/100);
-% set(findobj(gcbf, 'tag', 'hrv_norm'), 'string', result{3});
 
 %% Button to get options for EEG frequency features
 
@@ -834,7 +846,7 @@ function eegfreqparam(obj, evt, freqrange, wintype, freqbounds, winlen, eegnorm,
 uilist = {
     {'style' 'text' 'string' 'Overall frequency range' 'fontweight' 'bold'} {'style' 'edit' 'string' freqrange 'tag' 'eeg_freqrange'}  ...
     {} ...
-    {'style' 'text' 'string' 'Window type (in %):' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' wintype 'tag' 'eeg_wintype' }  ...
+    {'style' 'text' 'string' 'Window type:' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' wintype 'tag' 'eeg_wintype' }  ...
     {} ...
     {'style' 'text' 'string' 'Window overlap (in %):' 'fontweight' 'bold'} {'style' 'edit' 'string' '50' 'tag' 'eeg_overlap' }  ...
     {} ...
@@ -844,7 +856,7 @@ uilist = {
     {} ...
     {'style' 'text' 'string' 'Band-power normalization' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' eegnorm 'tag' 'eeg_norm' 'value' 2}  ...
     {} ...
-    {'style' 'text' 'string' 'Alpha asymmerty normalization' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' asynorm 'tag' 'asy_norm' }  ...
+    {'style' 'text' 'string' 'Alpha asymmetry normalization' 'fontweight' 'bold'} {'style' 'popupmenu' 'string' asynorm 'tag' 'asy_norm' }  ...
     };
 uigeom = {
     [.1 .1]
@@ -866,4 +878,4 @@ if isempty(result), return, end
 out = { 'frange' result{1} 'wintype' wintype{result{2}} 'winoverlap' result{3} ...
     'winlen' result{4} 'freqbounds' freqbounds{result{5}} 'eegnorm' eegnorm{result{6}} ...
     'asynorm' asynorm{result{7}} };
-set(findobj(gcbf, 'tag', 'eeg_freq_opts'), 'string', out );
+set(findobj(gcbf, 'tag', 'eeg_freq_opts'), 'string', out );  % parsed in the main function

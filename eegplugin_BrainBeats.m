@@ -1,4 +1,19 @@
-% eegplugin_BrainBeats() - EEGLAB plugin to run BrainBeats
+% EEGPLUGIN_BRAINBEATS - EEGLAB plugin entry point for BrainBeats.
+%
+% Adds the plugin folders to the MATLAB path and creates the
+% Tools > BrainBeats menu, which opens the brainbeats_process GUI.
+% Called by EEGLAB at startup.
+%
+% Usage:
+%   vers = eegplugin_BrainBeats(fig, try_strings, catch_strings);
+%
+% Inputs:
+%   fig           - EEGLAB main figure handle
+%   try_strings   - EEGLAB try strings for menu callbacks
+%   catch_strings - EEGLAB catch strings for menu callbacks
+%
+% Output:
+%   vers          - plugin version (string)
 %
 % Copyright (C) - Cedric Cannard, 2023
 %
@@ -26,16 +41,14 @@ p = fileparts(which('eegplugin_BrainBeats.m'));
 addpath(p);
 addpath(fullfile(p,'functions'))
 addpath(fullfile(p,'sample_data'))
-%addpath(fullfile(p,'functions','restingIAF'));
 
-% find menu
+% Find the EEGLAB Tools menu
 menu = findobj(fig, 'tag', 'tools');
 
-% menu callbacks
+% Menu callback (runs brainbeats_process on the current dataset and stores
+% the command in the EEGLAB history)
 process = [try_strings.no_check '[EEG, LASTCOM] = brainbeats_process(EEG);' catch_strings.new_and_hist];
-analyze = [try_strings.no_check '[] = brainbeats_analyze();' catch_strings.new_and_hist];
-  
-% create menus
+
+% Create menus
 submenu = uimenu(menu, 'Label', 'BrainBeats', 'separator', 'on');
 uimenu(submenu, 'Label', '1st level (subject)', 'CallBack', process);
-% uimenu(submenu, 'Label', '2nd level (group)', 'CallBack', analyze);

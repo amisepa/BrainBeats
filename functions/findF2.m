@@ -1,11 +1,34 @@
-% Search 1st derivative for evidence of local minima or near horizontal
-% function post alpha peak. This location will be taken as the lower
-% bound of the individual alpha band used to calculate CoG (f2).
+% FINDF2 - Upper bound (f2) of the individual alpha band: searches the 1st
+% derivative for a local minimum or near-horizontal slope after the alpha peak.
+%
+% Standalone copy of the findF2 subfunction of restingIAF, used by
+% get_freqBounds (restingIAF uses its own copy), with
+% lessThan1 as a local function. Returns NaN when no bound is found.
+%
+% Usage:
+%   [f2, posZ2] = findF2(f, d0, d1, negZ, minPow, slen, bin)
+%
+% Inputs:
+%   f      - frequency bin vector (Hz)
+%   d0     - smoothed PSD estimate vector
+%   d1     - 1st derivative of d0
+%   negZ   - negative zero-crossings (peaks) found in the search window
+%            [count, bin, frequency, power] (one row per peak)
+%   minPow - minimum power threshold per bin (log10) defining candidate peaks
+%   slen   - number of bins examined for a shallow slope (~1 Hz)
+%   bin    - frequency bin of the peak / subpeak
+%
+% Outputs:
+%   f2     - frequency bin of the upper bound (first one found; NaN if none)
+%   posZ2  - frequency of the upper bound (Hz; NaN if none)
+%
+% Part of the restingIAF package, (c) Andrew W. Corcoran, 2016-2018
+% (Corcoran et al. 2018, Psychophysiology). See github.com/corcorana/restingIAF.
 function [f2, posZ2] = findF2(f, d0, d1, negZ, minPow, slen, bin)
 
 posZ2 = zeros(1,4);
 
-% contingency for multiple peakF - try to identify right-most peak in range for upper bound of k in next loop (avoid falling into local minima)
+% contingency for multiple peaks - try to identify right-most peak in range for upper bound of k in next loop (avoid falling into local minima)
 if size(negZ, 1) >1
     negZ = sortrows(negZ, -3);      % sort by frequency (descending)
     for z = 1:size(negZ, 1)
@@ -17,7 +40,7 @@ if size(negZ, 1) >1
         end
     end
 else 
-    rightPeak = bin;               % if no other peakF identified, take bin (sub)peak as boundary
+    rightPeak = bin;               % if no other peaks identified, take bin (sub)peak as boundary
 end
 
 cnt = 0;                            % start counter at 0
@@ -47,5 +70,20 @@ for k = rightPeak+1:length(d1) - slen     % step through frequency bins followin
     end
 end
 
-f2 = posZ2(1, 2);
-posZ2 = posZ2(1, 3);                % can simply take first estimate for output
+if cnt == 0                         % if no crossing or shallow slope found --> report NaNs
+    f2 = NaN;
+    posZ2 = NaN;
+else
+    f2 = posZ2(1, 2);
+    posZ2 = posZ2(1, 3);            % can simply take first estimate for output
+end
+
+%% Subfunction
+
+function tval = lessThan1(d1)
+% True if all values of a 1st derivative segment (~1 Hz) are within +/- 1
+% (shallow slope). Copy of the lessThan1 subfunction of restingIAF.
+if length(d1) < 2
+    error('Length of 1st derivative segment < 2');
+end
+tval = all(abs(d1) < 1);

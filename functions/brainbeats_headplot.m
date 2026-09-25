@@ -1,3 +1,7 @@
+% BRAINBEATS_HEADPLOT - EEGLAB HEADPLOT adapted to plot EEG asymmetry in
+% plot_features: no outputs, no face/lower-head mesh, no wait bar, parula
+% colormap, colorbar labelled as asymmetry score.
+%
 % HEADPLOT - plot a spherically-splined EEG field map on a semi-realistic
 %              3-D head model. Can 3-D rotate the head image using the left
 %              mouse button.
@@ -71,24 +75,21 @@
 %   'title'      -  Plot title {default: none}
 %   'labels'     -  2 -> plot stored electrode labels;
 %                   1 -> plot channel numbers; 0 -> no labels {default 0}
-%   'cbar'       -  0 -> Plot colorbar {default: no colorbar}
-%                        Note: standard jet colormap) red = +;blue = -;green=0
-%                   h -> Colorbar axis handle (to specify headplot location)
+%   'cbar'       -  nonzero -> plot colorbar {default: no colorbar}
 %   'view'       - Camera viewpoint in deg. [azimuth elevation]
 %                  'back'|'b'=[  0 30]; 'front'|'f'=[180 30]
 %                  'left'|'l'=[-90 30]; 'right'|'r'=[ 90 30];
 %                  'frontleft'|'bl','backright'|'br', etc.,
 %                  'top'=[0 90],  Can rotate with mouse {default [143 18]}
 %   'maplimits'  - 'absmax' -> make limits +/- the absolute-max
-%                  'maxmin' -> scale to data range
-%                   [min,max] -> user-definined values
+%                  'minmax' -> scale to the range of absolute values
 %                      {default = 'absmax'}
 %   'lights'     - (3,N) matrix whose rows give [x y z] pos. of each of
 %                   N lights {default: four lights at corners}
 %   'electrode3d' - ['on'|'off'] plot electrodes in 3-D. Default is 'off'.
 %   'lighting'   - 'off' = show wire frame head {default 'on'}
 %   'material'   - [see material function] {default 'dull'}
-%   'colormap'   -  3-column colormap matrix {default: jet(64)}
+%   'colormap'   -  3-column colormap matrix {default: parula}
 %   'verbose'    - 'off' -> no msgs, no rotate3d {default: 'on'}
 %   'orilocs'    - [channel structure or channel file name] Use original
 %                  channel locations instead of the one extrapolated from
@@ -446,7 +447,7 @@ else
     spline_file = arg1;
 
     g = finputcheck( varargin, { ...
-        'cbar'       'real'   [0 Inf]         []; % Colorbar value must be 0 or axis handle.'
+        'cbar'       'real'   [0 Inf]         []; % nonzero to plot the colorbar
         'lighting'   'string' { 'on','off' }  'on';
         'verbose'    'string' { 'on','off' }  'on';
         'maplimits'  { 'string','real' }  []  'absmax';
@@ -506,7 +507,8 @@ else
     [~, POS, TRI1, TRI2, NORM, index1, ~] = getMeshData(g.meshfile);
 
     % Perform interpolation
-    values = values - mean(values); % make mean zero
+    meanval = mean(values);
+    values = values - meanval; % make mean zero (added back after interpolation)
     % onemat = ones(enum,1);
     lamd = 0.1;
     C = pinv([(G + lamd);ones(1,enum)]) * [values(:);0]; % fixing division error
@@ -514,23 +516,33 @@ else
     for j = 1:size(gx,1)
         P(j) = dot(C,gx(j,:));
     end
-    P = P + mean(values);
+    P = P + meanval;
 
     %%%% Get colormap indices %%%%
-    if strcmp(g.maplimits,'minmax')
-        amin = min(min(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
-        amax = max(max(abs(P)))*1.02;
-        % amin = min(values);
-        % amax = max(values);
-    elseif strcmp(g.maplimits,'absmax')
-        amin = min(min(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
-        amax = max(max(abs(P)))*1.02;
-        amax = max(-amin, amax);
-        amin = -amax;
+    if ischar(g.maplimits)
+        if strcmp(g.maplimits,'minmax')
+            amin = min(min(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
+            amax = max(max(abs(P)))*1.02;
+            % amin = min(values);
+            % amax = max(values);
+        elseif strcmp(g.maplimits,'absmax')
+            amin = min(min(abs(P)))*1.02; % 2% shrinkage keeps within color bounds
+            amax = max(max(abs(P)))*1.02;
+            amax = max(-amin, amax);
+            amin = -amax;
+        else
+            error('headplot(): unknown maplimits string ''%s''', g.maplimits);
+        end
+    elseif numel(g.maplimits) == 2
+        amin = g.maplimits(1);
+        amax = g.maplimits(2);
+    else
+        error('headplot(): maplimits must be ''absmax'', ''minmax'' or [min max]');
     end
 
     m = size(g.colormap,1);
-    idx = min(m,round((m-1)*(P-amin)/(amax-amin))+1);
+    idx = max(1, min(m, round((m-1)*(P-amin)/(amax-amin))+1));
+    W = zeros(1,size(POS,1));  % vertices outside index1 keep index 0
     W(index1) = idx;
     % subplot(1,2,1); hist(P(:));
     % idx = round((m-1)*P/(amax-amin))+m/2;

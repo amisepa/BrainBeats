@@ -1,53 +1,59 @@
-% Caculate ECG's signal quality index(SQI) on each time window, by
-% comparing two QRS time series. SQI< 0.9 should not be included in analyses.
+% GET_SQI_ECG - ECG signal quality index (bSQI) in sliding windows.
 %
-% INPUTS:
-%  qrs1: first annotation file
-%  qrs2: second annotation file
+% The R-peaks to evaluate are compared with those of a second, independent
+% detector (get_rwave3) run on the raw ECG. In each window the SQI is the
+% F1 agreement between the two (0-1). Windows with SQI < 0.9 should not be
+% included in analyses.
 %
-% OUTPUTS:
-%   sqi: sqi of each window
-%   t_sqi: time index
+% Usage:
+%   [sqi, t_sqi] = get_sqi_ecg(qrs1, raw_ecg, fs)
 %
-% Reference when using the SQI feature:
-%   Vest, Da Poian,Li, Liu, Nemati, Shah & Clifford (2018). An open-source
+% Inputs:
+%   qrs1    - R-peak sample indices to evaluate (e.g. from get_RR)
+%   raw_ecg - raw ECG signal (vector)
+%   fs      - sampling rate (Hz)
+%
+% Outputs:
+%   sqi   - SQI of each 10-s window (1-s steps, 2-s margins excluded,
+%           0.1-s matching tolerance), row. Windows where a detector finds
+%           no beat or none match get 0. NaN if qrs1 is empty.
+%   t_sqi - start time of each window (s)
+%
+% Reference:
+%   Vest, Da Poian, Li, Liu, Nemati, Shah & Clifford (2018). An open-source
 %   benchmarked toolbox for cardiovascular waveform and interval analysis.
 %   Physiological measurement, 39(10), 105004.
-
-% Cedric Cannard, 2022
+%
+% Copyright (C) - Cedric Cannard, 2022
 
 function [sqi, t_sqi] = get_sqi_ecg(qrs1,raw_ecg,fs)
 
 disp("Calculating signal quality index (SQI) for a ECG time series...")
 
-% % Resample to 125 hz for method 2
-% if fs ~= 125
-%     [N,D] = rat(125/fs);                                       % Rational Fraction Approximation
-%     % Check = [125/fs, N/D]                                      % Approximation Accuracy Check (Delete)
-%     signal = resample(raw_ecg, N, D);                                   % Resampled Signal
-%     % figure; plot(raw_ecg); hold on; plot(signal); legend('raw', 'resampled');
-% end
-% gain = 2000; % multiply by 2000 if ECG is in physical units
-% qrs2 = get_rwave2(signal*gain, 125, 50);
-
+% Second, independent R-peak detector
 qrs2 = get_rwave3(raw_ecg,fs);
 
-windowlength = 10;  % default = 10
-increment = 1;      % default = 1
-threshold = 0.1;    % default = 0.1;
-margin = 2;
+windowlength = 10;  % window length (s)
+increment = 1;      % window step (s)
+threshold = 0.1;    % max distance between matching beats (s)
+margin = 2;         % window edges ignored in the comparison (s)
 
-qrs1 = qrs1(:)./fs;
+if isempty(qrs1)
+    warning('get_sqi_ecg: no beats to evaluate.');
+    sqi = NaN; t_sqi = [];
+    return
+end
+qrs1 = qrs1(:)./fs;  % samples -> s
 qrs2 = qrs2(:)./fs;
 
 endtime = max([qrs1(end), qrs2(end)]);
 t = (1/fs):(1/fs):endtime;
 
 % Create Windows
-nx = floor(t(end));                 % length of sequence
-overlap = windowlength-increment;   % number of overlapping elements
+nx = floor(t(end));                 % length of sequence (s)
+overlap = windowlength-increment;   % overlap between windows (s)
 Nwinds = fix((nx-overlap)/(windowlength-overlap));      % number of sliding windows
-t_sqi = (0:Nwinds-1) * (windowlength-overlap);          % starting index of each windows
+t_sqi = (0:Nwinds-1) * (windowlength-overlap);          % start time of each window (s)
 
 % Calculate SQI for each Window
 sqi = nan(1,length(t_sqi));
@@ -69,17 +75,15 @@ for iSeg = 1:length(t_sqi)
     end
 end
 
-% fprintf('Mean signal quality index (SQI): %g \n', round(mean(sqi,'omitnan'),2))
-
-
-
-
-
+% A NaN window is one where the two detectors agree on no beat (F1 = 0/0)
+% or where one of them found none: that is a failed window, not a missing
+% one. Left as NaN it would drop out of the mean and of the bad-window count.
+sqi(isnan(sqi)) = 0;
 
 %% Subfunction
 
 function [F1,Se,PPV,Nb] = run_sqi(refqrs,testqrs,thres,margin,windowlen,fs)
-% sqi = run_sqi(refqrs,testqrs,thres,margin,windowlen,fs)
+% [F1,Se,PPV,Nb] = run_sqi(refqrs,testqrs,thres,margin,windowlen,fs)
 % compare two sets of annotation with one as the reference (refqrs) and one
 % as the test (testqrs)
 %
@@ -92,9 +96,10 @@ function [F1,Se,PPV,Nb] = run_sqi(refqrs,testqrs,thres,margin,windowlen,fs)
 %     fs:           sampling frequency
 %
 % output
-%     sqi: match proportion according to some criteria you can change
-%     depending on what you are looking for (can be Se, PPV or F1 measure).
-%     See at the end of the function.
+%     F1:  F1 measure of the match (used as the SQI by get_sqi_ecg)
+%     Se:  sensitivity; PPV: positive predictive value
+%     Nb:  struct with the TP, FN and FP counts
+%     All are empty if refqrs has no beat inside the margins.
 %
 % When using this work, then please cite [1] and [2]:
 %     [1] Behar Joachim, Oster Julien, Qiao Li, Clifford Gari D. Signal Quality
@@ -169,7 +174,7 @@ try
             end
         end
 
-        indbord = find(testqrs<thres*fs | testqrs>(windowlen-thres)*fs); % reference QRS at the border
+        indbord = find(testqrs<thres*fs | testqrs>(windowlen-thres)*fs); % test QRS at the border
         if ~isempty(indbord)
             [IndMatchBord,DistQRSbord] = dsearchn(refqrs,testqrs(indbord));
             Indeces_below_threshold = DistQRSbord<thres*fs; %Added line to find indices of annotation of interest (testqrs) below threshold (02-10-14)

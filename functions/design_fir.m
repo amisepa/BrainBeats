@@ -1,25 +1,21 @@
 function B = design_fir(N,F,A,nfft,W)
-% B = design_fir(N,F,A,nFFT,W)
-% Design an FIR filter using the frequency-sampling method.
+% DESIGN_FIR - Design an FIR filter with the frequency-sampling method.
 %
-% The frequency response is interpolated cubically between the specified
-% frequency points.
+% The amplitude response is interpolated (piecewise cubic, pchip) between the
+% specified frequency points, given linear phase, and windowed.
 %
-% In:
-%   N : order of the filter
+% Usage:
+%   B = design_fir(N, F, A, nFFT, W)
 %
-%   F : vector of frequencies at which amplitudes shall be defined
-%       (starts with 0 and goes up to 1; try to avoid too 
-%        sharp transitions)
-%
-%   A : vector of amplitudes, one value per specified frequency
-%
-%   nFFT : optionally number of FFT bins to use
-%
-%   W : optionally the window function to use (default: Hamming)
-%
-% Out:
-%   B : designed filter kernel
+% Inputs:
+%   N    - filter order
+%   F    - frequencies at which amplitudes are defined, normalized to Nyquist
+%          (from 0 to 1; avoid too sharp transitions)
+%   A    - amplitudes, one per frequency in F
+%   nFFT - (optional) number of FFT bins (default max(512, next power of 2 >= N))
+%   W    - (optional) window, N+1 samples (default Hamming)
+% Outputs:
+%   B    - filter kernel (1 x N+1)
 %
 %                                Christian Kothe, Swartz Center for Computational Neuroscience, UCSD
 %                                2013-08-14

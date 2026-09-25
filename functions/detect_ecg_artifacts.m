@@ -1,101 +1,52 @@
 function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
-% detect_ecg_artifacts - Flag bad portions of a continuous ECG recording.
+% DETECT_ECG_ARTIFACTS - Flag bad stretches of a continuous ECG recording.
 %
-% Marks stretches of ECG that should not be trusted for R-peak detection:
-% high-frequency bursts (muscle activity, electrode rubbing, cable movement),
-% optionally large slow excursions (body movement, electrode pull), and any
-% non-finite samples. It is meant to run BEFORE get_RR / get_rwave3, so that
-% peak detection and RR cleaning never see the corrupted stretches at all.
-%
-% Strategy:
-%   1. Replace non-finite samples with 0 so the filters stay well posed, and
-%      remember where they were.
-%   2. High-pass the raw signal above HFcutoff (default 30 Hz). At that cutoff
-%      the QRS complex contributes little, so what remains is dominated by
-%      noise rather than by the beats themselves.
-%   3. Track the moving-average power of that high-passed signal over a WinSec
-%      window and convert it to a robust z score (median / 1.4826*MAD, so the
-%      artifacts being measured do not inflate their own baseline). Samples
-%      above HFthresh are candidate artifacts.
-%   4. Smooth the candidate mask with a moving-average majority filter over
-%      ErodeWin*WinSec seconds, which drops isolated flagged samples and closes
-%      pinholes inside genuine bursts.
-%   5. Optionally add a slow-drift mask: low-pass below 5 Hz, robust z score of
-%      the amplitude itself, flag |z| > AmpThresh. Off by default (AmpThresh Inf).
-%   6. Drop flagged runs shorter than MinArtSec, then merge runs separated by
-%      less than MinGapSec, so the output is a small number of contiguous
-%      segments rather than a speckled mask.
+% Flags high-frequency bursts (muscle, electrode rubbing, cable movement),
+% optionally large slow excursions (body movement), and non-finite samples,
+% so they can be excluded before R-peak detection (get_RR).
 %
 % Usage:
-%   mask = detect_ecg_artifacts(ECG);
-%   mask = detect_ecg_artifacts(ECG, 'HFthresh', 15, 'AmpThresh', 6);
-%   [mask, seg] = detect_ecg_artifacts(ecg_vector, 'SampleRate', 500);
+%   [mask, badSegments] = detect_ecg_artifacts(ECG, 'key', val, ...)
 %
 % Inputs:
-%   ECG - EEGLAB structure holding one ECG channel (uses .data and .srate; if
-%         .data has several channels only the first is used), OR a plain
-%         numeric vector, in which case 'SampleRate' is required.
-%
-% Optional name-value inputs:
-%   'SampleRate' (default: [])    - sampling rate (Hz). Required, and only
-%                                   used, when ECG is a numeric vector.
-%   'HFcutoff'   (default: 30)    - high-pass cutoff (Hz) defining the band
-%                                   scanned for noise bursts.
-%   'HFthresh'   (default: 5)     - robust z threshold on high-frequency power.
-%                                   Lower flags more. 15 is a typical value when
-%                                   only gross artifacts should be removed.
-%   'AmpThresh'  (default: Inf)   - robust z threshold on the <5 Hz amplitude,
-%                                   for slow movement artifacts. Inf disables
-%                                   this mask entirely.
-%   'WinSec'     (default: 0.5)   - moving-average window (s) for the
-%                                   high-frequency power estimate. Sets the
-%                                   time resolution of the detector: short
-%                                   enough to isolate a burst, long enough that
-%                                   a single QRS does not register as one.
-%   'ErodeWin'   (default: 0.4)   - majority-filter length as a fraction of
-%                                   WinSec.
-%   'MinArtSec'  (default: 0.5)   - flagged runs shorter than this are dropped.
-%   'MinGapSec'  (default: 0.1)   - flagged runs separated by less than this
-%                                   are merged into one.
-%   'Plot'       (default: false) - draw a diagnostic figure: the signal with
-%                                   flagged stretches in red, and the
-%                                   high-frequency z trace against its threshold.
+%   ECG - EEGLAB structure (.data, .srate; only the first channel is used)
+%         or a numeric vector (then 'SampleRate' is required)
+% Optional name-value pairs:
+%   'SampleRate' - sampling rate (Hz), for vector input only (default [])
+%   'HFcutoff'   - highpass cutoff (Hz) of the noise band (default 30)
+%   'HFthresh'   - robust z threshold on HF power; lower flags more
+%                  (default 5; ~15 to catch only gross artifacts)
+%   'AmpThresh'  - robust z threshold on the < 5 Hz amplitude (default Inf = off)
+%   'WinSec'     - moving-average window of the HF power (s, default 0.5):
+%                  short enough to isolate a burst, long enough that one QRS
+%                  does not register as one
+%   'ErodeWin'   - majority-filter length, fraction of WinSec (default 0.4)
+%   'MinArtSec'  - flagged runs shorter than this are dropped (s, default 0.5)
+%   'MinGapSec'  - runs this close or closer are merged (s, default 0.1)
+%   'Plot'       - diagnostic figure (default false)
 %
 % Outputs:
-%   mask        - 1 x nSamples logical, true where the ECG is flagged as bad.
-%   badSegments - nSeg x 2 sample indices [start stop] of the flagged runs.
+%   mask        - 1 x nSamples logical, true where the ECG is bad
+%   badSegments - nSeg x 2 [start stop] sample indices of the flagged runs,
+%                 usable with pop_select(..., 'nopoint', badSegments)
+%
+% Method: HF power = moving average of the squared > HFcutoff signal (where
+% the QRS contributes little), as a robust z score (median, 1.4826 x MAD,
+% so artifacts do not inflate their own baseline); then a 60% majority
+% filter, the optional slow-amplitude mask, the MinArtSec and MinGapSec rules.
 %
 % Notes:
-%   - The mask is sample-resolved and time-aligned with the input, so it can be
-%     handed straight to pop_select(..., 'nopoint', badSegments), or used to
-%     drop R-peaks that fall inside a flagged stretch.
-%   - Non-finite samples are folded into the mask before the MinArtSec filter,
-%     so a run of NaNs shorter than MinArtSec is reported in the console but
-%     does not survive into the returned mask. Handle isolated NaNs separately.
-%   - AmpThresh reuses the FIR order designed for the high-pass, which is short
-%     for a 5 Hz cutoff. It is a coarse movement detector, not a precise filter.
-%   - Requires the Signal Processing Toolbox (fir1, filtfilt) and the Statistics
-%     Toolbox (mad).
+%   - Non-finite samples are set to 0 for filtering and added to the mask
+%     before the MinArtSec rule, so NaN runs shorter than MinArtSec are
+%     reported but not returned.
+%   - The < 5 Hz filter reuses the highpass FIR order, which is short for
+%     5 Hz: a coarse movement detector.
+%   - Requires the Signal Processing (fir1, filtfilt) and Statistics (mad)
+%     toolboxes.
 %
 % See also: get_RR, clean_rr, get_sqi_ecg
 %
-% Changelog:
-%   v1.1 - September 2026 (Cedric Cannard)
-%     - Moved into BrainBeats from an external preprocessing script.
-%     - WinSec is now honoured as written. It was previously passed through
-%       min(WinSec, 0.5), so any value above 0.5 s silently became 0.5 s. The
-%       default is 0.5 s, which reproduces the old effective behaviour; callers
-%       that used to pass a larger value were already getting 0.5 s.
-%     - Accepts a plain numeric vector plus 'SampleRate', not only an EEGLAB
-%       structure.
-%     - Returns the segment boundaries as a second output.
-%     - Guards a degenerate MAD of zero (flat or constant signal) instead of
-%       dividing by it and flagging on the resulting Inf/NaN z scores.
-%     - Validates that HFcutoff leaves a usable filter order below Nyquist.
-%     - Uses only the first channel when handed multi-channel data, instead of
-%       flattening every channel into one series of the wrong length.
-%
-% Cedric Cannard, 2026
+% Copyright (C) - Cedric Cannard, 2026
 
 ip = inputParser;
 addParameter(ip, 'SampleRate', []);
@@ -157,6 +108,7 @@ if any(nonfinite_mask)
     sig(nonfinite_mask) = 0;
 end
 
+% High-frequency (noise) band: FIR highpass, even order, zero-phase
 order  = 3 * round(sr / hfCut);
 order  = order + mod(order, 2);
 if order < 4
@@ -185,9 +137,12 @@ end
 fprintf('  Artifact detection:\n');
 fprintf('    HF burst (>%g Hz, raw):  %.2f%%\n', hfCut, 100*mean(mask_hf));
 
+% Majority filter (> 60% flagged within ErodeWin*WinSec): drops isolated
+% samples and closes pinholes inside bursts
 erosionSamp = max(1, round(winSamp * erodeWin));
 mask_hf = logical(conv(double(mask_hf), ones(1,erosionSamp)/erosionSamp, 'same') > 0.6);
 
+% Optional slow-movement mask: robust z of the < 5 Hz amplitude
 if isfinite(ampThr)
     b_lf   = fir1(order, 5/nyq, 'low');
     lf_sig = filtfilt(b_lf, 1, sig);
@@ -205,6 +160,7 @@ else
     mask_lf = false(1, n);
 end
 
+% Combine, convert to [start stop] runs, drop short runs, merge close ones
 mask = mask_hf | mask_lf | nonfinite_mask;
 minArtSamp = round(minArtSec * sr);
 badSegments      = reshape(find(diff([false mask false])), 2, [])';
@@ -218,6 +174,7 @@ if ~isempty(badSegments)
     badSegments = merge_segments(badSegments, round(minGap * sr));
 end
 
+% Rebuild the mask from the final segments
 mask = false(1, n);
 for i = 1:size(badSegments, 1)
     mask(badSegments(i,1):badSegments(i,2)) = true;
@@ -228,11 +185,8 @@ fprintf('    Segments after merging: %d\n', size(badSegments, 1));
 
 if doPlot
     t = (0:n-1) / sr / 60;
-    % Per-recording diagnostic, never closed here, so it needs the recording in
-    % its Name. ECG often arrives via pop_select, so setname may be inherited or
-    % missing entirely, hence the guard where it was read above.
-    % '%%' (not '%%%%') -- the figure Name is a plain string, so sprintf runs
-    % once and '%%' is what yields a single literal per-cent sign.
+    % The figure is left open, so its Name identifies the recording (setname
+    % may be empty). sprintf runs once on it, so '%%' gives one literal '%'.
     figure('Color','w','Position',[100 100 1400 500], 'NumberTitle','off', ...
         'Name', sprintf('ECG artifacts | %s | %.1f%% flagged | %d seg', ...
                         setname, 100*mean(mask), size(badSegments,1)));
@@ -257,7 +211,8 @@ end
 
 %% Helper
 function segs = merge_segments(segs, minGap)
-% Merge segments separated by minGap samples or fewer.
+% Merge consecutive segments whose start-to-previous-stop distance is at
+% most minGap samples.
 if isempty(segs), return; end
 i = 1;
 while i < size(segs, 1)

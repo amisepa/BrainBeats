@@ -1,11 +1,27 @@
 function plot_topo(data,chanlocs,mode,dataType)
+% PLOT_TOPO - Scalp topography of one value (or one curve) per EEG channel.
+%
+% Usage:
+%   plot_topo(data, chanlocs, mode, dataType)
+%
+% Inputs:
+%   data     - nChan x 1 values (mode 1), or nChan x nValues (mode 2, e.g.
+%              multiscale entropy)
+%   chanlocs - EEGLAB channel locations of the same nChan channels
+%   mode     - 1 = 2D topoplot in the current axes (parula colormap, colorbar)
+%              2 = 3D electrode plot in a new figure; with several values per
+%                  channel, clicking an electrode plots its curve
+%   dataType - 'psd' or 'entropy'. With 'entropy', values < .01 are set to
+%              1e-4 and flagged as probable bad channels (mode 1).
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 chanlabels = {chanlocs.labels};
 x = [ chanlocs.X ]';
 y = [ chanlocs.Y ]';
 z = [ chanlocs.Z ]';
 
-% Rotate X Y Z coordinates
+% Rotate X Y Z coordinates (for the 3D plot; topoplot uses chanlocs directly)
 % rotate = 0;       %nosedir = +x
 rotate = 3*pi/2;    %nosedir = +y
 % rotate = pi;      %nosedir = -x
@@ -37,62 +53,41 @@ if mode == 1
         end
     end
 
-    % Scalp topo
-    % if strcmpi(dataType,'entropy') && var(data) < 0.1
-    %     disp('Entropy data do not have enough variance across electrodes to plot an informative scalp topography.')
-    % else
-    % figure('color','w');
+    % Scalp topo (color limits = data range; fails silently if all values are equal)
     topoplot(data, chanlocs,'emarker',{'.','k',7,1},'electrodes','on');
     try
         clim([min(data) max(data)]);
     catch
     end
-    % if strcmpi(dataType,'psd')
     colormap('parula');
-    % else
-    %     colormap('hot');
-    % end
     c = colorbar;
-    % ylabel(c,'Coherence','FontSize',12)
-    % title('Entropy','FontSize',10);
-    % if strcmpi(dataType,'psd')
-    % c.Label.String = 'Power';
-    % elseif strcmpi(dataType,'iaf')
-    %     c.Label.String = 'Alpha centre of gravity';
-    % elseif strcmpi(dataType,'entropy')
-    %     c.Label.String = 'Entropy';
-    % end
     c.Label.FontSize = 12;
     c.Label.FontWeight = 'bold';
-    % end
 end
 
-%% 3D scalp topo allowing to open data for each electrode (for 2D data)
+%% 3D electrode plot; click an electrode to plot its values (nChan x nValues data)
 if mode == 2
 
     p = figure('color','w');
-    % p.Position = [100 100 540 400];
     axis equal
     axis vis3d
     axis off
     hold on
 
-    % adj = mean(data(1,:))*5; % to scale marker size
-
     for iChan = 1:size(data,1)
 
         if length(data(iChan,:)) == 1 % measures with one value per channel
-            % 3D plot of entropy values at electrode locations
+            % electrode marker
             p(iChan) = plot3(coord(iChan,1),coord(iChan,2),coord(iChan,3), ...
                 'MarkerEdgeColor','k','MarkerFaceColor', 'k', ...
                 'Marker','o','MarkerSize',5);
 
-            % Display channel label + entropy value for each channel
+            % Display channel label + value for each channel
             text(coord(iChan,1)-15,coord(iChan,2)+10,coord(iChan,3), ...
                 sprintf('%s: %6.1f',chanlabels{iChan}, ...
                 round(data(iChan,:),2)),'FontSize',10,'fontweight','bold');
 
-        else % for multiscales, take area under the curve as sensor size
+        else % several values per channel (e.g., multiscale entropy): clickable marker
             p(iChan) = plot3(coord(iChan,1),coord(iChan,2),coord(iChan,3), ...
                 'MarkerEdgeColor','k','MarkerFaceColor', 'k', ...
                 'Marker','o','MarkerSize', 5, 'UserData',iChan, ...
@@ -114,12 +109,9 @@ end
 %% subfunction to display data on click
 function buttonCallback(tmpdata, coor, label)
 
-% Entropy measures with only one value per channel
+% Plot the clicked channel's values across time scales
 figure('color','w','Position', [500 500 280 210]);
-plot(tmpdata,'linewidth',2,'color','black'); % blue: [0, 0.4470, 0.7410]
-% area(tmpdata,'linewidth',2);
+plot(tmpdata,'linewidth',2,'color','black');
 title(label,'FontSize',14)
-% xticks(2:nScales); xticklabels(join(string(scales(:,2:end)),1)); xtickangle(45)
-% xlim([2 nScales]);
 xlabel('Time scale','FontSize',12,'fontweight','bold');
 ylabel('Entropy','FontSize',12,'fontweight','bold')

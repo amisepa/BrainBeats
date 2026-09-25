@@ -1,18 +1,32 @@
-% test_rr_vs_ppg.m
-% Compare heartbeat detection: BrainBeats PPG peak detection vs pre-detected beats.
+% TEST_RR_VS_PPG - Heartbeats detected by the Muse vs BrainBeats PPG detection.
 %
-% Loads Muse 2 EEG + optics data, runs BrainBeats in two modes:
-%   1. 'rr'  mode — use pre-detected beat latencies from beat_detections.csv
-%   2. 'ppg' mode — detect peaks from raw optical PPG signal
-% Then overlays the detected peaks and HEP waveforms for comparison.
+% Loads the Muse 2 EEG (4 channels, 256 Hz), optics (PPG, 64 Hz) and beat
+% detections in tests/data, resamples EEG and PPG to a common 250 Hz grid
+% starting at EEG onset, filters the EEG 1-40 Hz (clean_eeg is off: no
+% channel locations), and computes HEP with brainbeats_process in two modes:
+%   A. 'rr'  mode: beat latencies from test_beat_detections.csv
+%   B. 'ppg' mode: BrainBeats peak detection on the raw optics PPG
+% It also runs findpeaks on the smoothed PPG (C), with smoothing and
+% prominence tuned against the Muse beats in the 21-35 s window.
+%
+% Usage: run the script from MATLAB with EEGLAB installed (Signal
+% Processing Toolbox for findpeaks). Figures saved in tests/figures:
+%   fig1_peak_overlay.png   - Muse beats, A and C on the PPG (5-35 s)
+%   fig2_ibi_timeseries.png - IBI time series, A and B
+%   fig3_hep_waveforms.png  - HEP per channel, A and B, with early
+%                             (200-350 ms) and late (400-600 ms) windows
 
 clear; close all;
 
-%% Setup
-if ~exist('eeg_checkset', 'file')
-    addpath('~/eeglab');
+%% Setup (EEGLAB and BrainBeats must be on the MATLAB path)
+if ~exist('eeglab', 'file')
+    error('EEGLAB not found: add its folder to the MATLAB path (addpath(''path/to/eeglab'')) and run again.')
 end
 eeglab nogui;
+
+% This copy of BrainBeats first (ahead of an installed plugin version)
+bbPath = fileparts(fileparts(mfilename('fullpath')));
+addpath(bbPath, fullfile(bbPath, 'functions'));
 
 testDir = fileparts(mfilename('fullpath'));
 dataDir = fullfile(testDir, 'data');
@@ -104,10 +118,11 @@ EEG_A = brainbeats_process(EEG_only, ...
     'vis_outputs', false, ...
     'save', false);
 
-% Extract R-peak latencies from events
-rpeaks_A_idx = strcmp({EEG_A.event.type}, 'R-peak');
-rpeaks_A_lat = [EEG_A.event(rpeaks_A_idx).latency] / target_srate;  % seconds
-fprintf('Approach A: %d R-peak events, %d epochs\n', sum(rpeaks_A_idx), EEG_A.trials);
+% Beat times (s from EEG onset) used by BrainBeats, before run_HEP rejects
+% beats. Event latencies of the epoched output count samples across the
+% concatenated epochs, not recording time, so they cannot be used here.
+rpeaks_A_lat = EEG_A.brainbeats.preprocessings.NN_times(:)';
+fprintf('Approach A: %d beats, %d epochs\n', length(rpeaks_A_lat), EEG_A.trials);
 
 %% Approach B: Run BrainBeats with raw PPG ('ppg' mode)
 fprintf('\n=== Approach B: raw optical PPG (ppg mode) ===\n');
@@ -122,10 +137,9 @@ try
         'vis_outputs', false, ...
         'save', false);
 
-    % Extract R-peak latencies from events
-    rpeaks_B_idx = strcmp({EEG_B.event.type}, 'R-peak');
-    rpeaks_B_lat = [EEG_B.event(rpeaks_B_idx).latency] / target_srate;
-    fprintf('Approach B: %d R-peak events, %d epochs\n', sum(rpeaks_B_idx), EEG_B.trials);
+    % Beat times (s) of the NN series (see approach A)
+    rpeaks_B_lat = EEG_B.brainbeats.preprocessings.NN_times(:)';
+    fprintf('Approach B: %d beats, %d epochs\n', length(rpeaks_B_lat), EEG_B.trials);
 catch ME
     ppg_ok = false;
     fprintf('Approach B FAILED: %s\n', ME.message);
@@ -179,14 +193,14 @@ end
 fprintf('Best params: smoothing=%d samples, MinPeakProminence=%.4f (F1=%.3f)\n', ...
     best_sw, best_prom, best_f1);
 
-% Apply best parameters to full signal
+% Apply best parameters to the full signal (minimum distance 0.375 s here)
 ppg_smooth_best = movmean(ppg_ch, best_sw);
 [fp_vals, fp_locs] = findpeaks(-ppg_smooth_best, 'MinPeakDistance', min_dist_samp*1.25, ...
     'MinPeakProminence', best_prom);
 fp_sec = (fp_locs - 1) / target_srate;
 fprintf('Approach C: %d peaks detected over full recording\n', length(fp_sec));
 
-%% Figure 1: Peaks on PPG signal (first 30 seconds) — three panels
+%% Figure 1: Peaks on PPG signal (5-35 s), three panels
 fig1 = figure('Position', [100 100 1200 900], 'Color', 'w');
 xlims = [5 35];
 idx_show = t_ppg >= xlims(1) & t_ppg <= xlims(2);
@@ -212,8 +226,8 @@ rpA_samp = round(rpeaks_A_lat(in_A) * target_srate);
 rpA_samp = max(1, min(length(ppg_ch), rpA_samp));
 stem(rpeaks_A_lat(in_A), ppg_ch(rpA_samp), 'r', 'filled', 'MarkerSize', 5, 'LineWidth', 1);
 ylabel('PPG (a.u.)');
-title('BrainBeats rr mode (after run\_HEP)');
-legend({'PPG signal', 'BrainBeats R-peak events'}, 'Location', 'best');
+title('BrainBeats rr mode (beats used for HEP epoching)');
+legend({'PPG signal', 'BrainBeats beats'}, 'Location', 'best');
 xlim(xlims); ylim([1.06 1.12]);
 set(gca, 'FontSize', 11);
 
@@ -224,8 +238,8 @@ plot(t_ppg(idx_show), ppg_smooth_best(idx_show), 'Color', [0.6 0.6 0.6], 'LineWi
 in_fp = fp_sec >= xlims(1) & fp_sec <= xlims(2);
 stem(fp_sec(in_fp), ppg_ch(fp_locs(in_fp)), 'b', 'filled', 'MarkerSize', 5, 'LineWidth', 1);
 xlabel('Time (s)'); ylabel('PPG (a.u.)');
-title(sprintf('findpeaks (smooth=%d, prom=%.4f, minDist=0.3s, F1=%.2f)', ...
-    best_sw, best_prom, best_f1));
+title(sprintf('findpeaks (smooth=%d, prom=%.4f, minDist=%.3gs; grid-search F1=%.2f at minDist=%.3gs)', ...
+    best_sw, best_prom, min_dist_samp*1.25/target_srate, best_f1, min_dist_samp/target_srate));
 legend({'PPG raw', 'PPG smoothed', 'findpeaks'}, 'Location', 'best');
 xlim(xlims); ylim([1.06 1.12]);
 set(gca, 'FontSize', 11);
@@ -252,7 +266,7 @@ set(gca, 'FontSize', 11);
 saveas(fig2, fullfile(figDir, 'fig2_ibi_timeseries.png'));
 fprintf('Saved: fig2_ibi_timeseries.png\n');
 
-%% Figure 3: HEP waveforms from approach A
+%% Figure 3: HEP waveforms from approaches A and B
 fig3 = figure('Position', [100 100 1200 800], 'Color', 'w');
 chanNames = {'TP9', 'AF7', 'AF8', 'TP10'};
 nChan = min(4, size(EEG_A.data,1));

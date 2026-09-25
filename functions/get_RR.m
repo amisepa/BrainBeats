@@ -1,174 +1,62 @@
-% Detect R-peaks from ECG signals or pulse wave onsets from PPG signals.
-%
-% ECG method (Pan-Tompkins):
-%   Zero-phase FIR bandpass filter (default 3-35 Hz) for QRS isolation.
-%   QRS detection via differentiation, squaring, and moving-average
-%   integration (Hann window, 150 ms, zero-phase). Energy threshold at
-%   98th percentile. Search-back recovers missed beats when an RR interval
-%   exceeds 1.5x the local median. Polarity is determined by a single
-%   global vote across all detected QRS segments: for each segment the
-%   dominant deflection amplitude (positive vs negative) casts a vote,
-%   and the majority sets the global polarity (medical standard, consistent
-%   with Pan-Tompkins). An adaptive chunked mode is available for
-%   concatenated recordings with DC shifts between sessions (see
-%   params.ecg_adaptive_pol). Each coarse peak is refined to the nearest
-%   local extremum within a 15 ms window.
-%
-% PPG method:
-%   Zero-phase FIR bandpass filter (0.5-3 Hz). Detects valleys (default)
-%   or peaks using MATLAB's findpeaks with adaptive MinPeakHeight (MAD-
-%   based) and MinPeakDistance (from median of initial RR estimates).
+% GET_RR - Detect R-peaks (ECG) or pulse-wave onsets (PPG) and return RR intervals.
 %
 % Usage:
 %   [RR, RR_t, peaks, signal, times, polarity, HR] = get_RR(signal, times, params)
 %
 % Inputs:
-%   signal  - raw ECG or PPG signal (1 x N or N x 1)
-%   times   - time vector in milliseconds (1 x N or N x 1)
-%   params  - struct with required and optional fields (see below)
+%   signal - raw ECG or PPG signal, 1 x N or N x 1
+%   times  - time vector in ms, same length as signal (e.g. EEG.times);
+%            an error is thrown if it looks like seconds
+%   params - struct. Required fields:
+%     .fs           - sampling rate (Hz)
+%     .heart_signal - 'ecg' or 'ppg'
+%   Optional ECG fields:
+%     .ecg_bandpass     - [hp lp] FIR bandpass in Hz (default [3 35]); false to skip
+%     .ecg_peakthresh   - energy threshold multiplier; lower = more sensitive (default 0.35)
+%     .ecg_searchback   - re-search long gaps at half threshold (default true)
+%     .ecg_refperiod    - refractory period (s); of two closer peaks the larger
+%                         is kept (default 0.25, see Notes)
+%     .ecg_polarity     - force polarity, 1 or -1 (default [] = automatic)
+%     .ecg_adaptive_pol - per-chunk polarity, for concatenated recordings with
+%                         DC shifts (default false = one global QRS vote)
+%     .ecg_flip_signal  - flip an inverted lead so R-peaks are positive (default true)
+%   Optional PPG fields:
+%     .ppg_bandpass      - 0.5-3 Hz FIR bandpass (default true); false to skip
+%     .ppg_detect_mode   - 'valleys' (pulse onsets, default) or 'peaks'
+%     .ppg_height_method - MinPeakHeight estimate: 'mad' (default), 'std', 'trimmean'
 %
-% Required params fields:
-%   .fs           - sampling rate (Hz)
-%   .heart_signal - signal type: 'ecg' or 'ppg'
+% Outputs (the first detected beat is dropped, so each interval is paired
+% with the peak that closes it):
+%   RR       - RR intervals (s)
+%   RR_t     - time of the peak closing each interval (s)
+%   peaks    - sample index of the peak closing each interval
+%   signal   - filtered signal, column (ECG flipped if inverted); use it with
+%              peaks for HEP epoching
+%   times    - input time vector converted to s, column
+%   polarity - ECG: median amplitude of the detected peaks in the returned
+%              signal (positive once an inverted lead is flipped); [] for PPG
+%   HR       - instantaneous heart rate (bpm), 60 ./ RR
 %
-% Optional ECG params fields:
-%   .ecg_bandpass      - [hp lp] bandpass cutoffs in Hz (default: [3 35])
-%                        set to false to skip filtering (if pre-filtered externally)
-%   .ecg_peakthresh    - P&T energy threshold multiplier (default: 0.35)
-%                        lower = more sensitive, higher = more conservative
-%   .ecg_searchback    - enable search-back for missed beats (default: true)
-%   .ecg_refperiod     - refractory period in s; beats closer than this are
-%                        deduplicated by amplitude (default: 0.25 s)
-%
-%   /!\ THESE TWO DEFAULTS WERE TRANSPOSED IN THIS HEADER UNTIL 2026-08-28.
-%       It read peakthresh 0.25 / refperiod 0.35, while the code below has
-%       always assigned peakthresh 0.35 (line ~182) and refperiod 0.25
-%       (line ~183). The CODE is what ran, so 0.35 / 0.25 are the values
-%       behind every peak train this function has ever produced. Corrected
-%       in the header, deliberately -- NOT in the code.
-%
-%   /!\ DO NOT "RESTORE" refperiod TO 0.35 s WITHOUT RE-VALIDATING. On a slow
-%       heart the T-wave can fall BETWEEN the two values -- e.g. a recording
-%       with the T at ~348 ms after R, inside 0.35 s and outside 0.25 s -- so
-%       0.35 s would dedupe a real beat against its own T-wave and delete one
-%       of the pair. It would also shift peaks on ordinary recordings and
-%       invalidate any validation against existing trains. Note this parameter
-%       is NOT what keeps T-waves out: the Pan-Tompkins energy front end
-%       (differentiate, square, 150 ms Hann integration, 98th-percentile
-%       threshold) leaves the low-slope T below threshold, which is why get_RR
-%       is robust where gradient-based detectors are not. Lowering peakthresh
-%       to 0.25 would likewise admit more candidates, not fewer.
-%   .ecg_polarity      - force polarity: 1 (upright R-wave) or -1 (inverted lead)
-%                        overrides all automatic detection (default: [], auto)
-%   .ecg_adaptive_pol  - use adaptive chunked polarity instead of global QRS vote
-%                        (default: false). Useful for concatenated recordings
-%                        with DC shifts between sessions. When true, polarity is
-%                        estimated in escalating chunk sizes (nSamp/4 -> nSamp/2
-%                        -> full recording) until chunks are consistent (<30%
-%                        minority); each P&T segment inherits its chunk polarity.
-%
-% Optional PPG params fields:
-%   .ppg_bandpass      - apply bandpass filter (default: true)
-%                        set to false if pre-filtered externally
-%   .ppg_detect_mode   - 'valleys' (default) or 'peaks'
-%   .ppg_height_method - MinPeakHeight estimation method: 'mad' (default),
-%                        'std', or 'trimmean'
-%
-% Outputs:
-%   RR       - RR intervals (s), length N-1
-%   RR_t     - timestamps of RR interval onsets (s), length N-1
-%   peaks    - R-peak or pulse-onset sample indices, length N-1
-%   signal   - signal after bandpass filtering (or raw if filtering skipped)
-%   times    - time vector converted to seconds
-%   polarity - median peak amplitude; sign indicates ECG lead polarity
-%              (positive = upright R-wave, negative = inverted lead); [] for PPG
-%   HR       - instantaneous heart rate (bpm), length N-1
+% Method:
+%   ECG: Pan-Tompkins. Bandpass, derivative, squaring and 150 ms Hann
+%   integration (all zero-phase). Candidates exceed ecg_peakthresh x the
+%   98th percentile of the integrated energy (1-90 s); gaps > 1.5x the
+%   median spacing are searched again. Each peak is the extremum of its
+%   segment, refined within +/-15 ms.
+%   PPG: findpeaks on the filtered signal (negated for valleys), with
+%   MinPeakDistance = half the median interval of a first pass.
 %
 % Notes:
-%   - The first element of RR, RR_t, peaks, and HR is removed on output
-%     so that each RR interval is paired with the timestamp of its
-%     trailing peak (consistent with HRV convention).
-%   - For HEP analysis: epoch the output signal using output peaks as
-%     triggers. The signal returned is bandpass-filtered (3-35 Hz by
-%     default), suitable for direct use as HEP trigger input.
-%   - To skip bandpass filtering (e.g. signal already preprocessed):
-%       params.ecg_bandpass = false;
-%
-% Examples:
-%   % Basic ECG usage (medical-standard polarity, auto-detected):
-%   params.fs           = 256;
-%   params.heart_signal = 'ecg';
-%   [RR, RR_t, peaks, ecg_filt, times_s, polarity, HR] = get_RR(ecg, EEG.times, params);
-%
-%   % Force polarity manually (e.g. known inverted lead):
-%   params.ecg_polarity = -1;
-%   [RR, RR_t, peaks, ecg_filt, times_s, polarity, HR] = get_RR(ecg, EEG.times, params);
-%
-%   % Use adaptive chunked polarity for concatenated sessions:
-%   params.ecg_adaptive_pol = true;
-%   [RR, RR_t, peaks, ecg_filt, times_s, polarity, HR] = get_RR(ecg, EEG.times, params);
-%
-%   % PPG with default valley detection:
-%   params.fs           = 256;
-%   params.heart_signal = 'ppg';
-%   [RR, RR_t, peaks, ppg_filt, times_s, ~, HR] = get_RR(ppg, EEG.times, params);
-%
-%   % PPG with peak detection and custom bandpass:
-%   params.ppg_detect_mode = 'peaks';
-%   params.ppg_bandpass    = false;   % already filtered externally
-%   [RR, RR_t, peaks, ppg_filt, times_s, ~, HR] = get_RR(ppg, EEG.times, params);
+%   ecg_refperiod is 0.25 s, not 0.35 s: on a slow heart a T-wave detected
+%   ~350 ms after R would be deduplicated against its own beat and one of
+%   the pair deleted; 0.25 s is also the value all validation used.
+%   T-waves are kept out by the energy threshold, not by this parameter.
 %
 % References:
 %   Pan & Tompkins (1985). IEEE Trans Biomed Eng, 32(3), 230-236.
 %   Vest et al. (2018). Physiological Measurement, 39(10).
 %
-% Changelog:
-%   v2.3 - June 2026 
-%     ECG:
-%       - Replaced adaptive chunked polarity (default) with medical-standard
-%         global QRS-segment vote, consistent with Pan-Tompkins (1985).
-%         For each detected QRS window, positive vs negative peak amplitude
-%         determines a local vote; the majority across all beats sets the
-%         global polarity. Operates on bandpass-filtered QRS windows, making
-%         it robust to baseline wander and T/P waves.
-%       - Adaptive chunked polarity preserved as opt-in via
-%         params.ecg_adaptive_pol = true (recommended only for concatenated
-%         recordings with DC shifts between sessions).
-%       - Added params.ecg_polarity for manual polarity override (+1/-1),
-%         taking priority over all automatic detection.
-%       - Updated header documentation and added usage examples.
-%
-%   v2.2 - April 2026
-%     ECG:
-%       - Replaced single global polarity vote with adaptive chunked polarity:
-%         starts at nSamp/4s chunks, escalates to nSamp/2 then full recording
-%         if polarity is inconsistent across chunks (minority fraction >30%).
-%       - prctile(99/1) used within each chunk for spike robustness.
-%       - Each P&T segment inherits the polarity of its chunk; polarity
-%         can flip at chunk boundaries within one recording.
-%       - Micro-refinement uses per-beat chunk polarity throughout.
-%
-%   v2.1 - April 2026 
-%     ECG:
-%       - Fixed polarity detection: replaced fragile QRS-ordinal vote
-%         (idxMax < idxMin) with global amplitude comparison (|max| vs
-%         |min| over full bandpass-filtered signal).
-%       - Fixed peak localization for negative polarity: search now spans
-%         the full segment [left..right].
-%       - Simplified peak localization loop.
-%
-%   v2.0 - April 2026 (Cedric Cannard)
-%       - Replaced ecg_highpass with ecg_bandpass ([hp lp] Hz, default [3 35]).
-%       - Replaced causal integration filter with zero-phase filtfilt (Hann window).
-%       - Removed medfilt1 smoothing step.
-%       - Fixed HR output length.
-%       - Output variable renamed from 'sign' to 'polarity'.
-%     PPG:
-%       - Replaced legacy Physionet qppg with findpeaks-based detector.
-%       - Zero-phase FIR bandpass filter (0.5-3 Hz).
-%       - Adaptive MinPeakHeight (MAD-based by default).
-%
-% Copyright (C), BrainBeats, Cedric Cannard, 2023
+% Copyright (C) - Cedric Cannard, 2023
 
 function [RR, RR_t, peaks, signal, times, polarity, HR] = get_RR(signal, times, params)
 
@@ -252,7 +140,8 @@ if strcmpi(sig_type, 'ecg')
     signal_filt = filtfilt(b_int, 1, sqrecg);
     fprintf('  P&T integration filter: lowpass ~%.1f Hz (Hann window, zero-phase)\n', fs / int_nb_coef);
 
-    % Energy threshold (98th percentile, skip first second)
+    % Energy threshold: 98th percentile of the integrated energy between
+    % 1 s (skips the filter edge) and 90 s
     xs        = sort(signal_filt(fs : min(fs*90, nSamp)));
     en_thres  = xs(ceil(0.98 * numel(xs)));
     poss_reg  = signal_filt > (peakThresh * en_thres);
@@ -263,7 +152,8 @@ if strcmpi(sig_type, 'ecg')
         return
     end
 
-    % Search-back for missed beats
+    % Search-back for missed beats: gaps between candidates longer than
+    % 1.5x the median spacing are re-thresholded at half the level
     if search_back
         indAT = find(poss_reg);
         if numel(indAT) > 2
@@ -300,12 +190,11 @@ if strcmpi(sig_type, 'ecg')
     %   1. params.ecg_polarity: manual override (+1 or -1), skips all detection.
     %   2. params.ecg_adaptive_pol = true: adaptive chunked polarity (legacy
     %      mode, useful for concatenated sessions with DC shifts between them).
-    %   3. Default (medical standard, P&T): single global vote across all
-    %      detected QRS segments. For each segment, the dominant deflection
-    %      (positive vs negative peak amplitude) determines the local vote;
-    %      the majority across all beats sets the global polarity. This is
-    %      robust to baseline wander and T/P waves because it operates on
-    %      the bandpass-filtered QRS windows themselves, not the raw signal.
+    %   3. Default: single global vote across all detected QRS segments.
+    %      Each segment votes for its dominant deflection (positive vs
+    %      negative amplitude); the majority sets the polarity. Working on
+    %      the filtered QRS windows makes it robust to baseline wander and
+    %      T/P waves.
     % -----------------------------------------------------------------
 
     if ~isempty(ecg_polarity)
@@ -317,6 +206,7 @@ if strcmpi(sig_type, 'ecg')
     elseif adaptive_pol
         % 2. Adaptive chunked polarity (legacy)
         chunk_sizes   = [floor(nSamp/fs/4), floor(nSamp/fs/2), Inf];
+        chunk_sizes   = chunk_sizes(chunk_sizes >= 1);  % < 4 s of data gives 0-s chunks: use the whole recording
         inconsist_thr = 0.3;
         chunk_pol     = [];
         chunk_n       = 0;
@@ -377,8 +267,9 @@ if strcmpi(sig_type, 'ecg')
         end
 
     else
-        % 3. Medical-standard global vote (default): one vote per QRS segment
-        % % Based on amplitude:
+        % 3. Global amplitude vote (default): one vote per QRS segment.
+        % Leads where S is deeper than R can vote negative; force the
+        % polarity with params.ecg_polarity in that case.
         votes = zeros(1, nb_peaks);
         for i = 1:nb_peaks
             seg       = signal(left(i):right(i));
@@ -393,29 +284,10 @@ if strcmpi(sig_type, 'ecg')
         fprintf('  Polarity: %s (global QRS vote, %d/%d segments)\n', ...
             ternary(pol_global > 0, 'positive', 'negative'), ...
             sum(votes == pol_global), nb_peaks);
-
-        % Sometimes S is bigger than R, leading to incorrect R-peak detections.
-        % R always comes before S regardless of their relative amplitudes, 
-        % so timing can be more robust than amplitude comparison:
-        % votes = zeros(1, nb_peaks);
-        % for i = 1:nb_peaks
-        %     seg          = signal(left(i):right(i));
-        %     [~, idx_pos] = max(seg);
-        %     [~, idx_neg] = min(seg);
-        %     % Upright QRS: positive R-peak precedes negative S-trough
-        %     votes(i) = sign(idx_neg - idx_pos);
-        %     if votes(i) == 0, votes(i) = 1; end
-        % end
-        % pol_global = sign(sum(votes));
-        % if pol_global == 0, pol_global = 1; end
-        % pol_seg    = repmat(pol_global, 1, nb_peaks);
-        % fprintf('  Polarity: %s (timing-based QRS vote, %d/%d segments)\n', ...
-        %     ternary(pol_global > 0, 'positive', 'negative'), ...
-        %     sum(votes == pol_global), nb_peaks);
     end
 
-    % Auto-flip inverted signal so R-peaks are always positive.
-    % Applies to all polarity modes. Disable with params.ecg_flip_signal = false.
+    % Flip an inverted lead so R-peaks are positive (all polarity modes).
+    % Disable with params.ecg_flip_signal = false.
     flip_signal = true;
     if isfield(params, 'ecg_flip_signal'), flip_signal = params.ecg_flip_signal; end
 
@@ -442,10 +314,10 @@ if strcmpi(sig_type, 'ecg')
     end
 
     polarity = median(pkval);
-    pol      = sign(median(pol_seg));  % majority - used as fallback only
+    pol      = sign(median(pol_seg));  % majority polarity (not used below)
     if pol == 0, pol = 1; end
 
-    % Refractory period: keep larger |amplitude| when peaks too close
+    % Refractory period: of two peaks closer than ref_period, keep the larger |amplitude|
     [peaks, ord] = sort(peaks, 'ascend');
     pkval = pkval(ord);
     keep  = true(size(peaks));
@@ -458,9 +330,9 @@ if strcmpi(sig_type, 'ecg')
     end
     peaks = peaks(keep);
 
-    % Micro-refinement: snap to nearest local extremum within 15 ms.
-    % Uses pol_seg (per-segment polarity) aligned to the kept peaks.
-    % After refractory filtering peaks is a subset - reindex pol_seg to match.
+    % Micro-refinement: snap to the local extremum within +/-15 ms, using
+    % the polarity of each kept peak's segment (pol_seg reindexed by sort
+    % order and refractory mask).
     pol_seg_kept = pol_seg(ord);
     pol_seg_kept = pol_seg_kept(keep);
     micro = max(1, round(0.015 * fs));
@@ -476,14 +348,13 @@ if strcmpi(sig_type, 'ecg')
 
     fprintf('  P&T energy threshold: %.2f\n', en_thres);
 
-    % RR intervals and HR
+    % RR intervals and HR; drop the first peak so each interval is paired
+    % with the peak that closes it
     RR      = diff(peaks) / fs;
     RR_t    = times(peaks);
     HR      = 60 ./ RR;
     RR_t(1)  = [];
     peaks(1) = [];
-
-
 
 % =========================================================================
 %  PPG - findpeaks with adaptive threshold and distance
@@ -521,7 +392,7 @@ elseif strcmpi(sig_type, 'ppg')
     % Adaptive MinPeakHeight
     minPeakHeight = estimateMinPeakHeight(det_sig, height_method);
 
-    % Estimate MinPeakDistance from initial detection
+    % MinPeakDistance = half the median interval of a first detection pass
     [~, tmp_peaks] = findpeaks(det_sig, 'MinPeakHeight', minPeakHeight);
     if numel(tmp_peaks) < 2
         warning('get_RR: too few PPG peaks detected - check signal quality or detection mode.');
@@ -537,7 +408,7 @@ elseif strcmpi(sig_type, 'ppg')
     fprintf('  MinPeakHeight: %.2f | MinPeakDistance: %d samples (%.2f s)\n', ...
         minPeakHeight, minPeakDist, minPeakDist/fs);
 
-    % RR intervals and HR
+    % RR intervals and HR (first peak dropped, as for ECG)
     RR      = diff(peaks) / fs;
     RR_t    = times(peaks);
     HR      = 60 ./ RR;

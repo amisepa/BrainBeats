@@ -1,24 +1,28 @@
-%% Compute power spectral density (PSD) or power for each EEG channel using
-% the pwelch method.  Defaults are Hamming taper on a 2-s window with
-% 50% overlap, outputting the power spectral density (PSD).
-% 
+% COMPUTE_PSD - Power spectral density (or power spectrum) of each channel
+% with Welch's method (pwelch).
+%
 % Usage:
-% [psd, freqs] = compute_psd(eeg_data,winSize,taperM,overlap,nfft,Fs,freqRange,type,useGPU);
-% [psd, freqs] = compute_psd(EEG.data,EEG.srate*2,'hamming',50,[],EEG.srate,[1 100],'psd',true);
-% 
-% - eeg_data with channels in 1st dimension and data in 2nd dimension (default = EEG.data)
-% - window size in frames (default = 2 s window).
-% - taper method: hamming (default), hann, blackman, rectwin.
-% - overlap in percent (default = 50)
-% - Fs: sample rate in Hz (default = EEG.srate)
-% - freqRange is frequecnies of interest to compute (default = 1:100)
-% - type: returns power spectral density ('psd'; default) or returns
-%           'power' (scales each estimate of the PSD by the equivalent noise 
-%           bandwidth of the window (in hertz): i.e. power estimate at each frequency).
-% - useGPU: fast GPU computing (1) or not (0)
-% 
-
-% Cedric Cannard, 2021
+%   [pwr, pwr_db, f] = compute_psd(eegData, winSize, taperM, overlap, nfft, Fs, fRange, type, useGPU)
+%   [pwr, pwr_db, f] = compute_psd(EEG.data, EEG.srate*2, 'hamming', 50, [], EEG.srate, [1 40], 'psd', false)
+%
+% Inputs:
+%   eegData - data (channels x samples)
+%   winSize - window length in samples (default = Fs*2, i.e. 2 s)
+%   taperM  - taper window: 'hamming' (default), 'hann', 'blackman', 'rectwin'
+%   overlap - window overlap in % (default = 50)
+%   nfft    - number of FFT points (default = next power of 2 of winSize)
+%   Fs      - sample rate in Hz (required)
+%   fRange  - frequency range to keep in Hz (default = [1/(Fs/2) Fs/2])
+%   type    - 'psd' (default, uV^2/Hz) or 'power' (PSD scaled by the
+%             equivalent noise bandwidth of the window: power at each frequency, uV^2)
+%   useGPU  - compute on GPU (true) or not (false, default)
+%
+% Outputs:
+%   pwr     - PSD or power (channels x frequencies)
+%   pwr_db  - same in decibels, 10*log10(pwr)
+%   f       - frequencies (Hz, column vector) within fRange
+%
+% Copyright (C) - Cedric Cannard, 2021
 
 function [pwr, pwr_db, f] = compute_psd(eegData,winSize,taperM,overlap,nfft,Fs,fRange,type,useGPU)
 
@@ -52,11 +56,16 @@ if ~exist('fRange', 'var') || isempty(fRange)
 end
 
 % Power type default
-if ~exist('type', 'var')
-    type = 'psd';    
+if ~exist('type', 'var') || isempty(type)
+    type = 'psd';
 end
 
-% nfft
+% GPU default
+if ~exist('useGPU', 'var') || isempty(useGPU)
+    useGPU = false;
+end
+
+% nfft (next power of 2 of the window length in samples)
 if ~exist('nfft', 'var') || isempty(nfft)
     samplesPerWindow = (winSize/Fs)*Fs;
     nfft = 2^nextpow2(samplesPerWindow);
@@ -72,16 +81,11 @@ for iChan = 1:size(eegData,1)
     [pwr(iChan,:), f] = pwelch(signal,fh(winSize),overlap,nfft,Fs,type);
 end
 
-% Calculate frequency resolution
-% exp_tlen = nextpow2(tlen);
-% fres = Fs/2.^exp_tlen;
-
-% Truncate PSD to frequency range of interest 
-% freq = dsearchn(f,fRange(1)):dsearchn(f, fRange(2)); 
+% Truncate PSD to frequency range of interest
 freq = f>= fRange(1) & f<=fRange(2);
 f = f(freq);
 pwr = pwr(:,freq);
 
-% Normalize to deciBels (dB)
+% Convert to decibels (dB)
 pwr_db = 10*log10(pwr);
 

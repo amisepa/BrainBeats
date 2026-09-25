@@ -1,45 +1,52 @@
 function plot_features(Features,params)
+% PLOT_FEATURES - Plot HRV and EEG features computed by BrainBeats.
+%
+% Usage:
+%   plot_features(Features)
+%   plot_features(Features, params)
+%
+% Inputs:
+%   Features - EEG.brainbeats.features, with HRV and/or EEG substructures
+%   params   - (optional) BrainBeats parameters. Missing hrv_*/eeg_* flags are
+%              inferred from the fields present in Features. Fields read:
+%              hrv_features, hrv_frequency, hrv_spec (HRV PSD method, for
+%              the ylabel: 'LombScargle_norm' (default) = normalized,
+%              otherwise s^2/Hz), eeg_features, eeg_frequency,
+%              eeg_nonlinear, eeg_norm (0 = uV^2/Hz, 1 = dB (default),
+%              2 = normalized; ylabel only), and chanlocs (EEG channel
+%              locations, required for EEG features)
+%
+% Plots:
+%   - PSD of HRV (areas of the ULF/VLF/LF/HF bands estimated; skipped with a
+%     warning if the recording was too short for any) and of EEG (20% trimmed mean across
+%     channels; delta, theta, alpha, beta, gamma areas, with the band limits
+%     used for the features), side by side if both.
+%   - EEG scalp topographies: mean delta/theta/alpha/beta/gamma power, IAF,
+%     fuzzy entropy and fractal dimension, and a 3D headplot of alpha asymmetry.
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 disp('Plotting features...')
 
-% If no params in input, set defaults here (useful when users have computed 
-% features and want to replot them without having to redefine all the params)
-if nargin==1 
-    % HRV
-    if ~isfield(params,'hrv_features') && any(contains(fieldnames(Features), {'HRV'}))
-        params.hrv_features = true;
-        if any(contains(fieldnames(Features.HRV), {'frequency'}))
-            params.hrv_frequency = true;
-            params.hrv_norm = true;     % use default (just for units)
-        end
-    else
-        params.hrv_features = false;
-        params.hrv_frequency = false;
-        params.hrv_norm = false;     % assuming default in get_hrv_features
-    end
-
-    % EEG
-    if ~isfield(params,'eeg_features') && any(contains(fieldnames(Features), {'EEG'}))
-        params.eeg_features = true;
-        if any(contains(fieldnames(Features.EEG), {'frequency'}))
-            params.eeg_frequency = true;
-            params.eeg_norm = true;     % use default (just for units)
-        else
-            params.eeg_frequency = false;
-        end
-        if any(contains(fieldnames(Features.EEG), {'nonlinear'}))
-            params.eeg_nonlinear = true;
-        else
-            params.eeg_nonlinear = false;
-        end
-    else
-        params.eeg_features = false;
-    end
-end
+% Fill in any missing params from the features themselves (useful when users
+% have computed features and want to replot them without redefining all the
+% params, e.g. plot_features(Features) or with params.chanlocs only)
+if nargin < 2, params = struct(); end
+hasHRV = isfield(Features,'HRV') && isstruct(Features.HRV);
+hasEEG = isfield(Features,'EEG') && isstruct(Features.EEG);
+if ~isfield(params,'hrv_features'),  params.hrv_features  = hasHRV; end
+if ~isfield(params,'hrv_frequency'), params.hrv_frequency = hasHRV && isfield(Features.HRV,'frequency'); end
+if ~isfield(params,'hrv_nonlinear'), params.hrv_nonlinear = hasHRV && isfield(Features.HRV,'nonlinear'); end
+if ~isfield(params,'hrv_norm'),      params.hrv_norm      = false; end   % default in get_hrv_features (units only)
+if ~isfield(params,'eeg_features'),  params.eeg_features  = hasEEG; end
+if ~isfield(params,'eeg_frequency'), params.eeg_frequency = hasEEG && isfield(Features.EEG,'frequency'); end
+if ~isfield(params,'eeg_nonlinear'), params.eeg_nonlinear = hasEEG && isfield(Features.EEG,'nonlinear'); end
+if ~isfield(params,'eeg_norm'),      params.eeg_norm      = 1; end       % default in get_eeg_features (units only)
 
 % EEG channel locations
 if params.eeg_features && ~isfield(params,'chanlocs')
     errordlg('Sorry, you need to load your EEG channel locations into params.chanlocs to plot EEG features (see tutorial).')
+    return
 end
 
 % Pull features data
@@ -56,10 +63,18 @@ if ~params.hrv_features && ~params.eeg_features
     return
 end
 
-%% Power spectral density (PSD) 
+%% Power spectral density (PSD)
+
+% HRV spectrum available? (empty, and band powers NaN, when the recording is
+% too short for any HRV band)
+plotHRVpsd = params.hrv_features && params.hrv_frequency && isfield(HRV,'frequency') ...
+    && isfield(HRV.frequency,'pwr') && ~isempty(HRV.frequency.pwr) && any(~isnan(HRV.frequency.pwr(:)));
+if params.hrv_features && params.hrv_frequency && ~plotHRVpsd
+    warning('No HRV power spectrum to plot (the recording is likely too short for HRV frequency features).')
+end
 
 % PSD - HRV
-if params.hrv_features && params.hrv_frequency
+if plotHRVpsd
 
     figure('color','w');
     try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
@@ -68,82 +83,50 @@ if params.hrv_features && params.hrv_frequency
     if params.eeg_features && params.eeg_frequency
         nexttile([2 3])
     end
-    
+
     hold on
-    pwr = HRV.frequency.pwr; % power already averaged across windows
+    pwr = HRV.frequency.pwr; % spectrum of the last window of each band
     freqs = HRV.frequency.pwr_freqs;
     bandNames = {'ULF' 'VLF' 'LF' 'HF'};
+    bandColors = {"#A2142F" "#D95319" "#EDB120" "#0072BD"};
     bands = HRV.frequency.bands;
     baseval = min(pwr);
 
-    idx = find(strcmp(bandNames,'ULF'));
-    if isfield(HRV.frequency, 'ulf')
-        x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-        y = pwr(x);
-        area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#A2142F",'FaceAlpha',.7);
-    else
-        bandNames(idx) = [];
-        bands(idx,:) = [];
-    end
-
-    idx = find(strcmp(bandNames,'VLF'));
-    if isfield(HRV.frequency, 'vlf')
-        x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-        y = pwr(x);
-        area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#D95319",'FaceAlpha',.7)
-    else
-        bandNames(idx) = [];
-        bands(idx,:) = [];
-    end
-
-    idx = find(strcmp(bandNames,'LF'));
-    if isfield(HRV.frequency, 'lf')
-        x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-        y = pwr(x);
-        area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#EDB120",'FaceAlpha',.7)
-    else
-        bandNames(idx) = [];
-        bands(idx,:) = [];
-    end
-
-    idx = find(strcmp(bandNames,'HF'));
-    if isfield(HRV.frequency, 'hf')
-        x = freqs >= bands(idx,1) & freqs <= bands(idx,2);
-        y = pwr(x);
-        area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#0072BD",'FaceAlpha',.7)
-    else
-        bandNames(idx) = [];
-        bands(idx,:) = [];
+    % Area of each band that was estimated (field present and not NaN)
+    plotted = false(1,length(bandNames));
+    for iBand = 1:length(bandNames)
+        fld = lower(bandNames{iBand});
+        if isfield(HRV.frequency, fld) && ~all(isnan(HRV.frequency.(fld)))
+            x = freqs >= bands(iBand,1) & freqs <= bands(iBand,2);
+            if any(x)
+                area(freqs(x),pwr(x),'BaseValue',baseval,'FaceColor',bandColors{iBand},'FaceAlpha',.7);
+                plotted(iBand) = true;
+            end
+        end
     end
     warning off
-    legend(bandNames)
+    legend(bandNames(plotted))
     warning on
-    % xticklabels(unique(reshape(bands,1,[]))); xtickangle(45);
     axis tight; box on
     xlabel('Frequency (Hz)');
-    ylabel('Power (ms^2/Hz)');
+
+    % Units depend on the PSD method (params.hrv_spec, default 'LombScargle_norm')
+    if isfield(params,'hrv_spec') && ~strcmp(params.hrv_spec,'LombScargle_norm')
+        ylabel('Power (s^2/Hz)');
+    else
+        ylabel('Power (normalized)');
+    end
     title(sprintf('Power spectral density - HRV'))
-    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbar and menu
     set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
     set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
 
 end
 
-% % Multiscale fuzzy entropy (MFE) - HRV
-% if params.hrv_features && params.hrv_nonlinear
-    % nexttile      
-    % hold on
-    % mfe = HRV.nonlinear.MFE;
-    % scales = HRV.nonlinear.MFE_scales;
-    % area(scales,mfe,'FaceColor',"#A2142F",'FaceAlpha',.7);
-    % title('Multiscale fuzzy entropy - HRV'); xlabel('Scale factors'); ylabel('Entropy')
-    % axis tight; box on; grid on
-% end
-
 % PSD - EEG
 if params.eeg_features && params.eeg_frequency
 
-    if params.hrv_features && params.hrv_frequency    
+    if plotHRVpsd
         nexttile([2 3])
     else
         figure('color','w')
@@ -166,7 +149,11 @@ if params.eeg_features && params.eeg_frequency
     hold on
     pwr = trimmean(EEG.frequency.pwr,20,1); % 20% trimmed mean across channels
     freqs = EEG.frequency.freqs;
-    bands = [0 3; 3 7; 7 13; 13 30; 30 max(freqs)];
+    if isfield(EEG.frequency,'bands')
+        bands = EEG.frequency.bands;    % band limits used by get_eeg_features
+    else
+        bands = [0 3; 3 7; 7 13; 13 30; 30 max(freqs)];
+    end
     baseval = min(pwr);
 
     % delta
@@ -194,10 +181,6 @@ if params.eeg_features && params.eeg_frequency
     y = pwr(x);
     area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#4DBEEE",'FaceAlpha',.7)
 
-    % bandNames = {'Delta Theta Alpha Beta'};
-    % xticks = freqs;
-    % xticklabels(unique(reshape(bands,1,[])));
-    % xtickangle(45); axis tight; box on
     title('Power spectral density - EEG'); 
     warning off
     legend({'delta' 'theta' 'alpha' 'beta' 'gamma'})
@@ -206,45 +189,18 @@ if params.eeg_features && params.eeg_frequency
     ylabel(units); 
     axis tight;
 
-    set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbar and menu
     set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
     set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold'); % font
     pause(0.1)  % to allow plot before next plot
 end
 
-% Multiscale fuzzy entropy (MFE) - EEG
-% if params.eeg_features && params.eeg_nonlinear
-% 
-%     nexttile
-%     hold on
-%     scales = EEG.nonlinear.MFE_scales(1,:);
-%     scaleBounds = EEG.nonlinear.MFE_scale_bounds(1,:);
-%     % mfe = mean(EEG.nonlinear.MFE,1); % mean across channels
-%     mfe = trimmean(EEG.nonlinear.MFE,20,1); % 20% trimmed mean across channels
-%     % mfe = EEG.nonlinear.MFE(31,:); % Pz
-%     area(scales,mfe(end:-1:1),'FaceColor',"#A2142F",'FaceAlpha',.7);
-%     axis tight; box on; grid on
-%     if ~isempty(scaleBounds)
-%         xticks(scales);
-%         xticklabels(scaleBounds(end:-1:1));
-%         xtickangle(45) %xticklabels({f}); %
-%     else
-%         xlabel('Scale factors')
-%     end
-%     if max(mfe) < 1
-%         ylim([0 1])
-%     end
-%     title('Multiscale fuzzy entropy - EEG'); ylabel('Entropy')
-% 
-%     set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
-%     % set(gca,'FontSize',11,'layer','top','fontweight','bold');
-% end
-
 %% Scalp topos 2D
+
+mode = 1;  % 1 for 2D, 2 for 3D (also used by the nonlinear topos below)
 
 if params.eeg_features && params.eeg_frequency
 
-    mode = 1;  % 1 for 2D, 2 for 3D
 
     % Create figure
     figure('color','w','Units','Normalized','OuterPosition', [0 0 1 1],...
@@ -252,16 +208,14 @@ if params.eeg_features && params.eeg_frequency
 
     try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
 
-    % delta, theta, alpha, beta
+    % Mean power per channel: delta, theta, alpha, beta, gamma
     warning('off','all')
     nexttile
     plot_topo(gather(mean(EEG.frequency.delta,2)),params.chanlocs,mode,'psd');
-    cb = colorbar; 
+    cb = colorbar;
     ylabel(cb,units,'Rotation',270,'fontSize',12,'fontweight','bold')
-    % pos = get(cb,'position');  % move left & shrink to match head size
-    % set(cb,'position',[pos(1) pos(2)+0.2 0.01 0.4],'fontSize',12,'fontweight','bold');
-    
-    title('Delta power'); %colorbar off;
+
+    title('Delta power');
     nexttile
     plot_topo(gather(mean(EEG.frequency.theta,2)),params.chanlocs,mode,'psd');
     cb = colorbar; 
@@ -289,12 +243,9 @@ if params.eeg_features && params.eeg_frequency
 
     % IAF
     try
-        % subplot(3,3,5)
         nexttile
         plot_topo(gather(EEG.frequency.IAF),params.chanlocs,mode,'psd');
         cb = colorbar; ylabel(cb,'Frequency (Hz)','Rotation',270,'fontSize',12,'fontweight','bold')
-        % pos = get(cb,'position');  % move left & shrink to match head size
-        % set(cb,'position',[pos(1)-.005 pos(2)+0.05 pos(3)*0.7 pos(4)-0.1],'fontSize',12,'fontweight','bold');
         title('Individual alpha frequency (IAF)');
     catch
         warning('Could not plot the individual alpha frequency (IAF). IAF estimation may have failed (can happen if no clear alpha peak distribution is present)')
@@ -304,12 +255,8 @@ if params.eeg_features && params.eeg_frequency
 
 end
 
+% Nonlinear features (added to the current figure)
 if params.eeg_features && params.eeg_nonlinear
-    % nexttile
-    % plot_topo(gather(EEG.nonlinear.SE),params.chanlocs,mode,'entropy');
-    % cb = colorbar; ylabel(cb,'Sample entropy','Rotation',270,'fontSize',12,'fontweight','bold')
-    % title('Sample entropy');
-
     nexttile
     plot_topo(gather(EEG.nonlinear.FE),params.chanlocs,mode,'entropy');
     cb = colorbar; ylabel(cb,'Fuzzy entropy','Rotation',270,'fontSize',12,'fontweight','bold')
@@ -321,12 +268,13 @@ if params.eeg_features && params.eeg_nonlinear
     title('Fractal dimension');
 end
 
-set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
-% set(findall(gca,'type','axes'),'fontSize',12,'fontweight','bold');
-set(gcf,'Toolbar','none','Menu','none');  % remove toolbobar and menu
-set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
+if ~isempty(get(groot,'CurrentFigure'))    % (no figure if there was nothing to plot)
+    set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
+    set(gcf,'Toolbar','none','Menu','none');  % remove toolbar and menu
+    set(gcf,'Name','Visualization of features','NumberTitle','Off')  % name
+end
 
-% Asymmetry (has to be after ecause of colorbar issues
+% Alpha asymmetry 3D headplot (last, because of colorbar issues)
 if params.eeg_features && params.eeg_frequency
     try
         warning('off','all')
@@ -343,12 +291,6 @@ if params.eeg_features && params.eeg_frequency
         brainbeats_headplot(asy,'tmp.spl','view',view,headplotparams{:});  % 3D headplot of asymmetry
         title('Alpha asymmetry')
         delete 'tmp.spl'
-        % cb = colorbar; ylabel(cb,'Asymmetry score','Rotation',270,'fontSize',12,'fontweight','bold')
-        % nticks = length(cb.Ticks); % number of ticks for colorbar
-        % increment = ceil(length(asy)/nticks);
-        % increment = 1;
-        % ticks = round(sort(asy),2);
-        % cb.TickLabels = cellstr(string(ticks(1:increment:end))');
         set(findall(gcf,'type','axes'),'fontSize',12,'fontweight','bold');
         warning on
 
@@ -356,46 +298,3 @@ if params.eeg_features && params.eeg_frequency
         warning('Failed to plot the 3D headplot of alpha asymmetry. This may happen if your EEG data are low-density (i.e., few EEG channels only)')
     end
 end
-
-%% Partial EEG coherence
-
-% if params.eeg_features && params.eeg_frequency
-% 
-%     % f = EEG.frequency.eeg_coh_f;
-%     chanlocs = params.chanlocs;
-%     % my_connplot(EEG.frequency.eeg_pcoh_delta,'labels',{chanlocs.labels},'brainimg','off');
-% 
-%     % Partial coherence
-%     figure('color','w');
-    % try icadefs; set(gcf, 'color', BACKCOLOR); catch; end     % eeglab background color
-% %     % subplot(2,2,1)
-%       nexttile
-%     % imagesc(EEG.frequency.eeg_pcoh_delta);
-%     % % labels = {chanlocs.labels};
-%     % % plot_corrmatrix(EEG.frequency.eeg_pcoh_delta,labels)
-%     % title('Partial coherence - Delta'); colorbar
-%     % xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
-%     % yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
-% 
-% %     % subplot(2,2,2)
-%       nexttile
-%     % imagesc(EEG.frequency.eeg_pcoh_theta);
-%     % title('Partial coherence - Theta'); colorbar
-%     % xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
-%     % yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
-% 
-% %     subplot(2,1,1)
-%       nexttile
-%     imagesc(EEG.frequency.eeg_pcoh_alpha);
-%     title('Partial coherence - Alpha'); colorbar
-%     xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
-%     yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
-% 
-% %     subplot(2,1,2)
-%       nexttile
-%     imagesc(EEG.frequency.eeg_pcoh_beta);
-%     title('Partial coherence - Beta'); colorbar
-%     xticks(1:length(chanlocs)); xticklabels({chanlocs.labels}); xtickangle(45)
-%     yticks(1:length(chanlocs)); yticklabels({chanlocs.labels});
-% 
-% end

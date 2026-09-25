@@ -13,6 +13,9 @@ function gong(vol,frq,dur)
 % vol = volume (default = 1)
 % frq = base frequency (default = 440 Hz)
 % dur = duration (default = 1 s)
+%
+% In BrainBeats: played when brainbeats_process finishes ('gong' input,
+% default true).
 
 fb  = 440;
 td  = 1;

@@ -1,4 +1,13 @@
-% check_alignment.m — Investigate timestamp alignment between EEG, optics, and beat_detections
+% CHECK_ALIGNMENT - Timestamp alignment between the Muse EEG, optics (PPG)
+% and beat detections in tests/data.
+%
+% Prints row counts, Unix timestamp ranges and sampling intervals of
+% test_eeg.csv (256 Hz) and test_optics.csv (64 Hz), compares
+% beat_detections timestamp_sec with the optics time, and prints the
+% offset between optics start (t = 0 for the beats) and EEG start, with
+% the first 10 beat times before/after adding that offset.
+%
+% Usage: run the script from MATLAB (text output only, no EEGLAB needed).
 
 eeg = readtable(fullfile(fileparts(mfilename('fullpath')), 'data', 'test_eeg.csv'));
 opt = readtable(fullfile(fileparts(mfilename('fullpath')), 'data', 'test_optics.csv'));

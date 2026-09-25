@@ -1,16 +1,22 @@
 function X = filtfilt_fast(varargin)
-% Like filtfilt(), but faster when filter and signal are long (and A=1).
-% Y = filtfilt_fast(B,A,X)
+% FILTFILT_FAST - Like filtfilt(), but faster when filter and signal are long (and A = 1).
 %
-% Uses FFT convolution (needs fftfilt). The function is faster than filter when approx.
-% length(B)>256 and size(X,Dim)>1024, otherwise slower (due size-testing overhead).
+% Usage:
+%   Y = filtfilt_fast(B, A, X)
+%   Y = filtfilt_fast(N, F, A, X)
 %
-% Note:
-%  Can also be called with four arguments, as Y = filtfilt_fast(N,F,A,X), in which case an Nth order
-%  FIR filter is designed that has the desired frequency response A at normalized frequencies F; F
-%  must be a vector of numbers increasing from 0 to 1.
+% Inputs:
+%   B, A - filter coefficients (A ~= 1 falls back to filtfilt)
+%   X    - signal (time x channels), filtered along the first dimension
+%   N, F, A - alternatively, design an order-N FIR filter (design_fir) with
+%          amplitude response A at normalized frequencies F (0 to 1)
+% Outputs:
+%   Y    - zero-phase filtered signal (same size and class as X)
 %
-% See also: 
+% Filters forward and backward with filter_fast (FFT convolution for long
+% signals and filters), after reflecting the signal at both ends.
+%
+% See also:
 %   filtfilt, filter
 % 
 %                           Christian Kothe, Swartz Center for Computational Neuroscience, UCSD
@@ -43,7 +49,7 @@ end
 if A == 1
     was_single = strcmp(class(X),'single');
     w = length(B); t = size(X,1);    
-    % extrapolate
+    % extrapolate length(B) samples at each end (point reflection) to limit edge effects
     X = double([bsxfun(@minus,2*X(1,:),X(1+mod(((w+1):-1:2)-1,t),:)); X; bsxfun(@minus,2*X(t,:),X(1+mod(((t-1):-1:(t-w))-1,t),:))]);
     % filter, reverse
     X = filter_fast(B,A,X); X = X(length(X):-1:1,:);

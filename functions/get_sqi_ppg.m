@@ -1,52 +1,50 @@
-% calculate_ppgsqi.m - run PPG SQI based on beat template correlation on
-% 30 s PPG segments in loop
+% GET_SQI_PPG - PPG signal quality index per beat, from beat-template correlation.
+%
+% The signal is processed in 30-s windows. In each window a beat template
+% is built and every beat is compared with it by direct correlation,
+% linear resampling, dynamic time warping, and a clipping check (each
+% scored 0-100). If a window's template is invalid, the previous one is used.
+%
+% Usage:
+%   [sqi, sqi_mu, annot] = get_sqi_ppg(beats, signal, fs)
 %
 % Inputs:
-%     beats     - PPG annotation time (samples), read from ple annot file,
-%                 But the ann-time is the OFFSET based on wave(1)
-%     signal    - PPG signal
-%     fs        - sampling frequency (default fs = 125Hz)
-%     winlength - window length in s (default = 30)
+%   beats  - pulse onset sample indices (e.g. from get_RR)
+%   signal - PPG signal, column vector
+%   fs     - sampling rate (Hz)
 %
 % Outputs:
-%     annot     - ppg sqi annotation
-%                     E - excellent beat;
-%                     A - acceptable beat;
-%                     Q - unacceptable beat
-%     sqi       - ppg sqi matrix
-%                     [N,1]: SQI based on Direct compare
-%                     [N,2]: SQI based on Linear resampling
-%                     [N,3]: SQI based on Dynamic time warping
-%                     [N,4]: SQI based on Clipping detection
-%     template  - Current PPG beat template
-%     valid     - valid (>=1) or invalid (0) template
+%   sqi    - SQI of each beat (0-1): mean of the direct, resampling and DTW
+%            correlations, row, NaN for beats that could not be scored
+%   sqi_mu - mean of all four measures per 30-s window (0-100 scale), NaN
+%            for windows that could not be scored
+%   annot  - cell array, one label per beat: 'E' excellent, 'A' acceptable,
+%            'Q' unacceptable (default for unscored beats)
 %
-% Original code by Qiao Li (2011)
+% Original code by Qiao Li (2011), PhysioNet Cardiovascular Signal Toolbox
+% (edits by Adriana Vest and Giulia Da Poian, 2017), GNU GPL v3 or later.
 %
-% Copyright (C) BrainBeats, Cedric Cannard, 2023
+% Copyright (C) - Cedric Cannard, 2023
 
 function [sqi, sqi_mu, annot] = get_sqi_ppg(beats,signal,fs)
 
-% Window length 
-winlength = 30*fs; % default = 30 s
+% Window length (samples)
+winlength = 30*fs; % 30 s
 
 % Initialize
 template = [];
 beat_i = 1;
-annot = [];
-for j = 1:length(beats)
-    annot(j) = 'Q';
-end
-
-% sqi_mu = zeros(1,ceil(length(signal)/fs/winlength));
+annot = repmat({'Q'}, 1, length(beats));   % cell, as PPG_SQI_buf returns
 
 % loop every 30-sec window
 nWind = ceil(length(signal)/winlength);
 progressbar('Calculating signal quality index (SQI) from PPG signal')
 sqi_mu = nan(1,nWind);
+sqimatrix_all = [];   % beats x SQI measures, filled window by window
 for j = 1:nWind
     databegin = (j-1)*winlength+1;
     dataend = min(length(signal),j*winlength);
+    % beats in this window, plus the first beat after it (to close the last beat)
     annf = find(beats<=dataend);
 
     if length(annf)<=1, continue; end
@@ -64,15 +62,17 @@ for j = 1:nWind
     anntime = beats(annf)-databegin+1;
 
     % PPG SQI analysis
-    [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,winlength,fs);
+    [annot_win, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template,winlength,fs);
     if ~isempty(sqimatrix)
-        sqimatrix_all = nan(length(beats),size(sqimatrix,2));
-        for k = 1:length(annot)
-            annot(annf(k)) = annot(k);
+        if isempty(sqimatrix_all)
+            sqimatrix_all = nan(length(beats),size(sqimatrix,2));
+        end
+        for k = 1:length(annot_win)
+            annot(annf(k)) = annot_win(k);
             sqimatrix_all(annf(k),:) = sqimatrix(k,:);
             beat_i=beat_i+1;
         end
-        sqi_mu(j) = mean(mean(sqimatrix_all,2,'omitnan'),'omitnan');
+        sqi_mu(j) = mean(mean(sqimatrix,2,'omitnan'),'omitnan');
     else
         warning("PPG_SQI_buf failed for this window.")
         continue
@@ -80,11 +80,15 @@ for j = 1:nWind
 
     progressbar(j/nWind)
 end
+if isempty(sqimatrix_all)
+    warning('get_sqi_ppg: no window could be scored.');
+    sqi = nan(1,length(beats));
+    return
+end
+% Beat SQI: mean of direct, resampling and DTW correlations, scaled to 0-1
+% (the clipping measure, column 4, is left out)
 sqi = round(mean(sqimatrix_all(:,1:3),2)');
 sqi = sqi./100;
-
-
-
 
 %% Subfunction 1
 
@@ -261,8 +265,6 @@ function [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template
     template=t;
 valid=v;
 
-
-
 %% subfunction 2
 
 % [template t2 valid] = template_pleth(wave,anntime,temp_ahead,samp_freq)
@@ -389,8 +391,8 @@ n=0;
 d1=0;
 invalidn=0;
 currentbeatlength=anntime(p0+1)-anntime(p0);
-if currentbeatlength>0 %cycle*normal_beat_length_min %% && currentbeatlength < cycle*normal_beat_lentth_max
-    d1=wave(i-temp_ahead:i+cycle-1);%-temp_ahead);
+if currentbeatlength>0
+    d1=wave(i-temp_ahead:i+cycle-1);
     n=1;
 else
     invalidn=invalidn+1;
@@ -404,8 +406,8 @@ if p0<lena-1
     invalidn=0;
     while i<len-cycle && p0<lena-1
         currentbeatlength=anntime(p0+1)-anntime(p0);
-        if currentbeatlength>0 %cycle*normal_beat_length_min %% && currentbeatlength < cycle*normal_beat_lentth_max
-            d1=d1+wave(i-temp_ahead:i+cycle-1);%-temp_ahead);
+        if currentbeatlength>0
+            d1=d1+wave(i-temp_ahead:i+cycle-1);
             n=n+1;
         else
             invalidn=invalidn+1;
@@ -465,12 +467,6 @@ if nargin<2
 end
     
 n=length(input);
-% Low pass filter 
-% [b,a] = cheby1(3,0.5,40/62.5);
-% y1=filter(b,a,input);
-% b = fir1(31,40/62.5);
-% y=conv(b,input);
-% y1=y(int16((length(y)-length(input))/2):(int16((length(y)-length(input))/2+length(input)-1)));
 
 s1=s;
 pp=1;
@@ -521,20 +517,17 @@ while i<n
     i=i+1;
 end
 PLA(pp)=n;
-y1=input;    
-% PLA=y1(int16((length(y1)-length(input))/2):(int16((length(y1)-length(input))/2+length(input)-1)));
+y1=input;    % returned unfiltered
 
 %% subfunction 4
 
 % function [w ta tb] = simmx_dtw(y1,pla1,y2,pla2)
 %
-% calculate a sim matrix between y1 and y2.
+% calculate a sim matrix between y1 and y2: absolute difference of the
+% slopes of their PLA segments.
 %
 
 function [w, ta, tb] = simmx_dtw(y1,pla1,y2,pla2)
-
-% slope1(1)=y1(pla1(1));
-% slope2(1)=y2(pla2(1));
 
 slope1(1)=0;
 slope2(1)=0;
@@ -645,7 +638,6 @@ while (point<=l)
         lbold=lb;
         la=pla1(p(point));
         lb=pla2(q(point));
-        %intvb=(la-laold)/(lb-lbold);
         intvb=(lb-lbold)/(la-laold)/10;
         xx=pla1(p(i)):intvb:pla1(p(point));
         yy=y2(pla2(q(j)):pla2(q(point)));
@@ -655,10 +647,8 @@ while (point<=l)
         else
             y = griddedInterpolant(x1,yy,'spline');
             y = y(xx);
-            % y = interp1(x1,yy,xx,'spline'); % 12-19-2017 Modified by Giulia Da Poian
-            % replaced interp1 with griddedInterpolant for speed
+            % griddedInterpolant instead of interp1 for speed (G. Da Poian, 2017)
         end
-%        plot(xx,y,'k');
         outputx=[outputx,xx];
         outputy=[outputy,y];
         i=point;
@@ -666,7 +656,7 @@ while (point<=l)
     end
     point=point+1;
 end
-% outputxx=unique(outputx);
+% keep one point per unique x (last of each run)
 j=1;
 i=1;    
 while i<=length(outputx)-1 
@@ -685,13 +675,11 @@ outputyy(j)=outputy(i);
 y=interp1(outputxx(uidx),outputyy(uidx),1:(outputxx(length(outputxx(uidx)))-1)/(length(y1)-1):outputxx(length(outputxx(uidx))),'spline');
 
 y(isnan(y))=0;
-%plot(y,'m');
 y2modify=y;
-% ylength=min(y,y1);
 [S,R] = size(y);
 [R2,Q] = size(y1);
-% Euclidean distance between the two beats (was dist(), which needs the
-% Deep Learning Toolbox; for two vectors it is exactly this norm)
+% Euclidean distance between the two beats (norm rather than dist(), which
+% requires the Deep Learning Toolbox)
 difference = norm(y(:) - y1(:));
     
 meany1=sqrt(sum(y1.^2));

@@ -1,30 +1,34 @@
 function EEG = apply_car(EEG, refLabels, chanlocs_template)
-% apply_car - Full-rank common average reference (CAR)
+% APPLY_CAR - Full-rank common average reference (CAR).
 %
-%   Optionally recovers online reference channel(s) by adding them with proper
-%   locations and interpolating them before CAR. A zero-filled dummy channel
-%   is always added for rank preservation during CAR and removed afterward.
+% A zero-filled dummy channel (the implicit online reference) is added before
+% averaging and removed afterward, so the CAR does not reduce the data rank.
+% Optionally, the online reference channel(s) are first added back with
+% locations from standard_1005.elc (EEGLAB dipfit) and interpolated.
 %
+% Usage:
 %   EEG = apply_car(EEG)
 %   EEG = apply_car(EEG, refLabels, chanlocs_template)
 %
 % Inputs:
-%   EEG               - EEGLAB EEG struct
-%   refLabels         - string or cell array of reference label(s) to recover
-%   chanlocs_template - chanlocs struct or path to electrode file (used as
-%                       fallback; BEM standard_1005.elc is primary source).
-%
+%   EEG               - EEGLAB EEG structure (continuous)
+%   refLabels         - (optional) char or cell array of reference label(s) to
+%                       recover; labels already in EEG.chanlocs are skipped
+%   chanlocs_template - (optional) must be non-empty to enable recovery; only
+%                       tested for emptiness (locations come from standard_1005.elc)
 % Outputs:
-%   EEG - re-referenced EEG struct. Reference channel(s) are interpolated
-%         and retained before CAR is applied.
+%   EEG - re-referenced EEG structure (recovered reference channels included)
 %
-% Usage:
-%   EEG = apply_car(EEG);
+% Prints the data rank before and after CAR.
+%
+% Example:
 %   EEG = apply_car(EEG, {'FCz','AFz'}, oriEEG.chanlocs);
 %
 % References:
 %   Makoto's preprocessing pipeline: https://eeglab.ucsd.edu/wiki/Makoto's_preprocessing_pipeline
 %   Kim et al. (2023). ICA's bug. Front. Signal Process., 3, 1064138.
+%
+% Copyright (C) - Cedric Cannard, 2025
 
 rankBefore = sum(eig(cov(double(EEG.data'))) > 1e-7);
 fprintf('apply_car: rank before CAR = %d / %d\n', rankBefore, EEG.nbchan);
@@ -47,8 +51,8 @@ if retainRefs
         newChanIdx(i)            = EEG.nbchan;
     end
 
-    % Look up correct locations using pop_chanedit with BEM template
-    % This handles all coordinate conversions (XYZ -> theta/radius/etc.)
+    % Look up locations in the BEM template; pop_chanedit handles all
+    % coordinate conversions (XYZ -> theta/radius/etc.)
     bemPath = which('standard_1005.elc');
     if isempty(bemPath)
         error('apply_car: standard_1005.elc not found. Ensure EEGLAB dipfit plugin is installed.');
@@ -61,7 +65,8 @@ if retainRefs
     EEG      = pop_interp(EEG, newChanIdx, 'spherical');
 end
 
-% Always add dummy zero row for rank preservation, apply CAR, remove dummy
+% Add a zero row (the online reference), average-reference, then drop it:
+% the remaining channels keep full rank
 EEG.data(end+1, :) = 0;
 EEG.nbchan         = EEG.nbchan + 1;
 EEG.data           = EEG.data - mean(EEG.data, 1);

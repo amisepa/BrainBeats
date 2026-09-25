@@ -1,77 +1,104 @@
-% BRAINBEATS_PROCESS - Process single EEGLAB files containg EEG and 
-% cardiovascular (ECG or PPG) signals.
+% BRAINBEATS_PROCESS - Process an EEGLAB dataset containing EEG and
+% cardiovascular (ECG or PPG) signals recorded simultaneously.
 %
-% USAGE:
-%    [EEG, com] = brainbeats_process(EEG, 'key', 'val')
+% Usage:
+%   [EEG, com] = brainbeats_process(EEG);                 % GUI
+%   [EEG, com] = brainbeats_process(EEG, 'key', val, ...) % command line
 %
-% INPUTS:
-%  'analysis'       - 'hep' (heartbeat-evoked potentials) | 'features' (extract EEG and HRV features) |
-%                       'rm_heart' | extract heart components from EEG signals.
-%  'heart_signal'   - ['ppg'|'ecg'|'rr'] define if cardiovascular signal to process is PPG, ECG,
-%                       or pre-detected beat latencies ('rr'). When 'rr', also provide 'beat_latencies'.
-%  'heart_channels' - [cell array of character] name(s) of the heart channel to process.
-%                       Not required when heart_signal is 'rr'.
-%  'beat_latencies' - [numeric vector] beat times in seconds relative to EEG start (time 0).
-%                       Required when heart_signal is 'rr'. Skips peak detection and SQI; runs
-%                       clean_rr on the provided intervals and passes to run_HEP.
-%  'rr_correct'     - [see below] correction method for RR artifacts. Interpolation algorithms:
-%                       'pchip'     (default; shape-preserving piecewise cubic),
-%                       'linear'
-%                       'cubic'     (falls back to 'spline' interpolation for irregularly-spaced data)
-%                       'nearest'   (nearest neighbor)
-%                       'next'      (next neighbor)
-%                       'previous'  (previous neighbor)
-%                       'spline'    (piecewise cubic spline)
-%                       'makima' (modified Akima cubic interpolation)
-%                       Or remove them with 'remove' (not recommended).
-%  'clean_eeg'      - [0|1] to preprocess EEG data (1) or not (0).
-%                       - filter EEG data (bandpass zero-phase FIR 1-45 Hz)
-%                       - re-reference data do average (default)
-%                       - remove bad channels and interpolate them.
-%                       - remove bad epochs (HEP-mode) or bad segments
-%                           (Features-mode), whereas for Features
-%                       - extract bad components with ICA, taking into
-%                           account effective data rank (see Kim et al.2023)
-%                           and classifying them with ICLabel (eye with 90%
-%                           confidence, others with 99% confidence).
-%  'keep_heart'     - [0|1] keeps the heart channel after operations are 
-%                       complete (1) or not (0, default).
-%  'hrv_features'   - [cell array of characters] HRV features to compute.
-%                       Choices are 'time', 'frequency', 'nonlinear'.
-%                       See GET_HRV_FEATURES for more information.
-%  'eeg_features'   - [cell array of string] EEG features to compute.
-%                       Choices are 'frequency', 'nonlinear'.
-%                       See GET_EEG_FEATURES for more information.
-%  'parpool'        - [0|1] use parallel computing (1) or not (0, default).
-%                       Mainly useful for nonlinear EEG features.
-%  'gpu'            - [0|1] use GPU computing (1) or not (0).
-%                       Mainly useful for cleaning EEG with ASR faster.
-%  'vis_cleaning'   - [0|1] vizualize the preprocessing plots (1, default)
-%                     or not (0). Strongly recommended.
-%  'vis_outputs'    - [0|1] vizualize the outputs (1, default) or not (0).
-%                       Include for example grand average HEP/HEO, EEG/HRV
-%                       power spectral density, EEG features topographies.
-%  'save'           - [0|1] save the resulting processed EEGLAB dataset (.set
-%                       file at the same place as loaded file but renamed).
-%                       For features-mode, also saves a .mat file containing
-%                       the features in structure format. Set to ON (1, default)
-%                       or OFF (0).
+% Main inputs:
+%   'analysis'       - 'hep'       heartbeat-evoked potentials and oscillations
+%                      'features'  EEG and HRV features
+%                      'rm_heart'  remove heart components from the EEG (ICA + ICLabel)
+%                      'coherence' brain-heart coherence (beta)
+%   'heart_signal'   - 'ecg', 'ppg', 'rr' (beat times detected elsewhere), or
+%                      'off' (EEG features only)
+%   'heart_channels' - cell array of heart channel labels, e.g. {'ECG'}. With
+%                      several channels, the one with the fewest abnormal
+%                      heartbeats (then the best SQI) is used.
+%   'beat_latencies' - ('rr' only) beat times in s from the start of the data.
+%                      Peak detection, SQI and RR cleaning are skipped.
+%   'clean_eeg'      - preprocess the EEG (default false): FIR filter (1-30 Hz),
+%                      re-reference, remove and interpolate bad channels, remove
+%                      bad epochs ('hep') or segments with ASR, then remove
+%                      artifactual ICA components with ICLabel.
+%   'vis_cleaning'   - plot the preprocessing steps (default true)
+%   'vis_outputs'    - plot the outputs (default true)
+%   'save'           - save the output dataset next to the input file, and the
+%                      features in a .mat file (default true)
 %
-% OUTPUT:
-%   'EEG'           - Processed EEGLAB dataset. An EEG.brainbeats field is
-%                   created containing the
-%                   parameters used, some preprocessing outputs (e.g. channels
-%                   or RR artifacts removed), and the computed EEG & HRV
-%                   features computed if using the features-mode.
+% Heart options:
+%   'ppg_detect_mode' - 'valleys' (default, pulse-wave onsets) or 'peaks'
+%   'ecg_peakthresh', 'ecg_refperiod', 'ecg_bandpass', 'ecg_polarity',
+%   'ecg_adaptive_pol', 'ppg_bandpass', 'ppg_height_method' - see GET_RR
+%   'keep_heart'     - keep the heart channel in the output (default false)
+%   RR artifacts are corrected by CLEAN_RR (implausible beats removed, missing
+%   beats inserted in gaps). For ECG, RPEAK_QA reports beats detected on the
+%   wrong wave (e.g. T-wave).
 %
-% Copyright (C) - BrainBeats, Cedric Cannard, 2023
+% HEP options ('hep'):
+%   'hep_window'       - epoch window [start end] in ms (default [-300 600]), or
+%                        'adaptive': the end is set from this recording's heart
+%                        rate (within-subject analyses; see RUN_HEP). Heartbeats
+%                        followed by the next one before the end + 50 ms are
+%                        rejected.
+%   'ppg_transit'      - (PPG) pulse arrival time, to shift the PPG beats back to
+%                        the heartbeats: a delay in ms, or the label of an ECG
+%                        channel to estimate it from (see ESTIMATE_PAT)
+%   'hep_baseline'     - 'none' (default) or 'regression': regression-based
+%                        baseline correction (Alday, 2019; see BASELINE_REGRESSION).
+%                        The corrected epochs are stored in the output EEG.data.
+%   'hep_baseline_win' - baseline window in ms (default [-300 -100])
+%
+% EEG preprocessing options (with 'clean_eeg'):
+%   'highpass', 'lowpass' (Hz), 'filttype' ('noncausal' default, or 'causal'),
+%   'linenoise' (50 or 60 Hz), 'ref' ('average' default, 'infinity', 'csd'),
+%   'flatline', 'corrThresh', 'maxBad', 'asr_cutoff', 'asr_mem', 'detectMethod'
+%   (bad epochs: 'grubbs' default, 'median', 'mean'), 'icamethod' (1 = Picard,
+%   fast; 2 = Infomax, default; 3 = Infomax with lrate 1e-5, slow but replicable).
+%   See CLEAN_EEG.
+%
+% Features options ('features'):
+%   'hrv_features'   - any of {'time' 'frequency' 'nonlinear'} (default all), or 'off'
+%   'hrv_spec'       - 'LombScargle_norm' (default), 'LombScargle', 'welch', 'fft'
+%   'hrv_norm', 'hrv_overlap' - see GET_HRV_FEATURES
+%   'eeg'            - 'off' to turn off all EEG operations
+%   'eeg_features'   - any of {'time' 'frequency' 'nonlinear'} (default all), or 'off'
+%   'eeg_frange', 'eeg_wintype', 'eeg_winlen', 'eeg_winoverlap', 'eeg_norm',
+%   'asy_norm'       - see GET_EEG_FEATURES
+%   'parpool'        - use parallel computing (default false)
+%   'gpu'            - use GPU computing (default false)
+%
+% rm_heart options:
+%   'conf_thresh'    - ICLabel confidence to remove heart components (default 0.9)
+%   The heart-locked EEG amplitude (cardiac field artifact) is reported before
+%   and after removal (see REMOVE_HEARTCOMP).
+%
+% Outputs:
+%   EEG - processed dataset. EEG.brainbeats holds the parameters used
+%         (.parameters), the preprocessing outputs (.preprocessings, e.g. NN
+%         intervals, SQI, removed channels, beats, and components), and the
+%         features (.features) or coherence (.coherence) when computed.
+%   com - command line reproducing the call (EEGLAB history)
+%
+% Example:
+%   EEG = brainbeats_process(EEG, 'analysis','hep', 'heart_signal','ecg', ...
+%       'heart_channels',{'ECG'}, 'clean_eeg',true, 'hep_baseline','regression');
+%
+% See brainbeats_tutorial.m for more examples.
+%
+% Reference:
+%   Cannard, C., Wahbeh, H., & Delorme, A. (2024). BrainBeats as an
+%   Open-Source EEGLAB Plugin to Jointly Analyze EEG and Cardiovascular
+%   Signals. Journal of Visualized Experiments, (206).
+%
+% Copyright (C) - Cedric Cannard, 2023
 
 function [EEG, com] = brainbeats_process(EEG, varargin)
 
 Features = [];
 com = '';
 
-% Basic checks
+% Basic checks on inputs
 if ~exist('EEG','var')
     errordlg('The BrainBeats plugin requires that your data (containing both EEG and ECG/PPG signals) are already loaded into EEGLAB.')
 end
@@ -83,7 +110,7 @@ end
 mainpath = fileparts(which('eegplugin_BrainBeats.m'));
 addpath(fullfile(mainpath, 'functions'));
 
-% basic checks on EEG data
+% Basic checks on EEG data
 if isempty(EEG) || isempty(EEG.data)
     errordlg('Empty EEG dataset.');
     return
@@ -103,31 +130,42 @@ elseif nargin > 1
     params = getparams_cmd(varargin{:});    % Command line
 end
 
-% run routine checks
+% Routine checks, defaults, plugin installs, parallel pool
 [EEG, params, err] = run_checks(EEG,params);
-if err, return; end  % stop program if there was an error (because errdlg
-% does not stop program)
+if err, return; end  % errordlg does not stop execution
 
-% Keep only EEG and ECG channels in separate structures
-% EEG = pop_select(EEG, 'chantype',{'ECG','EEG'});
+% Separate the heart channels (CARDIO) from the EEG
 if strcmpi(params.heart_signal, 'rr')
-    CARDIO = [];  % no cardiovascular channel when using pre-detected beats
+    CARDIO = [];  % no heart channel when using pre-detected beats
 else
-    CARDIO = pop_select(EEG,'channel',params.heart_channels); % export ECG data in separate structure
+    CARDIO = pop_select(EEG,'channel',params.heart_channels);
     EEG = pop_select(EEG,'nochannel',params.heart_channels);
 end
 
+% ECG channel used to estimate the PPG pulse arrival time ('ppg_transit')
+ECGREF = [];
+if isfield(params,'ppg_transit') && (ischar(params.ppg_transit) || isstring(params.ppg_transit))
+    if ~any(strcmpi({EEG.chanlocs.labels}, params.ppg_transit))
+        error("ECG channel '%s' ('ppg_transit') not found.", params.ppg_transit)
+    end
+    ECGREF = pop_select(EEG,'channel',{char(params.ppg_transit)});
+    EEG = pop_select(EEG,'nochannel',{char(params.ppg_transit)});
+end
 
-% Basic check for other auxiliary channels that could cause issues
-% (very simplistic and limited by dataset's electrode labels)
+% Other auxiliary channels would bias EEG preprocessing and features
+% (detection based on channel labels only)
 idx = contains(lower({EEG.chanlocs.labels}), {'ecg' 'ekg' 'ppg' 'aux' 'gsr' 'eda' 'eog' 'emg'});
 if any(idx)
     auxChan = strjoin({EEG.chanlocs(idx).labels});
     opts.Interpreter = 'tex';
     opts.Default = 'Yes';
     quest = sprintf("The following channels may not be EEG or ECG/PPG and may cause serious innacuracies: \n\n %s \n\n They are about to be removed, please confirm", auxChan);
-    answer = questdlg(quest,'Potentially undesirable electrodes','Yes','No','Cancel',opts);
-    % ans = questdlg(");
+    if exist('batchStartupOptionUsed') > 0 && batchStartupOptionUsed %#ok<EXIST>
+        answer = 'Yes';   % no one to answer a dialog under 'matlab -batch'
+        fprintf('Removing channels that may not be EEG or ECG/PPG: %s\n', auxChan);
+    else
+        answer = questdlg(quest,'Potentially undesirable electrodes','Yes','No','Cancel',opts);
+    end
     if strcmp(answer,'Cancel')
         disp('Aborted.'); return
     elseif strcmp(answer,'Yes')
@@ -135,48 +173,37 @@ if any(idx)
     end
 end
 
-% to skip MODE 1 for coherence
-if strcmpi(params.analysis,'coherence')
-    coh = true;
-else
-    coh = false;
-end
-
-%%%%% MODE 1 & 2: RR, SQI, and NN %%%%%
-if ~strcmpi(params.heart_signal,'off') %&& ~coh
+%%%%% Heartbeats: RR, SQI, NN (and HRV features) %%%%%
+if ~strcmpi(params.heart_signal,'off')
 
     if strcmp(params.analysis, 'hep') || isfield(params,'hrv_features')
 
       if strcmpi(params.heart_signal, 'rr')
-        % Pre-detected beat latencies mode: convert seconds to sample indices.
-        % Skips peak detection, filtering, SQI, and clean_rr (beats are
-        % assumed already clean; clean_rr can distort pre-detected intervals).
+        % Pre-detected beats: convert seconds to sample indices. Peak
+        % detection, SQI and clean_rr are skipped (the beats are taken as
+        % clean; clean_rr can distort intervals that were already cleaned).
         fprintf('Using pre-detected beat latencies (%g beats provided).\n', length(params.beat_latencies));
         beat_sec = params.beat_latencies(:)';
-        Rpeaks = round(beat_sec * EEG.srate);
+        Rpeaks = round(beat_sec * EEG.srate) + 1;   % EEGLAB sample 1 is t = 0
         Rpeaks(Rpeaks < 1) = [];
         Rpeaks(Rpeaks > EEG.pnts) = [];
         RR = diff(Rpeaks) / EEG.srate;         % sec
         fprintf('RR intervals: mean=%.0f ms, std=%.0f ms, n=%d\n', mean(RR)*1000, std(RR)*1000, length(RR));
 
-      else  % ECG or PPG path (original code)
+        % For HRV features: the provided beats are taken as clean (NN = RR)
+        NN   = RR;
+        NN_t = (Rpeaks(2:end) - 1) / EEG.srate;   % sec, time of the beat ending each interval
+        HR   = 60 ./ NN;
+        EEG.brainbeats.preprocessings.NN = NN;
+        EEG.brainbeats.preprocessings.NN_times = NN_t;
 
-        % Resample CARDIO data to match EEG for HEP, when different
+      else  % ECG or PPG
+
+        % Heart and EEG data must share the sampling rate for HEP
         if  strcmp(params.analysis, 'hep') && EEG.srate~=CARDIO.srate
             fprintf('Resampling cardiovascular data to match EEG sampling rate. \n')
             CARDIO = pop_resample(CARDIO,EEG.srate);
         end
-
-        % % Filter heart signals? --> done inside get_rr function in case
-        % users want to preserve raw signal
-        % if strcmpi(params.heart_signal, 'ecg')
-            % CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',3);
-        %     % CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',25);
-        % elseif strcmpi(params.heart_signal, 'ppg')
-        % % if strcmpi(params.heart_signal, 'ppg')
-        %     CARDIO = pop_eegfiltnew(CARDIO, 'locutoff',0.5);
-        %     CARDIO = pop_eegfiltnew(CARDIO, 'hicutoff',3);
-        % end
 
         % Flag bad portions of the cardiovascular signal before peak detection
         % ------------------------------------------------------------------
@@ -217,118 +244,124 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         %     vis_artifacts(EEG, EEG_before);
         % end
 
-        % Get RR and NN intervals from ECG/PPG signals
-        % note: when several electrodes are provided, use the elec with best
-        % quality for subsequent analysis. Structures are used to avoid issues
-        % when outputs have different lengths across electrodes.
+        % RR and NN intervals for each heart channel. Outputs are stored in
+        % structures (one field per channel) because beat counts differ
+        % across channels; the best channel is kept afterwards.
         signal = CARDIO.data;
         sqi = [];
         nElec = size(signal,1);
         for iElec = 1:nElec
             elec = sprintf('elec%g',iElec);
             fprintf('Detecting R peaks from cardiovascular time series %g (%s)... \n', iElec, CARDIO.chanlocs(iElec).labels)
-            % [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), pol.(elec), HR(iElec,:)] = get_RR_legacy(signal(iElec,:), CARDIO.times, params);
-            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:), ~, hr] = get_RR(signal(iElec,:), CARDIO.times, params);
-            HR.(elec) = hr;   % keep per electrode: beat counts differ across electrodes
+            [RR.(elec), RR_t.(elec), Rpeaks.(elec), sig(iElec,:), sig_t(iElec,:)] = get_RR(signal(iElec,:), CARDIO.times, params);
 
-            % % Fix values if PPG had a different sampling rate than EEG (this
-            % should now be avoided by resampling above, but just in case)
+            % Sample indices are shared with the EEG below
             factor = EEG.srate / CARDIO.srate;
             if factor ~= 1
                 errordlg("Your EEG and cardiovascular data must have the same sampling rate.")
-                %     RR.(elec) = RR.(elec) .* factor;
-                %     RR_t.(elec) = (Rpeaks.(elec) .* factor) / EEG.srate;
-                %     % RR_t.(elec) = (Rpeaks(1:end-1) .* factor) / EEG.srate;
-                %     CARDIO = pop_resample(CARDIO,EEG.srate);
-                %     % sig = CARDIO.data(iElec,:);
-                %     sig_t(iElec,:) = sig_t(iElec,:) .* factor;
-                %     params.fs = CARDIO.srate;
             end
 
-            % SQI
-            SQIthresh = .9; % minimum SQI recommended by Vest et al. (2019)
-            maxThresh = 20; % max portion of artifacts (20% default from Vest et al. 2019)
+            % Signal quality index (SQI; Vest et al., 2018)
+            SQIthresh = .9; % minimum SQI recommended
+            maxThresh = 20; % maximum % of bad windows or abnormal beats recommended
             if strcmpi(params.heart_signal, 'ecg')
                 sqi.(elec) = get_sqi_ecg(Rpeaks.(elec), signal(iElec,:), params.fs);
             elseif strcmpi(params.heart_signal, 'ppg')
                 [sqi.(elec),~,annot] = get_sqi_ppg(Rpeaks.(elec),signal(iElec,:)',params.fs);
             else
-                errdlg("Heart channel should be either 'ECG' or 'PPG' ")
+                error("Heart channel should be either 'ECG' or 'PPG' ")
             end
             % per-electrode structs: beat counts differ across electrodes, so
             % SQI values cannot share one numeric array
             SQI_mu.(elec) = round(mean(sqi.(elec), 'omitnan'),2);
             SQI_badRatio.(elec) = round(sum(sqi.(elec) < SQIthresh) / length(sqi.(elec))*100,1);
             if SQI_mu.(elec) < .9
-                warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9. See Vest et al. (2017) for more detail. \n",  SQI_mu.(elec))
+                warning("Mean signal quality index (SQI): %g. Minimum recommended SQI = .9. See Vest et al. (2018) for more detail. \n",  SQI_mu.(elec))
             else
                 fprintf("Mean SQI is within recommendations (>0.9): %g\n",  SQI_mu.(elec));
             end
             if SQI_badRatio.(elec) > 20
-                warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio.(elec), maxThresh)
-                warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio.(elec), maxThresh),'Signal quality warning 1')
+                warning("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2018) for more detail. \n", SQI_badRatio.(elec), maxThresh)
+                warndlg(sprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum portion recommended is %g%%. See Vest et al. (2018) for more detail. \n", SQI_badRatio.(elec), maxThresh),'Signal quality warning 1')
             else
-                fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2017) for more detail. \n", SQI_badRatio.(elec), maxThresh)
+                fprintf("%g%% of the signal quality index (SQI) is below the minimum threshold (SQI = .9) before correction of RR artifacts. Maximum recommended is %g%%. See Vest et al. (2018) for more detail. \n", SQI_badRatio.(elec), maxThresh)
             end
 
-            % Correct RR artifacts (e.g., arrhytmia, ectopy, noise) to obtain the NN series
+            % Correct RR artifacts (e.g. ectopic beats, missed or false
+            % detections) to obtain the NN series
             disp("Correcting abnormal RR intervals...")
-            % [NN.(elec), NN_t.(elec), Npeaks.(elec), idx_bad.(elec)] = clean_rr_legacy(RR_t.(elec), RR.(elec), Rpeaks.(elec), params); % from physionet (legacy)
-            [nn, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(RR_t.(elec), RR.(elec),  sig(iElec, Rpeaks.(elec)), Rpeaks.(elec), ...
-                'interpolate_missing', true, 'ecg_signal', sig(iElec,:), 'sig_t', CARDIO.times, 'fs', params.fs);
-            flaggedRatio.(elec) = sum(idx_bad) / length(idx_bad) * 100;   % idx_bad is a logical vector
+            [nn, nn_t, nPeaks, idx_bad.(elec), idx_interp.(elec)] = clean_rr(RR_t.(elec), RR.(elec),  sig(iElec, Rpeaks.(elec)), Rpeaks.(elec), ...
+                'interpolate_missing', true, 'ecg_signal', sig(iElec,:), 'sig_t', sig_t(iElec,:), 'fs', params.fs);
+            % Abnormal beats = removed + synthetic (inserted) + gaps left unfilled
+            nRemoved = numel(RR.(elec)) - (numel(nn) - sum(idx_interp.(elec)));
+            nFlagged.(elec) = nRemoved + sum(idx_interp.(elec)) + sum(idx_bad.(elec));
+            flaggedRatio.(elec) = nFlagged.(elec) / numel(RR.(elec)) * 100;
             Npeaks.(elec) = nPeaks;
-            NN.(elec) = nn;  NN_t.(elec) = nn_t;   % clean_rr returns lowercase locals
+            NN.(elec) = nn;  NN_t.(elec) = nn_t;
         end
-        
-        % Keep only ECG data of electrode with the lowest number of RR
-        % artifacts
-        [~,best_elec] = min(struct2array(flaggedRatio));
+
+        % Keep the heart channel with the fewest abnormal heartbeats (ties,
+        % e.g. none flagged on any channel, go to the best mean SQI). Note
+        % that get_RR already ignores the first heartbeat.
+        fr = cell2mat(struct2cell(flaggedRatio));
+        sq = cell2mat(struct2cell(SQI_mu));
+        cand = find(fr == min(fr));
+        [~,j] = max(sq(cand));
+        best_elec = cand(j);
         elec = sprintf('elec%g',best_elec);
+        if nElec > 1
+            fprintf('Using heart channel %s (fewest abnormal heartbeats, then best SQI). \n', CARDIO.chanlocs(best_elec).labels);
+        end
+        EEG.brainbeats.preprocessings.heart_channel_used = CARDIO.chanlocs(best_elec).labels;
         flaggedRatio = flaggedRatio.(elec);
-        % badRR = idx_bad.(elec);
+        nFlagged = nFlagged.(elec);
+        idx_bad = idx_bad.(elec);
+        idx_interp = idx_interp.(elec);
         sig_t = sig_t(best_elec,:);
         sig = sig(best_elec,:);
-        HR = HR.(elec);
         RR = RR.(elec);
         RR_t = RR_t.(elec);
-        RR_t(1) = [];       % always ignore 1st hearbeat
         Rpeaks = Rpeaks.(elec);
-        Rpeaks(1) = [];     % always ignore 1st hearbeat
         Npeaks = Npeaks.(elec);
-        Npeaks(1) = [];
         NN_t = NN_t.(elec);
-        NN_t(1) = [];
         NN = NN.(elec);
-        % pol = pol.(elec); % ECG signal polarity
+        HR = 60 ./ NN;      % heart rate from the clean NN series (not the raw RR)
         SQI_mu = SQI_mu.(elec);
         SQI_badRatio = SQI_badRatio.(elec);
-        % idx_rem = idx_rem.(elec);
-        % idx_interp = idx_interp.(elec);
         if flaggedRatio > 0
-            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%.2f%%). \n', sum(idx_bad), length(RR), flaggedRatio);
+            fprintf('Portion of abnormal heartbeats corrected: %g/%g (%.2f%%). \n', nFlagged, length(RR), flaggedRatio);
         end
-        if flaggedRatio > maxThresh % more than 20% of RR series is bad file
+        if flaggedRatio > maxThresh
             warning("%g%% of the RR series on your best electrode was flagged as artifact and corrected. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
-            % warndlg(sprintf("%g%% of the RR series on your best electrode was flagged as artifact. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again.", round(flaggedRatio,2)),'Signal quality warning 2');
         end
 
         % Print average SQI
         fprintf("Overall signal quality index (SQI): %g. Note: SQI > 0.9 is considered good.\n", SQI_mu)
 
-        % Plot filtered ECG and RR series of best electrode and interpolated
-        % RR artifacts (if any)
+        % R-peak misdetection check (beats locked on the T or S wave), which
+        % SQI and RR cleaning cannot see. Report only.
+        if strcmpi(params.heart_signal, 'ecg')
+            qa = rpeak_qa(sig, Rpeaks, params.fs);
+            EEG.brainbeats.preprocessings.rpeak_qa = qa;
+            fprintf('R-peak QA: %s (median beat-template r = %.2f; %.1f%% low-correlation beats; %.1f%% low-amplitude beats; RR lag-1 = %.2f). \n', ...
+                qa.flag, qa.MedCorr, 100*qa.FracLowCorr, 100*qa.FracLowAmp, qa.RRlag1);
+            if ~any(strcmp(qa.flag, {'ok' 'too-few-beats'}))
+                warning(['R-peak QA flagged "%s": some beats may be detected on the wrong wave (e.g. T-wave). ' ...
+                    'Check the R-peaks in the ECG plot (vis_cleaning) before interpreting HEPs.'], qa.flag)
+            end
+        end
+
+        % Plot the filtered heart signal with its beats, and the RR and NN
+        % series of the channel kept
         if params.vis_cleaning
             plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, params.heart_signal)
-            pause(1)  % to avoid waiting for EEG preprocessing to be done to appear
+            pause(1)  % draw it now rather than after the EEG preprocessing
         end
 
         % Preprocessing outputs
-        % EEG.brainbeats.preprocessing.RR_times = RR_t;
-        % EEG.brainbeats.preprocessing.RR = RR;
-        % EEG.brainbeats.preprocessings.removed_heartbeats = idx_rem;  % overly short RR intervals are automatically removed
-        % EEG.brainbeats.preprocessings.interpolated_heartbeats = idx_interp; % abnormal RR intervals are automatically interpolated
-        EEG.brainbeats.preprocessings.bad_heartbeats = idx_bad; % abnormal RR intervals are automatically interpolated
+        EEG.brainbeats.preprocessings.bad_heartbeats = idx_bad; % gaps clean_rr could not fill
+        EEG.brainbeats.preprocessings.interpolated_heartbeats = idx_interp; % synthetic beats inserted in gaps
+        EEG.brainbeats.preprocessings.abnormal_heartbeats_percent = flaggedRatio; % removed + inserted + unfilled
         if exist('sqi','var')
             EEG.brainbeats.preprocessings.heart_SQI_mean = SQI_mu;
             EEG.brainbeats.preprocessings.heart_SQI_badportion = SQI_badRatio;
@@ -336,43 +369,68 @@ if ~strcmpi(params.heart_signal,'off') %&& ~coh
         EEG.brainbeats.preprocessings.NN = NN;
         EEG.brainbeats.preprocessings.NN_times = NN_t;
 
-        % % Take filtered cardio signal
-        % if strcmp(params.heart_signal,'ecg') && pol<0
-        %     CARDIO.data = -sig; % reverse to positive polarity
-        % else
-        %     CARDIO.data = sig;
-        % end
+        % HEP is time-locked to the beats clean_rr kept (not the ones it
+        % removed, nor the synthetic ones it inserted in gaps)
+        Rpeaks = Npeaks(~idx_interp);
 
-        %%%%% MODE 2: HRV features %%%%%
-        if ~isempty(params.hrv_features) && params.hrv_features ~= 0
-
-            % File length (we take the whole series for now to allow ULF and VLF as much as possible)
-            file_length = floor(EEG.xmax)-1;
-            if file_length < 300
-                warning('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
-                warndlg('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+        % PPG: shift the pulse beats back to the heartbeats by the pulse
+        % arrival time (given in ms, or estimated from an ECG channel)
+        if strcmpi(params.heart_signal,'ppg') && strcmp(params.analysis,'hep') && ...
+                isfield(params,'ppg_transit') && ~isempty(params.ppg_transit)
+            if isnumeric(params.ppg_transit)
+                pat = params.ppg_transit;
+                patInfo = struct('median',pat,'method','user');
+            else
+                if ECGREF.srate ~= EEG.srate
+                    ECGREF = pop_resample(ECGREF, EEG.srate);
+                end
+                fprintf('Estimating the PPG pulse arrival time from ECG channel %s... \n', ECGREF.chanlocs(1).labels)
+                ecgParams = params;
+                ecgParams.heart_signal = 'ecg';
+                [~, ~, rEcg] = get_RR(ECGREF.data(1,:), ECGREF.times, ecgParams);
+                [pat, ~, patInfo] = estimate_pat(rEcg, Rpeaks, EEG.srate);
+                patInfo.method = sprintf('estimated from %s', ECGREF.chanlocs(1).labels);
+                fprintf('Pulse arrival time: median %.0f ms (IQR %.0f ms, %g/%g beats paired). \n', ...
+                    pat, patInfo.iqr, patInfo.nPaired, patInfo.nPPG)
             end
-            params.file_length = file_length;
-
-            % Extract HRV measures
-            [features_hrv, params] = get_hrv_features(NN, NN_t, params);
-
-            % Final output with everything
-            Features.HRV = features_hrv;
-            Features.HRV.time.heart_rate = round(mean(HR,'omitnan'),1);
-
-            % Exit BrainBeats if user only wants to work with cardiovascular data
-            if strcmp(params.analysis,'features') && ~params.eeg_features
-                EEG.brainbeats.features = Features;
-                disp('Done processing cardiovascular signals'); gong
-                % return
-            end
+            Rpeaks = Rpeaks - round(pat/1000*EEG.srate);
+            Rpeaks(Rpeaks < 1) = [];
+            EEG.brainbeats.preprocessings.ppg_transit = patInfo;
+            fprintf('PPG beats shifted by -%.0f ms to estimate the heartbeat times for HEP. \n', pat)
+        elseif strcmpi(params.heart_signal,'ppg') && strcmp(params.analysis,'hep')
+            warning(['HEP time-locked to PPG pulses, which follow the heartbeats by ~200-300 ms ' ...
+                '(pulse arrival time). Use ''ppg_transit'' (delay in ms or an ECG channel label) to correct it.'])
         end
-      end  % end of ECG/PPG else branch
+
+      end  % ECG/PPG
+
+
+      %%%%% HRV features %%%%%
+      if ~isempty(params.hrv_features) && params.hrv_features ~= 0
+
+          % The whole series is used, to allow ULF and VLF when long enough
+          file_length = floor(EEG.xmax)-1;
+          if file_length < 300
+              warning('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+              warndlg('File length is less than 5 minutes! The minimum recommended is 300 s for estimating reliable HRV metrics.')
+          end
+          params.file_length = file_length;
+
+          % Extract HRV measures
+          [features_hrv, params] = get_hrv_features(NN, NN_t, params);
+
+          Features.HRV = features_hrv;
+          Features.HRV.time.heart_rate = round(mean(HR,'omitnan'),1);
+
+          if strcmp(params.analysis,'features') && ~params.eeg_features
+              EEG.brainbeats.features = Features;
+              disp('Done processing cardiovascular signals')
+          end
+      end
     end
 end
 
-% Basic preprocessing of EEG signals (filter, reference, bad channels)
+% EEG preprocessing, step 0: filter, re-reference, bad channels
 if params.clean_eeg
     params.clean_eeg_step = 0;
     params.orichanlocs = EEG.chanlocs;
@@ -384,16 +442,14 @@ end
 
 %%%%% MODE 1: Heartbeat-evoked potentials (HEP) %%%%%
 if strcmp(params.analysis,'hep')
-    EEG = run_HEP(EEG, CARDIO, params, Rpeaks); % CARDIO input is for adding cardio channel back in final output
+    EEG = run_HEP(EEG, CARDIO, params, Rpeaks); % CARDIO: to add the heart channel back ('keep_heart')
 
 %%%%% MODE 2: EEG features %%%%%
 elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params.eeg_features~=0
 
-    % Remove EEG artifacts with ASR and bad components with ICLabel
+    % EEG preprocessing, step 1: bad segments (ASR) and bad components (ICLabel)
     if params.clean_eeg
         [EEG, params] = clean_eeg(EEG, params);
-
-        % Preprocessing outputs to export for reporting
         if isfield(params,'removed_eeg_segments')
             EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
         end
@@ -402,28 +458,22 @@ elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params
         end
     end
 
-    % Extract EEG features and store in EEGLAB structure
     params.chanlocs = EEG.chanlocs;
     [features_eeg, params] = get_eeg_features(EEG.data, params);
-
-    % Final output with everything
     Features.EEG = features_eeg;
 
-%%%%%%%%%%%%%%% MODE 3: BRAIN-HEART COHERENCE %%%%%%%%%%%%%%%
+%%%%% MODE 3: Brain-heart coherence %%%%%
 elseif strcmpi(params.analysis,'coherence')
     disp("Computing brain-heart coupling...")
 
     if length(params.heart_channels)>1
         error("Sorry, this method only supports one hear channel at the moment. Please select only one of your heart channels and try again.")
     end
-    
-    % Coherence with NN time series instead of ECG/PPG signal
-    % Since NN intervals have different number of data points, and are 
-    % unevenly spaced, we need to do interpolation to match EEG sample rate. 
-    % CARDIO.fs = 1 / mean(diff(NN_t)); % estimated the sampling rate of the NN time series
+
+    % Coherence is computed with the NN series (not the raw ECG/PPG), which
+    % is unevenly sampled: interpolate it at the EEG sampling rate
     [NN_resamp, t_resamp] = resample_NN(NN_t,NN,EEG.srate,'cub');
-    t_resamp = t_resamp*1000; % convert to ms
-    % figure;plot(t_resamp,NN_resamp);
+    t_resamp = t_resamp*1000; % ms
     CARDIO = eeg_emptyset();
     CARDIO.chanlocs.labels = 'HRV';
     CARDIO.data = NN_resamp;
@@ -433,28 +483,27 @@ elseif strcmpi(params.analysis,'coherence')
     CARDIO.xmax = CARDIO.times(end)/1000;
     CARDIO = eeg_checkset(CARDIO);
     CARDIO.data = bsxfun(@minus, CARDIO.data, trimmean(CARDIO.data,20,2)); % demean to remove offset
-    pop_eegplot(CARDIO,1,1,1);
+    if params.vis_cleaning
+        pop_eegplot(CARDIO,1,1,1);
+    end
 
-    % Common times
+    % Keep the time range covered by the NN series
     idx = EEG.times >= t_resamp(1) & EEG.times <= t_resamp(end);
     EEG.times = EEG.times(idx);
     EEG.data = EEG.data(:,idx);
     EEG.pnts = size(EEG.data,2);
     EEG.xmax = EEG.times(end)/1000;
     EEG = eeg_checkset(EEG);
-    
-    params.chanlocs = EEG.chanlocs;
 
-    % Remove EEG artifacts with ASR and bad components with ICLabel
+    % EEG preprocessing, step 1: bad segments (ASR) and bad components (ICLabel)
     if params.clean_eeg
         [EEG, params] = clean_eeg(EEG, params);
 
-        % Remove bad segments from cardio signal to match EEG time
+        % Remove the same segments from the NN series
         if isfield(params,'removed_eeg_segments')
             CARDIO = pop_select(CARDIO,'nopoint', params.removed_eeg_segments);
         end
 
-        % Preprocessing outputs to export for reporting
         if isfield(params,'removed_eeg_segments')
             EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
         end
@@ -462,25 +511,17 @@ elseif strcmpi(params.analysis,'coherence')
             EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
         end
     end
-    
-    % filter cardio data
-    % CARDIO = pop_eegfiltnew(CARDIO,'locutoff',params.highpass,'hicutoff',params.lowpass); 
-    CARDIO = pop_eegfiltnew(CARDIO,'locutoff',0.5,'hicutoff',40); 
 
-    % Rescale cardio data to match EEG scale
+    params.chanlocs = EEG.chanlocs;   % after clean_eeg, which interpolates removed channels
+
+    % Filter the NN series and rescale it to the EEG amplitude range
+    CARDIO = pop_eegfiltnew(CARDIO,'locutoff',0.5,'hicutoff',40);
     disp("Rescaling heart signal to match EEG scale...")
     for iChan = 1:CARDIO.nbchan
         CARDIO.data(iChan,:) = rescale( CARDIO.data(iChan,:), quantile(mean(EEG.data,1),.01)*2, quantile(mean(EEG.data,1),.99)*2 );
-        % CARDIO.data(iChan,:) = rescale(CARDIO.data(iChan,:), -150, 150);
     end
 
-    % % Reverse polarity of ECG if negative
-    % if strcmpi(params.heart_signal,'ecg') %& pol<0
-    %     warning("Detected negative polarity of ECG signal. Flipping polarity.")
-    %     CARDIO.data = -CARDIO.data;
-    % end
-
-    % Merge Cardio and EEG
+    % Append the NN series to the EEG as an extra channel
     if EEG.pnts == CARDIO.pnts
         EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
         EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
@@ -488,13 +529,10 @@ elseif strcmpi(params.analysis,'coherence')
             EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
         end
         EEG = eeg_checkset(EEG);
-        % pop_eegplot(EEG,1,1,1);
     else
-        % EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data(:,1:end-1); % for PPG
         error('Trying to merge EEG and Cardiovascular signals back together, but they have different lengths')
     end
-    
-    % Compute brain-heart coherence
+
     EEG.brainbeats.coherence = compute_brainheart_coherence(EEG,params);
     disp("Brain-heart coherence outputs can be found in: EEG.brainbeats.coherence")
 
@@ -503,12 +541,12 @@ end
 % Store parameters in EEG structure for reporting
 EEG.brainbeats.parameters = params;
 
-% Store, save, plot features
+% Store, save and plot features
 if strcmp(params.analysis,'features')
     EEG.brainbeats.features = Features;
-    disp("Features are stored in the EEG.features field")
+    disp("Features are stored in the EEG.brainbeats.features field")
 
-    % Save in same repo as original file
+    % Save next to the input file
     if params.save
         outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
         fprintf("Exporting all features in a .mat file at this location: %s \n", outputPath);
@@ -521,21 +559,18 @@ if strcmp(params.analysis,'features')
     end
 end
 
-%%%%%%%%%%%%%%% MODE 4: cardiac field artifact (CFA) component from EEG %%%%%%%%%%%%%%%
+%%%%% MODE 4: Remove heart (cardiac field artifact) components from the EEG %%%%%
 if strcmp(params.analysis,'rm_heart')
 
     % Preprocess EEG
     if params.clean_eeg
 
-        % ref, filt, bad channels
-        params.clean_eeg_step = 0;
-        [EEG, params] = clean_eeg(EEG, params);
-
-        % EEG artifacts with ASR and ICA
+        % Step 1: bad segments (ASR) and non-heart artifact components
+        % (step 0 was done above)
         params.clean_eeg_step = 1;
         [EEG, params] = clean_eeg(EEG, params);
 
-        % Filter ECG
+        % Filter the heart signal (default 1-20 Hz)
         if ~isfield(params,'highpass_ecg')
             params.highpass_ecg = 1;
         end
@@ -544,15 +579,14 @@ if strcmp(params.analysis,'rm_heart')
         end
         CARDIO = pop_eegfiltnew(CARDIO,'locutoff',params.highpass_ecg,'hicutoff',params.lowpass_ecg);
 
-        % Remove same segments from cardio signal
+        % Remove the same segments from the heart signal
         CARDIO = pop_select(CARDIO,'nopoint', params.removed_eeg_segments);
 
-        % Preprocessing outputs
         EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
         EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
     end
 
-    % Add CARDIO channel back with EEG
+    % Add the heart channel back: ICA uses it to isolate the heart components
     EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
     EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
     for iChan = 1:CARDIO.nbchan
@@ -560,38 +594,57 @@ if strcmp(params.analysis,'rm_heart')
     end
     EEG = eeg_checkset(EEG);
 
-    % if params.vis_cleaning
-    %     pop_eegplot(EEG,1,1,1);
-    % end
-
     EEG = remove_heartcomp(EEG, params);
 end
 
 
-% Command history (for 'eegh')
-if contains(params.analysis,'hep')
-    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',%s,'clean_eeg',%g,'parpool',%g,'gpu',%g,'vis_cleaning',%g,'vis_outputs',%g,'save',%g);",...
-        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.parpool,params.gpu,params.vis_cleaning,params.vis_outputs,params.save));
-elseif contains(params.analysis,'features')
-    if params.hrv_features
+% Command line reproducing this call (EEGLAB history, 'eegh')
+if strcmpi(params.heart_signal,'rr')
+    heartArgs = sprintf('''heart_signal'',''rr'',''beat_latencies'',%s', mat2str(params.beat_latencies(:)',8));
+elseif strcmpi(params.heart_signal,'off')
+    heartArgs = '''heart_signal'',''off''';
+else
+    heartArgs = sprintf('''heart_signal'',''%s'',''heart_channels'',{%s}', params.heart_signal, ...
+        strjoin(strcat('''', params.heart_channels, ''''), ' '));
+end
+common = sprintf('''vis_cleaning'',%g,''vis_outputs'',%g,''save'',%g', params.vis_cleaning, params.vis_outputs, params.save);
+switch params.analysis
+    case 'hep'
+        hepArgs = '';
+        if isfield(params,'hep_window') && ischar(params.hep_window)
+            hepArgs = [hepArgs sprintf(',''hep_window'',''%s''', params.hep_window)];
+        elseif isfield(params,'hep_window') && ~isempty(params.hep_window)
+            hepArgs = [hepArgs sprintf(',''hep_window'',%s', mat2str(params.hep_window))];
+        end
+        if isfield(params,'ppg_transit') && ischar(params.ppg_transit)
+            hepArgs = [hepArgs sprintf(',''ppg_transit'',''%s''', params.ppg_transit)];
+        elseif isfield(params,'ppg_transit') && ~isempty(params.ppg_transit)
+            hepArgs = [hepArgs sprintf(',''ppg_transit'',%g', params.ppg_transit)];
+        end
+        if isfield(params,'hep_baseline')
+            hepArgs = [hepArgs sprintf(',''hep_baseline'',''%s''', params.hep_baseline)];
+        end
+        com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''hep'',%s,''clean_eeg'',%g%s,%s);', ...
+            heartArgs, params.clean_eeg, hepArgs, common);
+    case 'features'
         opt = {'time' 'frequency' 'nonlinear'};
-        idx = logical([params.hrv_time params.hrv_frequency params.hrv_nonlinear]);
-        hrv_features = ['{' sprintf(' ''%s'' ', opt{idx}) '}'];
-    else
-        hrv_features = ' ''off'' ';
-    end
-    if params.eeg_features
-        opt = {'time' 'frequency' 'nonlinear'};
-        idx = logical([params.eeg_time params.eeg_frequency params.eeg_nonlinear]);
-        eeg_features = ['{' sprintf(' ''%s'' ', opt{idx}) '}'];
-    else
-        eeg_features = ' ''off'' ';
-    end
-    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',%s,'clean_eeg',%g,'hrv_features',%s,'eeg_features',%s,'parpool',%g,'gpu',%g,'vis_cleaning',%g,'vis_outputs',%g,'save',%g);",...
-        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.clean_eeg,hrv_features,eeg_features,params.parpool,params.gpu,params.vis_cleaning,params.vis_outputs,params.save));
-elseif contains(params.analysis,'rm_heart')
-    com = char(sprintf("EEG = brainbeats_process(EEG,'analysis','%s','heart_signal','%s','heart_channels',%s,'clean_eeg',%g,'vis_cleaning',%g,'vis_outputs',%g,'save',%g);",...
-        params.analysis,params.heart_signal,['{' sprintf(' ''%s'' ', params.heart_channels{:}) '}'],params.clean_eeg,params.vis_cleaning,params.vis_outputs,params.save));
+        if params.hrv_features
+            idx = logical([params.hrv_time params.hrv_frequency params.hrv_nonlinear]);
+            hrv_features = ['{' sprintf(' ''%s'' ', opt{idx}) '}'];
+        else
+            hrv_features = '''off''';
+        end
+        if params.eeg_features
+            idx = logical([params.eeg_time params.eeg_frequency params.eeg_nonlinear]);
+            eeg_features = ['{' sprintf(' ''%s'' ', opt{idx}) '}'];
+        else
+            eeg_features = '''off''';
+        end
+        com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''features'',%s,''clean_eeg'',%g,''hrv_features'',%s,''eeg_features'',%s,''parpool'',%g,''gpu'',%g,%s);', ...
+            heartArgs, params.clean_eeg, hrv_features, eeg_features, params.parpool, params.gpu, common);
+    otherwise   % 'rm_heart', 'coherence'
+        com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''%s'',%s,''clean_eeg'',%g,%s);', ...
+            params.analysis, heartArgs, params.clean_eeg, common);
 end
 
 % Final message with ref to cite

@@ -1,4 +1,14 @@
-% check_drift.m — Visualize timestamp drift between ideal beat_detections grid and actual optics timestamps
+% CHECK_DRIFT - Drift between the beat detection time grid and the actual
+% Muse optics (PPG) timestamps in tests/data.
+%
+% Beat detections assume an ideal 64 Hz grid (one row per optics sample).
+% Plots the difference between this grid and the optics Unix timestamps,
+% and the optics inter-sample intervals before and after sorting, then
+% prints how much beat times differ between the ideal grid and the actual
+% optics timestamps.
+%
+% Usage: run the script from MATLAB (no EEGLAB needed). The figure is saved
+% as tests/figures/timestamp_drift.png.
 
 close all;
 opt = readtable(fullfile(fileparts(mfilename('fullpath')), 'data', 'test_optics.csv'));
@@ -18,6 +28,7 @@ opt_relative = opt.ts - opt.ts(1);
 drift = beats.timestamp_sec - opt_relative;
 
 figDir = fullfile(fileparts(mfilename('fullpath')), 'figures');
+if ~exist(figDir, 'dir'), mkdir(figDir); end
 
 fig = figure('Position', [100 100 1200 800], 'Color', 'w');
 

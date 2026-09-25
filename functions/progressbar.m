@@ -119,8 +119,17 @@ function progressbar(varargin)
 % 2006-Sep-11   Width is a multiple of height (don't stretch on widescreens)
 % 2010-Sep-21   Major overhaul to support multiple bars and add labels
 %
+% BrainBeats: under 'matlab -batch', progress is printed as text (textprogress).
+%
 
 persistent progfig progdata lastupdate
+
+% Under 'matlab -batch' (no display) the figure below never returns: print
+% coarse text progress instead
+if exist('batchStartupOptionUsed') > 0 && batchStartupOptionUsed %#ok<EXIST>
+    textprogress(varargin{:});
+    return
+end
 
 % Get inputs
 if nargin > 0
@@ -315,6 +324,25 @@ set(progpatch, 'FaceColor', thiscolor)
 
 
 % ------------------------------------------------------------------------------
+function textprogress(varargin)
+% Text version for headless runs: prints the label on reset, then the
+% progress every 10% (and at 100%) with the elapsed time. A label, no
+% input or 0 starts a new run.
+persistent last t0
+if nargin == 0
+    last = -1; t0 = tic;
+elseif ischar(varargin{1}) || isstring(varargin{1})
+    last = -1; t0 = tic;
+    fprintf('%s\n', char(varargin{1}));
+elseif isnumeric(varargin{1}) && ~isempty(varargin{1})
+    frac = double(varargin{1}(1));
+    if isempty(last) || frac == 0, last = -1; t0 = tic; end
+    if frac >= last + 0.1 || frac >= 1
+        fprintf('  %3.0f%% (%.0f s)\n', 100*frac, toc(t0));
+        last = frac;
+    end
+end
+
 function timestr = sec2timestr(sec)
 % Convert a time measurement from seconds into a human readable string.
 

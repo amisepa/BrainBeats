@@ -1,12 +1,20 @@
-%% FREQUENCY DOMAIN MVAR ANALYSIS
-% 
-% 
+% FDMVAR_5ORDER - Frequency-domain causal measures from an order-5 MVAR model.
+%
+% Takes the coefficients and noise covariance of a fitted MVAR model (not
+% data); see fit_mvar in compute_brainheart_coherence. The model order is
+% fixed to p = 5. All outputs except f are M x M x N; element (i,j,:) is the
+% measure from signal j to signal i. Outputs are complex (take abs).
+%
+% Usage:
+%   [DC,DTF,PDC,GPDC,IPDC,COH,PCOH,PCOH2,H,S,P,f] = fdMVAR_5order(Am, Su, N, Fs)
+%
 % INPUTS:
-%   Am = [A(1)...A(p)]: M*pM matrix of the MVAR model coefficients (strictly causal model)
-%   Su = M*M covariance matrix of the input noises
-%   N  = number of points for calculation of the spectral functions (nfft)
-%   Fs = sampling frequency
-% 
+%   Am = [A(1)...A(5)]: M x 5M matrix of the MVAR model coefficients (strictly causal model)
+%   Su = M x M covariance matrix of the input noises (default eye(M))
+%   N  = number of frequency points from 0 to Nyquist (default 512), or a
+%        vector of frequencies (Hz)
+%   Fs = sampling frequency in Hz (default 1)
+%
 % OUTPUTS:
 %   DC  = Directed Coherence (Eq. 11). Directional influence from one signal
 %       to another, normalized by total input to the target.
@@ -16,19 +24,22 @@
 %   PDC = Partial Directed Coherence (Eq. 15 but with sigma_i=sigma_j for each i,j)
 %       Direct influence from one signal to another, normalized by total 
 %       output from the source, with equal noise.
-%   GPDC = Generalized Partial Directed Coherence (Eq. 15): Like PDC but 
+%   GPDC = Generalized Partial Directed Coherence (Eq. 15): Like PDC but
 %       accounts for actual noise levels in each signal.
-%   COH = Coherence (Eq. 3): Strength of connection between two signals at 
+%   IPDC = Isolated PDC: sqrt(inv(Cd))*A(f) normalized per source column,
+%       which makes it equal to GPDC (kept for backward compatibility).
+%   COH = Coherence (Eq. 3): Strength of connection between two signals at
 %       each frequency.
 %   PCOH = Partial Coherence (Eq. 3): Connection between two signals after
-%       after removing the influence of all other signals, isolating unique shared variance.
-%   H   = Tranfer Function Matrix (Eq. 6): System’s frequency response from
+%       removing the influence of all other signals, isolating unique shared variance.
+%   PCOH2 = Partial Coherence computed as in Yacoub (1970); equivalent to PCOH.
+%   H   = Transfer Function Matrix (Eq. 6): System's frequency response from
 %       inputs to outputs.
 %   S   = Spectral Matrix (Eq. 7): Power and shared power between signals
 %       across frequencies.
-%   P   = Inverse Spectral Matrix (Eq. 7): Inverse of the spectral matrix, 
+%   P   = Inverse Spectral Matrix (Eq. 7): Inverse of the spectral matrix,
 %       shows conditional dependencies.
-%   f   = frequency vector
+%   f   = frequency vector in Hz (1 x N): (0:N-1)*Fs/(2N)
 % 
 % Copyright (C), Cedric Cannard, BrainBeats 2024
 % 
@@ -49,7 +60,6 @@ else            % if N is a vector, we assume that it is the vector of the frequ
     f = N; N = length(N);
 end
 
-% s = exp(1i*2*pi*f/Fs); % vector of complex exponentials
 z = 1i*2*pi/Fs;
 
 
@@ -70,7 +80,6 @@ tmp2=tmp1; %denominator for DC (column!)
 tmp3=tmp1'; tmp4=tmp1'; %denominators for PDC (row!)
 
 A = [eye(M) -Am]; % matrix from which M*M blocks are selected to calculate spectral functions
-% invSu = inv(Su);
 
 % Define the following matrices forced to be diagonal even when the original Su is not diagonal (this because DC and PDC/GPDC do not use off-diag terms)
 Cd      = diag(diag(Su));   % Cd is useful for calculation of DC
@@ -84,7 +93,7 @@ for n = 1:N % at each frequency
     %%% Coefficient matrix in the frequency domain
     As = zeros(M,M); % matrix As(z)=I-sum(A(k))
     for k = 1:p+1
-        As = As + A(:,k*M+(1-M:0))*exp(-z*(k-1)*f(n));  %indicization (:,k*M+(1-M:0)) extracts the k-th M*M block from the matrix B (A(1) is in the second block, and so on)
+        As = As + A(:,k*M+(1-M:0))*exp(-z*(k-1)*f(n));  % (:,k*M+(1-M:0)) extracts the k-th M*M block of A (A(1) is in the second block, and so on)
     end
 
     %%% Transfer matrix (after Eq. 6)
@@ -94,7 +103,7 @@ for n = 1:N % at each frequency
     S(:,:,n)  = H(:,:,n)*Su*H(:,:,n)'; % ' stands for Hermitian transpose
 
     %%% Inverse Spectral matrix
-    P(:,:,n) = inv(S(:,:,n)); % P(:,:,n) = As'*invSu*As;
+    P(:,:,n) = inv(S(:,:,n)); % equivalent to As'*inv(Su)*As
 
     %%% denominators of DC, PDC, GPDC for each m=1,...,num. channels
     for m = 1:M
@@ -103,26 +112,26 @@ for n = 1:N % at each frequency
         tmpp1 = squeeze(As(:,m)); % this takes the m-th column of As...
         tmp3(m) = sqrt(tmpp1'*tmpp1); % for the PDC - don't use covariance information
         tmp4(m) = sqrt(tmpp1'*invCd*tmpp1); % for the GPDC - uses diagonal covariance information
-        % for the GPDC - uses diagonal covariance information
 
     end
 
     %%% Directed Coherence (Eq. 11)
     DC(:,:,n) = H(:,:,n)*sqrt(Cd) ./ tmp1(:,ones(M,1));
-    %nota: tmp1(:,ones(M,1)) crea M colonne tutte uguali a tmp1 - la riga (ossia il den) è la stessa - trova in un colpo solo tutti i denominatori per DC
+    % tmp1(:,ones(M,1)) replicates tmp1 into M identical columns (same denominator along each row): all DC denominators at once
 
     %%% Directed Transfer Function (Eq. 11 without sigmas)
     DTF(:,:,n) = H(:,:,n) ./ tmp2(:,ones(M,1));
 
     %%% Partial Directed Coherence (Eq. 15 without sigmas)
     PDC(:,:,n)  = As./tmp3(ones(1,M),:);
-    %nota: tmp3(ones(1,M),:) crea M righe tutte uguali a tmp3 - la colonna (ossia il den) è la stessa - trova in un colpo solo tutti i denominatori per PDC
+    % tmp3(ones(1,M),:) replicates tmp3 into M identical rows (same denominator along each column): all PDC denominators at once
 
     %%% Generalized Partial Directed Coherence (Eq. 15)
     GPDC(:,:,n) = (sqrt(invCd)*As) ./ tmp4(ones(1,M),:);
 
-    %%% ISOLATED Coherence
-    IPDC(:,:,n) = (sqrt(invCd)*As) ./ sqrt(tmpp1'*invCd*tmpp1);
+    %%% ISOLATED Coherence: each column j normalized by its own source
+    %%% (tmp4(j)), as for the GPDC
+    IPDC(:,:,n) = (sqrt(invCd)*As) ./ tmp4(ones(1,M),:);
 
 end
 
