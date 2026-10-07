@@ -111,6 +111,14 @@ if params.clean_eeg
             plugin_askinstall('REST_cmd', 'REST_cmd', 1);
         end
     end
+    % GEDAI artifact removal (external plugin, noncommercial license)
+    if isfield(params,'clean_method') && strcmpi(params.clean_method,'gedai') && ~exist('GEDAI','file')
+        fprintf('Installing the GEDAI plugin (EEGLAB extension manager)... \n')
+        plugin_askinstall('GEDAI', 'GEDAI', 1);
+        if ~exist('GEDAI','file')
+            error("The GEDAI plugin could not be installed: install it from EEGLAB (File > Manage extensions), or use 'clean_method','asr_ica'.")
+        end
+    end
 end
 if strcmp(params.analysis,'rm_heart')
     if ~exist('picard','file') && params.icamethod == 1

@@ -23,7 +23,10 @@
 %   Optional PPG fields:
 %     .ppg_bandpass      - 0.5-3 Hz FIR bandpass (default true); false to skip
 %     .ppg_detect_mode   - 'valleys' (pulse onsets, default) or 'peaks'
-%     .ppg_height_method - MinPeakHeight estimate: 'mad' (default), 'std', 'trimmean'
+%     .ppg_height_method - 'prominence' (default): each pulse must stand out by
+%                          30% of the local (2-s) pulse amplitude, so beats are
+%                          kept where the pulse amplitude drops; or a global
+%                          MinPeakHeight: 'mad', 'std', 'trimmean' (older behavior)
 %
 % Outputs (the first detected beat is dropped, so each interval is paired
 % with the peak that closes it):
@@ -44,7 +47,10 @@
 %   median spacing are searched again. Each peak is the extremum of its
 %   segment, refined within +/-15 ms.
 %   PPG: findpeaks on the filtered signal (negated for valleys), with
-%   MinPeakDistance = half the median interval of a first pass.
+%   MinPeakDistance = half the median interval of a first pass, and a
+%   prominence of at least 30% of the local peak-to-peak amplitude. A global
+%   height threshold missed low-amplitude pulses (first 3 s of the sample
+%   PPG: 301 beats vs 306 R-peaks; 306 with the local prominence).
 %
 % Notes:
 %   ecg_refperiod is 0.25 s, not 0.35 s: on a slow heart a T-wave detected
@@ -363,7 +369,7 @@ elseif strcmpi(sig_type, 'ppg')
 
     % --- Default parameters -------------------------------------------
     detect_mode   = 'valleys';  % 'valleys' or 'peaks'
-    height_method = 'mad';      % MinPeakHeight method: 'mad', 'std', 'trimmean'
+    height_method = 'prominence'; % or a global MinPeakHeight: 'mad', 'std', 'trimmean'
 
     if isfield(params, 'ppg_detect_mode'),   detect_mode   = params.ppg_detect_mode;   end
     if isfield(params, 'ppg_height_method'), height_method = params.ppg_height_method; end
@@ -389,24 +395,38 @@ elseif strcmpi(sig_type, 'ppg')
         det_sig = signal;
     end
 
-    % Adaptive MinPeakHeight
-    minPeakHeight = estimateMinPeakHeight(det_sig, height_method);
+    if strcmpi(height_method, 'prominence')
+        % Prominence relative to the local pulse amplitude (peak-to-peak over
+        % 2 s), robust to slow amplitude changes (respiration, vasomotion)
+        [~, tmp_peaks] = findpeaks(det_sig, 'MinPeakHeight', 0);
+        if numel(tmp_peaks) < 2
+            warning('get_RR: too few PPG peaks detected - check signal quality or detection mode.');
+            [RR, RR_t, peaks, HR] = deal([]);
+            return
+        end
+        minPeakDist = round(median(diff(tmp_peaks)) / 2);
+        localRange = movmax(det_sig, round(2*fs)) - movmin(det_sig, round(2*fs));
+        [~, peaks, ~, prom] = findpeaks(det_sig, 'MinPeakDistance', minPeakDist);
+        peaks = peaks(prom >= 0.3 * localRange(peaks));
+        fprintf('  PPG detection mode: %s | MinPeakDistance: %d samples (%.2f s) | prominence >= 30%% of the local amplitude\n', ...
+            detect_mode, minPeakDist, minPeakDist/fs);
+    else
+        % Global MinPeakHeight (older behavior)
+        minPeakHeight = estimateMinPeakHeight(det_sig, height_method);
 
-    % MinPeakDistance = half the median interval of a first detection pass
-    [~, tmp_peaks] = findpeaks(det_sig, 'MinPeakHeight', minPeakHeight);
-    if numel(tmp_peaks) < 2
-        warning('get_RR: too few PPG peaks detected - check signal quality or detection mode.');
-        [RR, RR_t, peaks, HR] = deal([]);
-        return
+        % MinPeakDistance = half the median interval of a first detection pass
+        [~, tmp_peaks] = findpeaks(det_sig, 'MinPeakHeight', minPeakHeight);
+        if numel(tmp_peaks) < 2
+            warning('get_RR: too few PPG peaks detected - check signal quality or detection mode.');
+            [RR, RR_t, peaks, HR] = deal([]);
+            return
+        end
+        minPeakDist = round(median(diff(tmp_peaks)) / 2);
+
+        [~, peaks] = findpeaks(det_sig, 'MinPeakHeight', minPeakHeight, 'MinPeakDistance', minPeakDist);
+        fprintf('  PPG detection mode: %s | MinPeakHeight: %.2f | MinPeakDistance: %d samples (%.2f s)\n', ...
+            detect_mode, minPeakHeight, minPeakDist, minPeakDist/fs);
     end
-    tmp_rr      = diff(tmp_peaks) / fs;
-    minPeakDist = round(median(tmp_rr) * fs / 2);
-
-    % Final detection
-    [~, peaks] = findpeaks(det_sig, 'MinPeakHeight', minPeakHeight, 'MinPeakDistance', minPeakDist);
-    fprintf('  PPG detection mode: %s\n', detect_mode);
-    fprintf('  MinPeakHeight: %.2f | MinPeakDistance: %d samples (%.2f s)\n', ...
-        minPeakHeight, minPeakDist, minPeakDist/fs);
 
     % RR intervals and HR (first peak dropped, as for ECG)
     RR      = diff(peaks) / fs;

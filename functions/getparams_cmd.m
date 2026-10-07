@@ -126,10 +126,23 @@ if params.heart
         end
     end
 
-    % params for method 3: removing heart artifacts from EEG
+    % Heart components: minimum ICLabel heart probability to remove them
+    % ('rm_heart': default .9; 'hep' with 'clean_eeg': default .75)
     idx = find(strcmpi(varargin,'conf_thresh'));
     if ~isempty(idx)
         params.conf_thresh = varargin{idx+1};
+    end
+    % Heart artifact removal in the HEP cleaning: 'ica' (default),
+    % 'ecg_regression' (ECG only) or 'none'
+    idx = find(strcmpi(varargin,'heart_removal'));
+    if ~isempty(idx)
+        params.heart_removal = lower(varargin{idx+1});
+        if ~any(strcmp(params.heart_removal, {'ica','ecg_regression','none'}))
+            error("'heart_removal' must be 'ica', 'ecg_regression' or 'none'.")
+        end
+        if strcmp(params.heart_removal,'ecg_regression') && ~strcmpi(params.heart_signal,'ecg')
+            error("'heart_removal','ecg_regression' needs an ECG ('heart_signal','ecg').")
+        end
     end
     if any(strcmpi(varargin,'boost'))
         warning("The 'boost' option was removed (it did not improve the detection of heart components). Ignoring it.")
@@ -194,12 +207,8 @@ if params.heart
         end
     end
 
-    % HEP time-frequency measures (HRSP, HEPC) for all channels, and the
+    % HEP time-frequency measures (HRSP, HRPC) for all channels, and the
     % surrogate heartbeat control (number of surrogates, 0 = none)
-    idx = find(strcmpi(varargin,'hep_tf'));
-    if ~isempty(idx)
-        params.hep_tf = logical(varargin{idx+1});
-    end
     idx = find(strcmpi(varargin,'hep_tf_freqs'));
     if ~isempty(idx)
         params.hep_tf_freqs = varargin{idx+1};
@@ -215,8 +224,33 @@ if params.heart
         end
     end
 
-    % PPG pulse arrival time, to shift PPG beats back to the heartbeat for
-    % HEP: a delay in ms, or the label of an ECG channel to estimate it from
+    % Surrogate trains: 'shuffle' (default) or 'rigid' (see COMPUTE_HEP_TF)
+    idx = find(strcmpi(varargin,'hep_surrogate_mode'));
+    if ~isempty(idx)
+        params.hep_surrogate_mode = lower(varargin{idx+1});
+        if ~any(strcmp(params.hep_surrogate_mode, {'shuffle','rigid'}))
+            error("'hep_surrogate_mode' must be 'shuffle' or 'rigid'.")
+        end
+    end
+
+    % HEP measures on the scalp channels, the independent components, or
+    % both; ROI of the channel plots
+    idx = find(strcmpi(varargin,'hep_level'));
+    if ~isempty(idx)
+        params.hep_level = lower(varargin{idx+1});
+        if ~any(strcmp(params.hep_level, {'channels','ics','both'}))
+            error("'hep_level' must be 'channels', 'ics' or 'both'.")
+        end
+    end
+    idx = find(strcmpi(varargin,'hep_roi'));
+    if ~isempty(idx)
+        params.hep_roi = cellstr(varargin{idx+1});
+    end
+
+    % PPG pulse arrival time, to shift PPG beats back to the heartbeats for
+    % HEP: 'auto' (default: from an ECG channel of the file if there is one,
+    % else from the EEG cardiac field artifact, else a literature value), the
+    % label of an ECG channel, 'eeg', a delay in ms, or 'off'
     idx = find(strcmpi(varargin,'ppg_transit'));
     if ~isempty(idx)
         params.ppg_transit = varargin{idx+1};
@@ -224,6 +258,8 @@ if params.heart
         if ~strcmpi(params.heart_signal,'ppg')
             error("'ppg_transit' only applies to 'heart_signal','ppg'.")
         end
+    elseif strcmpi(params.heart_signal,'ppg') && strcmp(params.analysis,'hep')
+        params.ppg_transit = 'auto';
     end
 end
 
@@ -345,7 +381,23 @@ if params.eeg
     end
     idx = find(strcmpi(varargin,'ref'));
     if ~isempty(idx)
-        params.ref = varargin{idx+1};
+        params.ref = lower(varargin{idx+1});
+        if ~any(strcmp(params.ref, {'average','infinity','csd','off'}))
+            error("'ref' must be 'average', 'infinity', 'csd' (surface Laplacian) or 'off'.")
+        end
+    end
+    % Artifact removal: 'asr_ica' (default: ASR or bad epochs, then ICA +
+    % ICLabel) or 'gedai' (GEDAI plugin, installed if missing)
+    idx = find(strcmpi(varargin,'clean_method'));
+    if ~isempty(idx)
+        params.clean_method = lower(varargin{idx+1});
+        if ~any(strcmp(params.clean_method, {'asr_ica','gedai'}))
+            error("'clean_method' must be 'asr_ica' or 'gedai'.")
+        end
+        if strcmp(params.clean_method,'gedai') && strcmp(params.analysis,'rm_heart')
+            warning("GEDAI already removes the heart artifacts: 'rm_heart' uses ASR + ICA ('clean_method','asr_ica').")
+            params.clean_method = 'asr_ica';
+        end
     end
     idx = find(strcmpi(varargin,'linenoise'));
     if ~isempty(idx)

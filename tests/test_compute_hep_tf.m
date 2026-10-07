@@ -3,10 +3,12 @@ function test_compute_hep_tf
 % needed). Errors on the first failed check.
 %   1. No group delay: a 10-Hz burst centered 300 ms after each heartbeat
 %      peaks at 300 ms in the HRSP at every frequency of the burst.
-%   2. HEPC is high for a phase-locked burst and ~0 for random phases (same
+%   2. HRPC is high for a phase-locked burst and ~0 for random phases (same
 %      power), and the HRSP sees both.
-%   3. Surrogate control: an evoked deflection at 400 ms is significant
-%      (FDR-corrected), and pure noise gives no significant point.
+%   3. Surrogate control, 'shuffle' (default) and 'rigid' surrogates: an
+%      evoked deflection at 400 ms is significant (FDR-corrected), and pure
+%      noise gives no significant point. With 'shuffle', the null band of a
+%      noise channel is at the noise level of an average of nB windows.
 %   4. Heartbeats whose window crosses a discontinuity are left out.
 
 addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))),'functions'));
@@ -29,26 +31,33 @@ assert(abs(tf.times(iMax) - 300) <= 10, 'HRSP peak at %g ms (expected 300 ms)', 
 [~,iMax2] = max(squeeze(tf.hrsp(2,f10,:)));
 assert(abs(tf.times(iMax2) - 300) <= 20, 'Random-phase HRSP peak at %g ms (expected 300 ms)', tf.times(iMax2))
 i300 = abs(tf.times - 300) <= 10;
-c1 = mean(tf.hepc(1,f10,i300)); c2 = mean(tf.hepc(2,f10,i300));
-assert(c1 > 0.5 && abs(c2) < 0.05, 'HEPC phase-locked %.2f (expected > .5), random %.2f (expected ~0)', c1, c2)
+c1 = mean(tf.hrpc(1,f10,i300)); c2 = mean(tf.hrpc(2,f10,i300));
+assert(c1 > 0.5 && abs(c2) < 0.05, 'HRPC phase-locked %.2f (expected > .5), random %.2f (expected ~0)', c1, c2)
 for f = [8 12]
     [~,iM] = max(squeeze(tf.hrsp(1,tf.freqs==f,:)));
     assert(abs(tf.times(iM) - 300) <= 20, 'HRSP peak at %g ms at %g Hz (group delay?)', tf.times(iM), f)
 end
-fprintf('1-2 OK: HRSP peak at %g ms; HEPC %.2f (locked) vs %.3f (random)\n', tf.times(iMax), c1, c2);
+fprintf('1-2 OK: HRSP peak at %g ms; HRPC %.2f (locked) vs %.3f (random)\n', tf.times(iMax), c1, c2);
 
 % 3. surrogate control: evoked deflection at 400 ms on channel 1, noise on 2
 X = randn(2,nPts);
 for b = beats'
     X(1,b + round(0.4*fs) + (-5:5)) = X(1,b + round(0.4*fs) + (-5:5)) + 1.5*hann(11)';
 end
-[tf, surr] = compute_hep_tf(X, fs, beats, [-300 600], struct('freqs',6:10,'nSurr',100,'tf',false));
-i400 = abs(tf.hep_times - 400) < 5;
-assert(all(surr.hep.p_fdr(1,i400) < .05), 'Evoked deflection not significant after correction')
-assert(~any(surr.hep.p_fdr(2,:) < .05), 'Pure noise gave an FDR-significant point')
-assert(all(abs(surr.shifts) >= 0.25*median(diff(beats))/fs*1000 - 1e-9), 'Surrogate shift too small')
-fprintf('3 OK: evoked peak z = %.1f (FDR p = %.1e, empirical p = %.3f); noise: min FDR p = %.2f\n', ...
-    min(surr.hep.z(1,i400)), max(surr.hep.p_fdr(1,i400)), max(surr.hep.p_emp(1,i400)), min(surr.hep.p_fdr(2,:)));
+for mode = {'shuffle' 'rigid'}
+    [tf, surr] = compute_hep_tf(X, fs, beats, [-300 600], struct('freqs',6:10,'nSurr',100,'tf',false,'surrMode',mode{1}));
+    i400 = abs(tf.hep_times - 400) < 5;
+    assert(all(surr.hep.p_fdr(1,i400) < .05), '%s: evoked deflection not significant after correction', mode{1})
+    assert(~any(surr.hep.p_fdr(2,:) < .05), '%s: pure noise gave an FDR-significant point', mode{1})
+    if strcmp(mode{1},'rigid')
+        assert(all(abs(surr.shifts) >= 0.25*median(diff(beats))/fs*1000 - 1e-9), 'Surrogate shift too small')
+    else
+        sdNoise = median(surr.hep.null_sd(2,:)); expected = 1/sqrt(tf.nBeats);
+        assert(abs(sdNoise/expected - 1) < 0.25, 'shuffle: null SD %.3f, expected ~%.3f', sdNoise, expected)
+    end
+    fprintf('3 OK (%s): evoked peak z = %.1f (FDR p = %.1e, empirical p = %.3f); noise: min FDR p = %.2f\n', ...
+        mode{1}, min(surr.hep.z(1,i400)), max(surr.hep.p_fdr(1,i400)), max(surr.hep.p_emp(1,i400)), min(surr.hep.p_fdr(2,:)));
+end
 
 % 4. discontinuity: beats around it are left out
 tf2 = compute_hep_tf(X, fs, beats, [-300 600], struct('tf',false,'boundaries',beats(10)+10));

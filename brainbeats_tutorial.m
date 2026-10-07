@@ -63,24 +63,44 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'analysis' set to 'hep' (type of analysis)
 %   - 'heart_signal' set to 'ECG' (type of heart signal)
 %   - 'heart_channels' set to {'ECG'} (name of the ECG electrode)
-%   - 'clean_eeg' set to true to preprocess the EEG data with default parameters
+%   - 'clean_eeg' set to true to preprocess the EEG data with default
+%       parameters (0.5-30 Hz filter, average reference, bad channels, bad
+%       epochs, ICA + ICLabel; the ICA is fitted on a 1-Hz high-passed copy)
 %   - 'ica_method' set to 1 (Picard, fast) instead of 2 (Infomax, default)
+%   - 'hep_surrogates' set to 100 to test the heartbeat locking of the HEP,
+%       HRSP and HRPC against 100 surrogate heartbeat trains (shuffled
+%       inter-beat intervals)
 %   - 'keep_heart' set to true to keep the heart channel in the output
 % Epochs span -300 to 600 ms around the R-peaks by default ('hep_window'),
 % and heartbeats followed by the next one within 650 ms are rejected so no
 % epoch contains the next QRS. For within-subject analyses, 'hep_window',
 % 'adaptive' sets the epoch end from the subject's heart rate instead.
-% 'hep_baseline','regression' applies a regression-based baseline
-% correction (Alday, 2019) and stores the corrected epochs.
-% 'hep_tf',true exports the HRSP and HEPC of all channels, and
-% 'hep_surrogates',100 tests the heartbeat locking of the HEP, HRSP and HEPC
-% against 100 surrogate heartbeat trains (see EEG.brainbeats.hrsp and
-% EEG.brainbeats.surrogate).
+% No baseline correction by default; 'hep_baseline','regression' applies a
+% regression-based baseline correction (Alday, 2019; window [-150 -50] ms).
+% The HEP (time domain), HRSP (time-frequency power) and HRPC (phase:
+% pairwise phase consistency across heartbeats), with the surrogate
+% control, are computed on all channels (EEG.brainbeats.hrsp, .surrogate),
+% and plotted for the average of the frontocentral channels ('hep_roi').
+% Other options: 'clean_method','gedai' (GEDAI instead of ICA; the plugin
+% is installed if needed) and 'ref','csd' (surface Laplacian).
 % Note: the toolbox detects the PPG channel as a non-EEG channel and asks
 % to remove it. This is expected: it does not process ECG and PPG at the
 % same time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1,'keep_heart',true);
+    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1, ...
+    'hep_surrogates',100,'keep_heart',true);
+
+%% Same, on the independent components (ICs) too
+% 'hep_level' sets where the measures are computed: 'channels' (default),
+% 'ics' or 'both'. On ICs: the HEP, HRSP, HRPC (and surrogate control) of
+% every IC of the cleaning ICA, stored with their scalp maps and ICLabel
+% classes in EEG.brainbeats.ics. No IC is selected: heartbeat-locked ICs can
+% hold cardiac field artifact, so which ones to analyze is left to you.
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'PPG'});
+EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1, ...
+    'hep_level','both','hep_surrogates',100);
 
 %% Same as above but using the PPG signal and adjusting some parameters
 %  We change these parameters for demonstration only: default parameters
@@ -96,7 +116,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'ref' set to 'infinity' to rereference EEG data to infinity instead
 %       of common average (default) or 'csd' for current source density
 %       transformation (surface Laplacian)
-%   - 'highpass' set to .5 to remove EEG frequencies < 0.5 Hz
+%   - 'highpass' set to 1 to remove EEG frequencies < 1 Hz (default 0.5)
 %   - 'lowpass' set to 20 to remove EEG frequencies > 20 Hz
 %   - 'filttype' set to 'causal' to use a causal minimum-phase FIR filter
 %       instead of the default noncausal zero-phase FIR filter (useful when
@@ -108,13 +128,14 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'save' set to false to not save the final 'filename_HEP.set' file
 %   - 'vis_cleaning' set to true to visualize preprocessing plots
 %   - 'vis_outputs' set to true to visualize the final outputs
-%   - 'ppg_transit' set to 'ECG': PPG pulses reach the sensor ~200-450 ms
-%       after the heartbeat (pulse arrival time). Here it is estimated from
-%       the ECG channel of the file and the PPG beats are shifted back by
-%       it. Without an ECG, give the delay in ms if known.
+% PPG pulses reach the sensor ~200-450 ms after the heartbeat (pulse
+% arrival time, PAT), so the PPG beats are shifted back by the PAT
+% ('ppg_transit','auto', default): measured here from the ECG channel of the
+% file; without an ECG, from the cardiac field artifact of the EEG (420 ms
+% on these data, vs 424 ms with the ECG), else the literature value (250 ms).
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'ppg_transit','ECG','clean_eeg',true,'linenoise',50, ...
-    'ref','infinity','highpass',.5,'lowpass',20,'filttype','causal', ...
+    'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
+    'ref','infinity','highpass',1,'lowpass',20,'filttype','causal', ...
     'detectMethod','median','icamethod',1, ...
     'save',false,'vis_cleaning',true,'vis_outputs',true);
 
@@ -239,10 +260,10 @@ EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','PPG', ...
     'ref','infinity','ica_method',1,'parpool',false,'vis_outputs',true);
 
 
-%% To launch the main GUI via command line
+%% To launch the BrainBeats window via command line (or EEGLAB menu 'BrainBeats')
 
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-[EEG, com] = brainbeats_process(EEG);
+[EEG, com] = pop_brainbeats(EEG);
 
 % Display <com> after the run to get the command line equivalent of the
 % parameters selected in the GUI

@@ -4,17 +4,25 @@
 %   [EEG, params] = clean_eeg(EEG, params)
 %
 % Stage 0 (params.clean_eeg_step == 0): filter, re-reference, remove bad channels
-%   - High-pass (params.highpass, default 1 Hz) and low-pass (params.lowpass,
-%     default 30 Hz) FIR filters (pop_eegfiltnew). Zero-phase by default;
-%     minimum-phase (causal) if params.filttype = 'causal'.
+%   - High-pass (params.highpass, default 0.5 Hz for 'hep' to keep the slow HEP
+%     components, 1 Hz otherwise) and low-pass (params.lowpass, default 30 Hz)
+%     FIR filters (pop_eegfiltnew). Zero-phase by default; minimum-phase
+%     (causal) if params.filttype = 'causal'.
 %   - Re-reference (params.ref: 'average' (default, full-rank CAR via apply_car),
-%     'infinity' (REST), 'csd' or 'off'). Skipped with < 30 channels. If
-%     'infinity' or 'csd' fails, CAR is used instead.
+%     'infinity' (REST), 'csd' or 'off'). Skipped with < 30 channels. With
+%     'csd', the data are average-referenced here and the surface Laplacian
+%     is applied after artifact removal by the caller (ICLabel needs
+%     average-referenced data; see CSD_TRANSFORM). If 'infinity' fails, CAR
+%     is used instead.
 %   - Remove flat channels (params.flatline, default 5 s) and bad channels with
 %     clean_channels (params.corrThresh = .65, line noise 15 SD, params.maxBad
 %     = .33, 100 RANSAC samples). The location-free clean_channels_nolocs is
 %     used for MEG labels or when channel locations are unusable.
 %   - Band-stop at params.linenoise +/- 3 Hz if it is below the low-pass.
+%   - params.clean_method = 'gedai': GEDAI (Ros et al., 2025; plugin installed
+%     by RUN_CHECKS) removes artifacts from the continuous data here, instead
+%     of ASR/bad epochs + ICA in stage 1 (bad HEP epochs are still removed).
+%     'infinity' is then applied after GEDAI (which re-references to average).
 % Stage 1 (params.clean_eeg_step == 1): remove artifacts, interpolate, ICA
 %   - 'hep': remove bad epochs with find_badTrials (params.detectMethod,
 %     default 'grubbs'). 'features', 'rm_heart', 'coherence': remove bad
@@ -22,12 +30,18 @@
 %     default .85 of available RAM).
 %   - Interpolate removed channels back to params.orichanlocs (> 10 channels).
 %   - ICA at the effective data rank to avoid ghost ICs (Kim et al. 2023).
+%     With a high-pass below 1 Hz, ICA is fitted on a 1-Hz high-passed copy
+%     (params.ica_source for epoched data, prepared by RUN_HEP) and the
+%     weights are applied to the data: slow drifts degrade ICA and ICLabel
+%     (Winkler et al., 2015). With 'gedai', ICA runs only for the IC-level
+%     HEP measures (params.hep_level 'ics' or 'both'), and no component is removed.
 %     params.icamethod: 1 = Picard, 2 = extended Infomax (default),
 %     3 = extended Infomax with lrate 1e-5 and maxsteps 2000 (slower, more
 %     replicable).
 %   - ICLabel, then remove muscle, eye, heart, line and channel-noise ICs:
 %       'rm_heart': .99/.90/-/.99/.99 (heart left for remove_heartcomp)
-%       'hep':      .99/.90/.75/.99/.99
+%       'hep':      .99/.90/.75/.99/.99 (heart: params.conf_thresh; none if
+%                   params.heart_removal is 'ecg_regression' or 'none')
 %       otherwise:  .95/.95/.99/.99/.99
 %
 % Inputs:
@@ -51,11 +65,20 @@ else
     reref = 'average'; % 'average' (default), 'infinity', 'csd', 'off'
     params.ref = 'average';    % for user
 end
-if isfield(params,'highpass')
+if isfield(params,'highpass') && ~isempty(params.highpass)
     highpass = params.highpass;
+elseif strcmp(params.analysis,'hep')
+    highpass = 0.5; % HEP: keeps the slow HEP components (ICA uses a 1-Hz copy)
+    params.highpass = 0.5;
 else
     highpass = 1; % default = 1 Hz
     params.highpass = 1;    % for user
+end
+if isfield(params,'clean_method') && strcmpi(params.clean_method,'gedai')
+    useGEDAI = true;
+else
+    useGEDAI = false;
+    params.clean_method = 'asr_ica';
 end
 if isfield(params,'lowpass')
     lowpass = params.lowpass;
@@ -147,27 +170,23 @@ if params.clean_eeg_step == 0
             warndlg('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
             warning('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
         else
-            if strcmp(reref,'infinity')
+            if strcmp(reref,'infinity') && useGEDAI
+                fprintf('Re-referencing to infinity after GEDAI. \n')
+            elseif strcmp(reref,'infinity')
                 fprintf('Re-referencing EEG data to infinity. \n')
                 try
-                    EEG = ref_infinity(EEG);
-                catch
-                    warning("Re-reference to infinity failed. This may happen on MACs (you likely need XCode installed for compiling the required code). Please submit an issue on Github: https://github.com/amisepa/BrainBeats/issues")
-                    warning("Defaulting back to common average reference (CAR).")
+                    EEG = rest_ref(EEG);
+                    params.ref_applied = 'rest';
+                catch ME
+                    warning('Re-reference to infinity failed (%s): using the common average reference instead. Please report it: https://github.com/amisepa/BrainBeats/issues', ME.message)
                     EEG = apply_car(EEG);  % preserving effective data rank
                 end
             elseif strcmp(reref,'average')
                 fprintf('Re-referencing EEG data to average. \n')
                 EEG = apply_car(EEG);  % preserving effective data rank
             elseif strcmp(reref,'csd')
-                try
-                    disp("Performing reference-free current-source density (CSD) transformation (Surface Laplacian).")
-                    EEG = csd_transform(EEG);
-                catch
-                    warning("CSD transformation failed (csd_transform must be on the MATLAB path). Please submit an issue on Github if needed: https://github.com/amisepa/BrainBeats/issues")
-                    warning("Defaulting back to common average reference (CAR).")
-                    EEG = apply_car(EEG);  % preserving effective data rank
-                end
+                fprintf('Re-referencing EEG data to average (the surface Laplacian is applied after artifact removal). \n')
+                EEG = apply_car(EEG);
             end
         end
     end
@@ -228,6 +247,19 @@ if params.clean_eeg_step == 0
             'hicutoff',params.linenoise+3,'revfilt',1,'filtorder',500);
     end
 
+    % GEDAI on the continuous data (replaces ASR/ICA of stage 1)
+    if useGEDAI
+        EEG = run_gedai(EEG, params);
+        if strcmp(reref,'infinity') && EEG.nbchan >= 30
+            try
+                EEG = rest_ref(EEG);
+                params.ref_applied = 'rest';
+            catch ME
+                warning('Re-reference to infinity failed (%s): the data stay average-referenced (GEDAI output).', ME.message)
+            end
+        end
+    end
+
     % update tracker
     params.clean_eeg_step = 1;
 
@@ -241,13 +273,20 @@ elseif params.clean_eeg_step == 1
     % HEP (remove bad epochs)
     if strcmp(params.analysis, 'hep')
         
-        % Detect and remove bad epochs
+        % Detect and remove bad epochs (and from the copy used for ICA)
         badTrials = find_badTrials(EEG, detectMethod, params.vis_cleaning);
         EEG = pop_rejepoch(EEG, badTrials, 0);
+        if isfield(params,'ica_source') && ~isempty(params.ica_source) && ~isempty(badTrials)
+            params.ica_source = pop_rejepoch(params.ica_source, badTrials, 0);
+        end
 
         % Store in params if users want that information
         params.removed_eeg_trials = badTrials;
         
+    % GEDAI already cleaned the continuous data: no segment removed
+    elseif useGEDAI
+        params.removed_eeg_segments = [];
+
     % ASR on continuous data
     elseif contains(params.analysis, {'features' 'rm_heart' 'coherence'})
         
@@ -297,23 +336,71 @@ elseif params.clean_eeg_step == 1
     if EEG.nbchan>10
         EEG = pop_interp(EEG, params.orichanlocs, 'spherical'); % interpolate
         EEG.etc.clean_channel_mask(1:EEG.nbchan) = true;
+        if isfield(params,'ref_applied') && strcmp(params.ref_applied,'rest')
+            % the original channel info brings back the original reference label
+            [EEG.chanlocs.ref] = deal('rest');
+            EEG.ref = 'rest';
+        end
+        if isfield(params,'ica_source') && ~isempty(params.ica_source)
+            params.ica_source = pop_interp(params.ica_source, params.orichanlocs, 'spherical');
+        end
     else
         warndlg('Cannot interpolate bad EEG channels reliably with less than 10 channels')
         warning('Cannot interpolate bad EEG channels reliably with less than 10 channels')
     end
 
+    % With GEDAI, ICA only for the IC measures of the HEP (nothing removed)
+    doICs = strcmp(params.analysis,'hep') && isfield(params,'hep_level') && any(strcmp(params.hep_level,{'ics' 'both'}));
+    if useGEDAI && ~doICs
+        params.removed_eeg_components = [];
+        params.clean_eeg_step = 2;
+        return
+    end
+
+    % Data the ICA is fitted on: with a high-pass below 1 Hz, a 1-Hz
+    % high-passed copy (slow drifts degrade ICA and ICLabel)
+    EEGica = EEG;
+    if highpass < 1
+        if isfield(params,'ica_source') && ~isempty(params.ica_source)
+            EEGica = params.ica_source;          % epoched copy from RUN_HEP
+        elseif EEG.trials == 1
+            EEGica = pop_eegfiltnew(EEG,'locutoff',1,'minphase',causalfilt);
+        end
+        if size(EEGica.data,1) ~= size(EEG.data,1) || size(EEGica.data,3) ~= size(EEG.data,3)
+            warning('The 1-Hz copy for ICA does not match the data: ICA is fitted on the data themselves.')
+            EEGica = EEG;
+        else
+            fprintf('ICA fitted on a 1-Hz high-passed copy of the data. \n')
+        end
+    end
+
     % Run ICA at the effective data rank to avoid ghost ICs (Kim et al. 2023).
     % Method 3 uses lrate = 1e-5 and maxsteps = 2000 for reproducible results.
-    dataRank = sum(eig(cov(double(EEG.data(:,:)'))) > 1E-7);
+    dataRank = sum(eig(cov(double(EEGica.data(:,:)'))) > 1E-7);
     if icamethod == 1
-        EEG = pop_runica(EEG,'icatype','picard','maxiter',400,'mode','standard', 'pca',dataRank);
+        EEGica = pop_runica(EEGica,'icatype','picard','maxiter',400,'mode','standard', 'pca',dataRank);
     elseif icamethod == 2
-        EEG = pop_runica(EEG,'icatype','runica','extended',1,'pca',dataRank);
-    elseif icamethod == 3 
-        EEG = pop_runica(EEG,'icatype','runica','extended',1, ...
+        EEGica = pop_runica(EEGica,'icatype','runica','extended',1,'pca',dataRank);
+    elseif icamethod == 3
+        EEGica = pop_runica(EEGica,'icatype','runica','extended',1, ...
             'pca',dataRank,'lrate',1e-5,'maxsteps',2000);
     end
-    
+    EEG.icaweights = EEGica.icaweights;
+    EEG.icasphere = EEGica.icasphere;
+    EEG.icawinv = EEGica.icawinv;
+    EEG.icachansind = EEGica.icachansind;
+    EEG.icaact = [];
+    EEG = eeg_checkset(EEG);
+    params = rmfield_if(params, 'ica_source');
+
+    % With GEDAI (IC measures): classify the components, remove none
+    if useGEDAI
+        EEG = pop_iclabel(EEG,'default');
+        params.removed_eeg_components = [];
+        params.clean_eeg_step = 2;
+        return
+    end
+
     % Classify and flag bad components with ICLabel. pop_icflag rows:
     % brain, muscle, eye, heart, line noise, channel noise, other
     EEG = pop_iclabel(EEG,'default');
@@ -322,8 +409,12 @@ elseif params.clean_eeg_step == 1
         % user's confidence threshold
         EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
     elseif contains(params.analysis, 'hep')
-        % HEP: remove cardiac field artifact (CFA) components too
-        conf_thresh = .75;  % confidence threshold for removing CFA
+        % HEP: heart (cardiac field artifact) components are removed too
+        % with params.heart_removal = 'ica' (default); params.conf_thresh:
+        % minimum ICLabel heart probability (default .75)
+        conf_thresh = .75;
+        if isfield(params,'conf_thresh') && ~isempty(params.conf_thresh), conf_thresh = params.conf_thresh; end
+        if isfield(params,'heart_removal') && ~strcmpi(params.heart_removal,'ica'), conf_thresh = NaN; end
         EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; conf_thresh 1; .99 1; .99 1; NaN NaN]);
     else
         % Features and coherence
@@ -362,4 +453,25 @@ elseif params.clean_eeg_step == 1
     % update tracker
     params.clean_eeg_step = 2;
 
-end 
+end
+
+
+function s = rmfield_if(s, f)
+% Remove field f from struct s if present
+if isfield(s, f), s = rmfield(s, f); end
+
+
+function EEG = rest_ref(EEG)
+% Reference to infinity (REST plugin). The plugin's 'files' folder (dipole
+% file, leadfield function) is put on the path here: EEGLAB started with
+% EEGLAB does not always add the plugin's subfolders, and REST then fails.
+restDir = fileparts(which('ref_infinity'));
+if ~isempty(restDir) && exist(fullfile(restDir,'files'),'dir')
+    addpath(fullfile(restDir,'files'));
+end
+EEG = ref_infinity(EEG);
+% channel-level label too: eeg_checkset copies chanlocs(1).ref into EEG.ref
+% (GEDAI sets it to 'average')
+if isfield(EEG.chanlocs,'ref')
+    [EEG.chanlocs.ref] = deal('rest');
+end

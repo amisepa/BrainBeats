@@ -7,7 +7,7 @@ function results = run_tutorial_headless(ids)
 % Run before a release.
 %
 % Usage:
-%   matlab -batch "addpath('path/to/eeglab'); cd('path/to/BrainBeats/tests'); run_tutorial_headless"
+%   results = run_tutorial_headless;        % in MATLAB, EEGLAB on the path
 %   results = run_tutorial_headless;        % all tests
 %   results = run_tutorial_headless(1:5);   % a subset (indices in tests())
 %
@@ -35,7 +35,7 @@ function results = run_tutorial_headless(ids)
 
 % Paths: EEGLAB, then this repository instead of any other BrainBeats copy
 bbroot = fileparts(fileparts(mfilename('fullpath')));
-if ~exist('pop_loadset','file'), eeglab nogui; end
+if ~exist('pop_loadset','file'), eeglab; close; end
 p = strsplit(path, pathsep);
 old = p(contains(p,'BrainBeats','IgnoreCase',true) & ~startsWith(p,bbroot));
 if ~isempty(old), rmpath(old{:}); end
@@ -137,6 +137,16 @@ T(end+1) = struct('name','hep_adaptive_window','fn', @() bbp(pop_select(L(),'noc
     'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'},'hep_window','adaptive','clean_eeg',false,'save',0));
 T(end+1) = struct('name','hep_ppg_transit','fn', @() hep_ppg_transit(L));
 T(end+1) = struct('name','hep_tf_surrogates','fn', @() hep_tf_surr(L));
+T(end+1) = struct('name','hep_ics','fn', @() hep_ics(L, true));
+T(end+1) = struct('name','hep_ics_noclean','fn', @() hep_ics(L, false));
+T(end+1) = struct('name','hep_csd','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep', ...
+    'heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1,'ref','csd','save',0));
+T(end+1) = struct('name','hep_ppg_pat_eeg','fn', @() hep_ppg_pat_eeg(L));
+T(end+1) = struct('name','feat_csd','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','features', ...
+    'heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1,'ref','csd', ...
+    'eeg_features',{'frequency'},'hrv_features','off','save',0));
+T(end+1) = struct('name','hep_gedai','fn', @() hep_gedai(L));
+T(end+1) = struct('name','hep_ecg_regression','fn', @() hep_ecgreg(L));
 end
 
 function EEG = bbp(EEG, varargin)
@@ -200,15 +210,15 @@ fprintf('Pulse arrival time %.0f ms; HEP correlation with the ECG HEP r = %.2f\n
 end
 
 function EEG = hep_tf_surr(L)
-% HRSP/HEPC of all channels and 50 surrogates: the HEP rebuilt from the
+% HRSP/HRPC of all channels and 50 surrogates: the HEP rebuilt from the
 % continuous data must equal the epochs, and the stats must be complete
 EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',false,'hep_tf',true,'hep_surrogates',50,'save',0);
+    'heart_channels',{'ECG'},'clean_eeg',false,'hep_surrogates',50,'save',0);
 tf = EEG.brainbeats.hrsp; S = EEG.brainbeats.surrogate;
 iE = ismember({EEG.chanlocs.labels}, S.channels);
 assert(max(abs(mean(EEG.data(iE,:,:),3) - S.hep.real),[],'all') < 1e-6, 'HEP from the continuous data differs from the epochs')
-assert(isequal(size(tf.hrsp), size(tf.hepc), size(S.hrsp.p_fdr)) && ~any(isnan(tf.hrsp(:))), 'Incomplete HRSP/HEPC outputs')
-fprintf('HRSP/HEPC: %d channels x %d freqs x %d times; %.1f%% of HEP points differ from the surrogates (FDR)\n', ...
+assert(isequal(size(tf.hrsp), size(tf.hrpc), size(S.hrsp.p_fdr)) && ~any(isnan(tf.hrsp(:))), 'Incomplete HRSP/HRPC outputs')
+fprintf('HRSP/HRPC: %d channels x %d freqs x %d times; %.1f%% of HEP points differ from the surrogates (FDR)\n', ...
     size(tf.hrsp), 100*mean(S.hep.p_fdr(:) < .05));
 end
 
@@ -224,6 +234,54 @@ assert(max(abs(mean(A.data(iE,:,:),3) - mean(EEG.data(iE,:,:),3)),[],'all') < 1e
 assert(isequal(A.data(~iE,:,:), EEG.data(~iE,:,:)), 'Heart channel was corrected')
 undo = EEG.data(iE,:,:) + r.beta .* permute(r.baseline - mean(r.baseline,2), [1 3 2]);
 assert(max(abs(undo - A.data(iE,:,:)),[],'all') < 1e-6, 'Correction cannot be undone')
+end
+
+function EEG = hep_ics(L, clean)
+% HEP measures of all ICs (ICA of the cleaning, or run for them when the EEG
+% is not cleaned): one row per IC, with maps and ICLabel classes
+EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',clean,'icamethod',1,'hep_level','both','hep_surrogates',20,'save',0);
+I = EEG.brainbeats.ics;
+nIC = numel(I.ic);
+assert(nIC > 1 && size(I.hep,1) == nIC && size(I.tf.hrsp,1) == nIC && size(I.maps,2) == nIC, 'Incomplete IC outputs')
+assert(isequal(size(I.tf.hrsp), size(I.surrogate.hrsp.p_fdr)) && size(I.iclabel,1) == nIC, 'Incomplete IC statistics')
+assert(isfield(EEG.brainbeats,'roi'), 'ROI outputs missing')
+fprintf('%d ICs: HEP, HRSP, HRPC and surrogates; %d HEP points FDR-significant\n', nIC, sum(I.surrogate.hep.p_fdr(:) < .05));
+end
+
+function EEG = hep_ppg_pat_eeg(L)
+% PPG without ECG: the pulse arrival time comes from the EEG cardiac field
+% artifact and must be close to the ECG-based one (424 ms on the sample)
+EEG = bbp(pop_select(L(),'nochannel',{'ECG'}),'analysis','hep','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'clean_eeg',false,'save',0);
+p = EEG.brainbeats.preprocessings.ppg_transit;
+assert(contains(p.method,'EEG') && abs(p.pat - 424) < 50, 'PAT from the EEG: %g ms (%s)', p.pat, p.method)
+fprintf('PAT from the EEG: %.0f ms (ECG: 424 ms)\n', p.pat);
+end
+
+function EEG = hep_ecgreg(L)
+% Heart artifact removed by ECG regression: the heart-locked EEG amplitude
+% must drop by at least half, with little of the EEG variance removed, and
+% no heart component removed by ICA
+EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1,'heart_removal','ecg_regression','save',0);
+r = EEG.brainbeats.preprocessings.heart_regression;
+assert(r.cfa_after < 0.5*r.cfa_before && r.variance_removed < 5, ...
+    'ECG regression: %.2f -> %.2f uV, %.1f%% of the variance removed', r.cfa_before, r.cfa_after, r.variance_removed)
+fprintf('ECG regression: %.2f -> %.2f uV (%.0f%% reduction), %.1f%% of the variance removed\n', ...
+    r.cfa_before, r.cfa_after, 100*(1 - r.cfa_after/r.cfa_before), r.variance_removed);
+end
+
+function EEG = hep_gedai(L)
+% GEDAI cleaning, with the IC measures (only if the plugin is installed: not
+% installed by the test)
+if ~exist('GEDAI','file')
+    fprintf('SKIPPED: GEDAI plugin not installed.\n');
+    EEG = L(); return
+end
+EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'clean_method','gedai','hep_level','ics','icamethod',1,'save',0);
+assert(isfield(EEG.brainbeats,'ics') && isfield(EEG.etc,'GEDAI'), 'GEDAI or IC outputs missing')
 end
 
 % -------------------------------------------------------------------------

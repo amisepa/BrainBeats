@@ -17,7 +17,7 @@ clear; close all;
 if ~exist('eeglab', 'file')
     error('EEGLAB not found: add its folder to the MATLAB path (addpath(''path/to/eeglab'')) and run again.')
 end
-eeglab nogui;
+eeglab; close;
 
 % Add BrainBeats functions to path (clean_rr lives there)
 bbPath = fileparts(fileparts(mfilename('fullpath')));

@@ -22,7 +22,7 @@ clear; close all;
 if ~exist('eeglab', 'file')
     error('EEGLAB not found: add its folder to the MATLAB path (addpath(''path/to/eeglab'')) and run again.')
 end
-eeglab nogui;
+eeglab; close;
 
 % This copy of BrainBeats first (ahead of an installed plugin version)
 bbPath = fileparts(fileparts(mfilename('fullpath')));

@@ -1,7 +1,7 @@
-% COMPUTE_HEP_TF - Heartbeat-locked time-frequency measures (HRSP, HEPC) and
+% COMPUTE_HEP_TF - Heartbeat-locked time-frequency measures (HRSP, HRPC) and
 % the surrogate heartbeat control, from continuous (cleaned) EEG.
 %
-% HRSP (heartbeat-related spectral perturbation) and HEPC (heartbeat-evoked
+% HRSP (heartbeat-related spectral perturbation) and HRPC (heartbeat-evoked
 % phase coupling) are computed from a zero-phase complex Morlet wavelet
 % transform of the continuous signals, indexed at every heartbeat (Lee et
 % al., 2024):
@@ -9,23 +9,31 @@
 %           sinusoid of amplitude A gives A^2)
 %   hrsp  - power in dB relative to its mean over the epoch window (the whole
 %           cardiac cycle), for each channel and frequency
-%   hepc  - pairwise phase consistency across heartbeats (Vinck et al., 2010):
+%   hrpc  - pairwise phase consistency across heartbeats (Vinck et al., 2010):
 %           unbiased, so its expected value is 0 for random phases whatever
 %           the number of heartbeats (unlike ITC)
 %
-% Surrogate control (opts.nSurr > 0): the whole heartbeat train is shifted
-% rigidly by a random delay (default -500 to 500 ms, excluding shifts shorter
-% than a quarter of the median inter-beat interval), which keeps the number of
-% beats and the inter-beat intervals but moves them to other cardiac phases
-% (Park et al., 2018; Lee et al., 2024). The HEP, HRSP and HEPC are recomputed
-% for each surrogate, and each point (channel x [frequency x] latency) is
-% compared with its surrogate distribution at the same latency: z-score,
-% p-value from the z-score (two-sided for HEP and HRSP, one-sided for HEPC),
-% FDR-corrected across all points (Benjamini & Hochberg), and the empirical
-% p-value (smallest possible: 1/(nSurr+1)). The question answered is whether
-% the activity at a given latency after the heartbeat differs from the
-% activity at other cardiac phases. A shifted train is still heartbeat-locked
-% at another phase, so the maximum over latencies is not a valid null here.
+% Surrogate control (opts.nSurr > 0). Two kinds of surrogate heartbeat trains
+% (opts.surrMode):
+%   'shuffle' (default) - the inter-beat intervals of the whole heartbeat
+%       train (opts.allBeats) are shuffled and the train is rebuilt from a
+%       random start, so the surrogate beats fall at random cardiac phases;
+%       as many surrogate beats as real ones are drawn. The null is the
+%       average of windows unrelated to the heartbeat, and the question
+%       answered is whether the activity at a given latency is locked to the
+%       heartbeats. Suited to the HEP, HRSP and HRPC of one condition.
+%   'rigid' - the whole train is shifted by one random delay (default -500 to
+%       500 ms, excluding shifts shorter than a quarter of the median
+%       inter-beat interval; Park et al., 2018). A shifted train is still
+%       heartbeat-locked at another phase, so its null is the activity at
+%       other cardiac phases: suited to contrasts between conditions, not to
+%       one condition (its band spans the HEP's own range).
+% The HEP, HRSP and HRPC are recomputed for each surrogate, and each point
+% (channel x [frequency x] latency) is compared with its surrogate
+% distribution at the same latency: z-score, p-value from the z-score
+% (two-sided for HEP and HRSP, one-sided for HRPC), FDR-corrected across all
+% points (Benjamini & Hochberg), and the empirical p-value (smallest possible:
+% 1/(nSurr+1)).
 % Note: the cardiac field artifact is heartbeat-locked too, so the control
 % does not test a neural origin.
 %
@@ -41,21 +49,26 @@
 %           .freqs      frequencies in Hz (default 4:30)
 %           .cycles     wavelet cycles (default 5)
 %           .tstep      output time step in ms (default ~10)
-%           .tf         compute HRSP and HEPC (default true)
+%           .tf         compute HRSP and HRPC (default true)
 %           .nSurr      number of surrogates (default 0 = none)
-%           .shift      surrogate shift range in ms (default [-500 500])
+%           .surrMode   'shuffle' (default) or 'rigid' (see above)
+%           .allBeats   all heartbeats of the recording (sample indices), from
+%                       which the 'shuffle' surrogates are built (default: beats)
+%           .shift      'rigid' shift range in ms (default [-500 500])
 %           .boundaries sample positions of data discontinuities (EEGLAB
 %                       'boundary' events): windows crossing them are excluded
 %           .seed       random seed for the surrogate shifts (default 1)
 %           .hep_times  time points of the HEP epochs in ms (default: every
 %                       sample of win), e.g. HEP.times
+%           .keepNull   also return the surrogate HEPs (surr.hep.null,
+%                       channels x times x surrogates; default false)
 %
 % Outputs:
-%   tf   - struct: times (ms), freqs (Hz), power, hrsp, hepc (channels x freqs
+%   tf   - struct: times (ms), freqs (Hz), power, hrsp, hrpc (channels x freqs
 %          x times), hep (channels x times, the average of the same beats),
 %          nBeats, cycles
-%   surr - struct (empty without surrogates): nSurr, shifts (ms), and for hep,
-%          hrsp, hepc: z, p, p_fdr, p_emp (see above), null_mean, null_sd,
+%   surr - struct (empty without surrogates): nSurr, mode, shifts (ms, 'rigid'), and for hep,
+%          hrsp, hrpc: z, p, p_fdr, p_emp (see above), null_mean, null_sd,
 %          null_lo/null_hi (2.5th and 97.5th percentiles of the surrogates)
 %
 % References:
@@ -76,6 +89,7 @@ cycles = getdef(opts, 'cycles', 5);
 tstep  = getdef(opts, 'tstep', 10);
 doTF   = getdef(opts, 'tf', true);
 nSurr  = getdef(opts, 'nSurr', 0);
+surrMode = getdef(opts, 'surrMode', 'shuffle');
 shiftR = getdef(opts, 'shift', [-500 500]);
 bnd    = getdef(opts, 'boundaries', []);
 seed   = getdef(opts, 'seed', 1);
@@ -111,25 +125,41 @@ if nB < 10
     error('compute_hep_tf: fewer than 10 heartbeats.')
 end
 
-% Surrogate shifts (same rigid shift of the whole train for all channels)
+% Surrogate heartbeat trains (the same for all channels)
 shifts = [];
 if nSurr > 0
     rs = RandStream('twister','Seed',seed);
-    lo = round(shiftR(1)/1000*fs); hi = round(shiftR(2)/1000*fs);
-    minAbs = round(0.25*median(diff(beats)));
-    minAbs = min(minAbs, floor(0.5*max(abs([lo hi]))));
-    shifts = zeros(nSurr,1);
-    for s = 1:nSurr
-        d = 0;
-        while abs(d) < minAbs
-            d = lo + floor(rand(rs)*(hi-lo+1));
-        end
-        shifts(s) = d;
-    end
     surrBeats = cell(nSurr,1);
-    for s = 1:nSurr
-        b = beats + shifts(s);
-        surrBeats{s} = b(okBeat(b));
+    if strcmpi(surrMode, 'rigid')
+        lo = round(shiftR(1)/1000*fs); hi = round(shiftR(2)/1000*fs);
+        minAbs = round(0.25*median(diff(beats)));
+        minAbs = min(minAbs, floor(0.5*max(abs([lo hi]))));
+        shifts = zeros(nSurr,1);
+        for s = 1:nSurr
+            d = 0;
+            while abs(d) < minAbs
+                d = lo + floor(rand(rs)*(hi-lo+1));
+            end
+            shifts(s) = d;
+        end
+        for s = 1:nSurr
+            b = beats + shifts(s);
+            surrBeats{s} = b(okBeat(b));
+        end
+    else
+        % Shuffled inter-beat intervals of the whole train, from a random
+        % start within the first interval; nB valid surrogate beats drawn
+        allB = sort(round(getdef(opts, 'allBeats', beats)));
+        allB = allB(:);
+        ibi = diff(allB);
+        for s = 1:nSurr
+            b = allB(1) + floor(rand(rs)*ibi(1)) + [0; cumsum(ibi(randperm(rs, numel(ibi))))];
+            b = b(okBeat(b));
+            if numel(b) > nB
+                b = sort(b(randperm(rs, numel(b), nB)));
+            end
+            surrBeats{s} = b;
+        end
     end
 end
 
@@ -138,12 +168,15 @@ tf.hep = mean_epochs(X, beats, hepIdx);
 tf.hep_times = hepIdx / fs * 1000;
 surr = struct([]);
 if nSurr > 0
-    surr = struct('nSurr', nSurr, 'shifts', shifts/fs*1000);
+    surr = struct('nSurr', nSurr, 'mode', surrMode, 'shifts', shifts/fs*1000);
     nullHep = zeros([size(tf.hep) nSurr]);
     for s = 1:nSurr
         nullHep(:,:,s) = mean_epochs(X, surrBeats{s}, hepIdx);
     end
     surr.hep = surrogate_stats(tf.hep, nullHep, 'both');
+    if getdef(opts, 'keepNull', false)
+        surr.hep.null = nullHep;        % channels x times x surrogates
+    end
     clear nullHep
 end
 
@@ -166,7 +199,7 @@ for iF = 1:nF
 end
 
 tf.power = nan(nChan, nF, numel(tIdx));
-tf.hepc  = nan(nChan, nF, numel(tIdx));
+tf.hrpc  = nan(nChan, nF, numel(tIdx));
 if nSurr > 0
     nullP = zeros(nChan,nF,numel(tIdx),nSurr,'single'); nullC = nullP;
 end
@@ -177,7 +210,7 @@ for iChan = 1:nChan
         co = co(1:nPts);
         [pw, pc] = tf_stats(co, beats, tIdx);
         tf.power(iChan,iF,:) = pw;
-        tf.hepc(iChan,iF,:) = pc;
+        tf.hrpc(iChan,iF,:) = pc;
         if nSurr > 0
             for s = 1:nSurr
                 [pwS, pcS] = tf_stats(co, surrBeats{s}, tIdx);
@@ -195,7 +228,7 @@ if nSurr > 0
     clear nullP
     surr.hrsp = surrogate_stats(tf.hrsp, nullH, 'both');
     clear nullH
-    surr.hepc = surrogate_stats(tf.hepc, double(nullC), 'right');
+    surr.hrpc = surrogate_stats(tf.hrpc, double(nullC), 'right');
 end
 end
 
