@@ -532,8 +532,9 @@ def _clean_eeg_epochs(HEPwide, params, fs):
     out = eegprep.pop_iclabel(dict(HEPwide), 'default')
     HEPwide = out[0] if isinstance(out, tuple) else out
     conf = params.get('conf_thresh', 0.75)
-    if params.get('rm_heart_ics') is False:
-        conf = np.nan
+    if str(params.get('heart_removal', 'ica')).lower() != 'ica':
+        conf = np.nan      # heart comps are NOT removed by ICA (v1.6: the
+                           # cardiac field is handled by ECG regression or kept)
     thr = np.array([[np.nan, np.nan], [0.99, 1.], [0.9, 1.], [conf, 1.],
                     [0.99, 1.], [0.99, 1.], [np.nan, np.nan]])
     out = eegprep.pop_icflag(dict(HEPwide), thr)

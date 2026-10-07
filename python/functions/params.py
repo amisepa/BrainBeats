@@ -26,9 +26,13 @@ def default_params(**over):
     brainbeats_process(EEG, 'analysis','hep', 'heart_signal','ECG',
                        'heart_channels',{'ECG'}, ...) equivalents.
     Values that MATLAB fills in run_checks/clean_eeg placeholders are noted.
+    For analysis='features', the HRV/EEG-feature defaults of getparams_cmd.m
+    apply (all domains ON); pass analysis='features' to switch.
     """
+    analysis = over.get('analysis', 'hep')
+    features_on = (analysis == 'features')
     p = Params(
-        analysis='hep',
+        analysis=analysis,
         heart_signal='ecg',          # 'ecg' | 'ppg' | 'rr' | 'off'
         heart_channels=['ECG'],      # labels of the heart channel(s)
         # --- clean_eeg (stage 0) ---
@@ -62,13 +66,30 @@ def default_params(**over):
         hep_surrogate_shift=(-500, 500),  # 'rigid'
         surrogate_seed=1,
         keep_heart=False,
+        # --- features mode (getparams_cmd.m defaults: all domains ON) ---
+        hrv_time=features_on,
+        hrv_frequency=features_on,
+        hrv_nonlinear=features_on,
+        hrv_norm=False,
+        hrv_spec='LombScargle_norm',   # | 'LombScargle' | 'welch' | 'fft'
+        hrv_overlap=0.25,
+        eeg=(over.get('eeg', True)),
+        eeg_time=features_on,
+        eeg_frequency=features_on,
+        eeg_nonlinear=features_on,
+        eeg_frange=(1, 40),
+        eeg_wintype='hamming',
+        eeg_winlen=2,                  # s
+        eeg_winoverlap=50,             # %
+        eeg_freqbounds='conventional',  # 'conventional' | 'individualized'
+        asy_norm=False,
         # --- run_checks ---
         fs=None,                     # filled from EEG.srate
         vis_cleaning=False,
         vis_outputs=False,
         save=True,
-        hrv_features=False,
-        eeg_features=False,
+        hrv_features=features_on,
+        eeg_features=features_on,
         parpool=False,
         gong=False,
     )
