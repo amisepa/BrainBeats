@@ -4,3 +4,9 @@
 *.fig
 *.DS_Store
 *.set
+__pycache__/
+*.pyc
+*.npy
+*.npz
+*.eeg
+*.fdt
