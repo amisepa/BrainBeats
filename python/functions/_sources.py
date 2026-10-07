@@ -25,6 +25,8 @@ def load_module(name: str):
         if path.exists():
             if name in sys.modules:
                 return sys.modules[name]
+            if str(root) not in sys.path:      # siblings use bare imports
+                sys.path.insert(0, str(root))
             spec = importlib.util.spec_from_file_location(name, path)
             mod = importlib.util.module_from_spec(spec)
             sys.modules[name] = mod

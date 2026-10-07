@@ -74,6 +74,69 @@ def run_hep(EEG, CARDIO=None, params=None, Rpeaks=None):
     params['fs'] = EEG['srate']
     fs = float(EEG['srate'])
 
+    # brainbeats_process.m (PPG path): 'ppg_transit' shifts the PPG beats
+    # back to the heartbeats. 'auto': from an ECG channel of the file if
+    # there is one, else from the EEG cardiac field artifact, else a
+    # literature default (finger PPG at rest ~250 ms).
+    if str(params.get('heart_signal', 'ecg')).lower() == 'ppg'             and params.get('ppg_transit', 'auto') != 'off' \
+            and params.get('analysis') == 'hep':
+        pat = None
+        ppg_transit = params.get('ppg_transit', 'auto')
+        if isinstance(ppg_transit, (int, float)) \
+                and not isinstance(ppg_transit, bool):
+            pat, pat_info = float(ppg_transit), {'median': float(ppg_transit),
+                                                 'method': 'user'}
+        elif CARDIO is not None:
+            card_labels = [str(c['labels'] if isinstance(c, dict) else c['labels'])
+                           for c in np.asarray(CARDIO['chanlocs']).ravel()]
+            ecg_idx = [i for i, l in enumerate(card_labels)
+                       if ('ecg' in l.lower() or 'ekg' in l.lower())]
+            if ecg_idx:
+                ecg = np.asarray(CARDIO['data'], float)[ecg_idx[0]]
+                from ._sources import load_module
+                get_rr = load_module('get_rr_v25').get_rr
+                r_ecg, _ = get_rr(ecg, fs, drop_first=False)
+                from .estimate_pat import estimate_pat
+                pat_med, pat_one, pat_info = estimate_pat(r_ecg, Rpeaks, fs)
+                pat = pat_med
+                pat_info['method'] = f'estimated from ECG channel {card_labels[ecg_idx[0]]}'
+            else:
+                from .estimate_pat_eeg import estimate_pat_eeg
+                pat, pat_info = estimate_pat_eeg(np.asarray(EEG['data'], float), fs, Rpeaks)
+                pat_info['method'] = 'estimated from the EEG cardiac field artifact'
+        if pat is None or (isinstance(pat, float) and np.isnan(pat)):
+            mode = str(params.get('ppg_detect_mode', '')).lower()
+            pat = 350.0 if mode == 'peaks' else 250.0
+            pat_info = {'pat': pat,
+                        'method': 'literature default (no ECG, cardiac field '
+                                  'artifact not clear in the EEG)'}
+        Rpeaks = np.asarray(Rpeaks, float) - np.round(pat / 1000.0 * fs)
+        Rpeaks = Rpeaks[Rpeaks >= 1]
+        params['ppg_transit_info'] = pat_info
+        print(f'PPG beats shifted by -{pat:.0f} ms to estimate the heartbeat '
+              f"times for HEP ({pat_info.get('method', 'user')}).")
+
+    # brainbeats_process.m (HEP path): with heart_removal='ecg_regression'
+    # the cardiac field artifact is removed by ECG regression on the
+    # continuous data BEFORE epoching (needs an ECG in CARDIO).
+    if str(params.get('heart_removal', 'ica')).lower() == 'ecg_regression' \
+            and str(params.get('heart_signal', 'ecg')).lower() == 'ecg':
+        if CARDIO is None:
+            print("WARNING: ECG regression needs an ECG channel: "
+                  "the heart artifact is not removed.")
+        else:
+            from .remove_heart_regression import remove_heart_regression
+            EEG, hreg = remove_heart_regression(EEG, CARDIO, Rpeaks, params)
+            pre = EEG.setdefault('brainbeats', {}).setdefault('preprocessings', {})
+            pre['heart_regression'] = hreg
+            print(f"ECG regression fitted on {hreg['samples_fitted']:.1f}% of the "
+                  "samples (the others hold large EEG artifacts).")
+            print(f"ECG regression (lags -20 to 20 ms): heart-locked EEG amplitude "
+                  f"(-50 to 100 ms) {hreg['cfa_before']:.2f} uV before, "
+                  f"{hreg['cfa_after']:.2f} uV after "
+                  f"({100*(1 - hreg['cfa_after']/hreg['cfa_before']):.0f}% reduction); "
+                  f"{hreg['variance_removed']:.1f}% of the EEG variance removed.")
+
     # --- 1. epoch window (87-106) ------------------------------------------
     Rpeaks = np.asarray(Rpeaks, dtype=float).ravel()
     IBI = np.concatenate([np.diff(Rpeaks), [np.nan]]) / fs * 1000.0   # ms
@@ -228,8 +291,14 @@ def run_hep(EEG, CARDIO=None, params=None, Rpeaks=None):
 
     # --- 10. CSD (275-282) --------------------------------------------------------
     if use_csd:
-        raise NotImplementedError("ref='csd' not ported yet (apply_csd.m); "
-                                  "use ref='average'.")
+        from .csd_transform import csd_transform_data
+        labels_ep = [c['labels'] if isinstance(c, dict) else c['labels']
+                     for c in np.asarray(HEP['chanlocs']).ravel()]
+        HEP['data'], C = csd_transform_data(np.asarray(HEP['data'], float), labels_ep)
+        if need_cont:
+            Xc = C @ Xc
+        HEP['ref'] = 'csd-transform'
+        print('surface Laplacian applied (CSD).')
 
     # --- 11. baseline regression (284-297) --------------------------------------
     if str(params.get('hep_baseline', 'none')).lower() == 'regression':

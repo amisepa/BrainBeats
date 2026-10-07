@@ -1,9 +1,10 @@
 """Unit tests for the MATLAB-semantics primitives (no MATLAB needed)."""
+import os
 import sys
 import numpy as np
 import pytest
 
-sys.path.insert(0, r'C:\Users\ccann\Documents\MATLAB\BrainBeats\python')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # the python/ package root
 from functions.matlab_utils import (matlab_round, fdr_bh, grubbs_outliers,
                                     percentile_matlab)  # noqa: E402
 from functions.compute_hep_tf import (valid_beats, _tf_stats, morlet_kernels_bb,
@@ -137,7 +138,11 @@ def test_compute_hep_tf_end_to_end():
     rng = np.random.default_rng(42)
     x = 0.5 * np.sin(2 * np.pi * 10 * t) + 0.05 * rng.normal(size=n_pts)
     # bursts at 8 Hz time-locked to beats
-    beats = np.arange(2000, n_pts - 2000, 700, dtype=float)   # ~2.8 s apart
+    # variable IBI (2000..2700 samples) so IBI-shuffle surrogates differ from
+    # the true train (a constant-IBI train reproduces itself when shuffled)
+    rng_b = np.random.default_rng(7)
+    ibi = rng_b.integers(2000, 2701, size=80)
+    beats = 2000 + np.cumsum(ibi); beats = beats[beats < n_pts - 1000].astype(float)
     for b in beats:
         i0 = int(b) - 100
         x[i0:i0 + 200] += 2.0 * np.sin(2 * np.pi * 8 * np.arange(200) / fs)

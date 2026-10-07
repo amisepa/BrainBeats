@@ -44,6 +44,8 @@ def default_params(**over):
         asr_cutoff=50,               # unused by HEP (find_badTrials instead)
         icamethod=2,                 # 1 picard | 2 infomax | 3 replicable infomax
         conf_thresh=0.75,            # ICLabel heart-probability removal threshold
+        heart_removal='ica',         # 'ica' | 'ecg_regression' | 'none'
+        ppg_transit='auto',          # PPG only: 'auto' | 'eeg' | 'off' | ms | label
         clean_method='asr_ica',      # 'asr_ica' | 'gedai' (gedai not ported yet)
         # --- run_HEP ---
         hep_window=(-300, 600),      # ms, or 'adaptive'

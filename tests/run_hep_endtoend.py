@@ -14,12 +14,12 @@ import os
 os.environ.setdefault('MPLBACKEND', 'Agg')
 import sys
 import numpy as np
-sys.path.insert(0, r'C:/Users/ccann/Documents/MATLAB/BrainBeats/python')
+sys.path.insert(0, r'C:/Users/ccann/Documents/MATLAB/BrainBeats-py/python')
 import eegprep
 from functions.run_hep import run_hep
 from functions.params import default_params
 
-BB = r'C:/Users/ccann/Documents/MATLAB/BrainBeats'
+BB = r'C:/Users/ccann/Documents/MATLAB/BrainBeats-py'
 fs = 250.0
 ICAMETHOD = int(os.environ.get('ICAMETHOD', '1'))
 
