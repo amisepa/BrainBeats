@@ -120,6 +120,9 @@ if isgraphics(f), delete(f); end
         if isempty(EEG) || ~isfield(EEG,'data') || isempty(EEG.data)
             errordlg('Load a dataset first.','BrainBeats'); return
         end
+        if EEG.trials > 1
+            errordlg('This dataset is epoched: BrainBeats needs continuous data. Load a continuous dataset.','BrainBeats'); return
+        end
         chans = strsplit(strtrim(get(hChan,'String')));
         chans = chans(~cellfun(@isempty, chans));
         if isempty(chans)
@@ -209,8 +212,13 @@ if isgraphics(f), delete(f); end
             set(hData,'String',sprintf('No dataset loaded.\nLoad a dataset with EEG and ECG/PPG channels, or the sample dataset.'));
         else
             name = EEG.setname; if isempty(name), name = EEG.filename; end
-            set(hData,'String',sprintf('%s\n%d channels, %g Hz, %.1f min%s', name, EEG.nbchan, EEG.srate, ...
-                EEG.xmax*EEG.trials/60, ternary(EEG.trials > 1, sprintf(', %d epochs', EEG.trials), '')));
+            if EEG.trials > 1
+                set(hData,'ForegroundColor',[.75 0 0],'String',sprintf('%s\nEpoched (%d epochs): load a continuous dataset.', ...
+                    strtrim(name), EEG.trials));
+            else
+                set(hData,'ForegroundColor',[0 0 0],'String',sprintf('%s\n%d channels, %g Hz, %.1f min', ...
+                    name, EEG.nbchan, EEG.srate, EEG.xmax/60));
+            end
         end
     end
 end
@@ -218,10 +226,6 @@ end
 function h = txt(f, pos, s, sz, wt, col, bg)
 h = uicontrol(f,'Style','text','String',s,'Position',pos,'FontSize',sz,'FontWeight',wt, ...
     'ForegroundColor',col,'BackgroundColor',bg,'HorizontalAlignment','left');
-end
-
-function out = ternary(c, a, b)
-if c, out = a; else, out = b; end
 end
 
 function [bg, fg] = eeglab_colors()

@@ -143,5 +143,5 @@ EEG.brainbeats.preprocessings.cfa_after = cfaAfter;
 % Save
 if params.save
     newname = sprintf('%s_no-heart.set', EEG.filename(1:end-4));
-    pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);
+    EEG = pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);   % the output then points to this file, not to the input file
 end

@@ -7,9 +7,11 @@
       channel list, 'Perform analysis on'), parameters window (heart artifact removal: ICA,
       ECG regression or none). The window layouts and all plots have only been checked by
       automated tests that do not draw them.
-- [ ] Rerun `run_tutorial_headless(9)` ('rm_heart'): it timed out twice (slow Infomax on a
-      busy machine) after cfa_amplitude was moved to its own file; the other cases pass.
-- [ ] Run `tests/test_gui_params` and the full `tests/run_tutorial_headless` once more.
+- [x] Rerun `run_tutorial_headless(9)` ('rm_heart'): passes (160 s, 1 heart IC, 2.10 -> 1.12 uV,
+      2026-10-07); the two timeouts were a busy machine.
+- [x] Run `tests/test_gui_params` and the full `tests/run_tutorial_headless` once more: pass
+      (26/26), with `tests/run_command_lines` (tutorial and help commands as written, 11/11;
+      2026-10-07).
 - [ ] Run `tests/make_readme_figures` in the MATLAB desktop (plotting paths are not
       exercised headless): it saves the 11 figures README.md points to (gui_main,
       heartbeats_ecg, hep_ecg, hep_tf, hep_ppg, features_psd, features_eeg,

@@ -408,9 +408,9 @@ if params.vis_outputs
             'Heartbeat-evoked potentials (HEP) - all electrodes','verbose','off');
     end
     subplot(2,1,2)
-    roiTrials = squeeze(mean(EEGonly.data(roi,:,:), 1));
+    roiTrials = reshape(mean(EEGonly.data(roi,:,:), 1), EEGonly.pnts, []);   % frames x heartbeats
     unit = '\muV';
-    erpimage(reshape(roiTrials, 1, []), [], HEP.times, ...
+    erpimage(roiTrials, [], HEP.times, ...
         sprintf('Single heartbeats: %s', sigName), 10, 1, 'erp', 'on', 'cbar', 'on', 'yerplabel', unit);
     colormap("parula")
     set(findall(gcf,'type','axes'),'fontSize',10,'fontweight','bold');
@@ -424,7 +424,7 @@ end
 % Save next to the input file
 if params.save
     newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
-    pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath);
+    HEP = pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath);   % the output then points to this file, not to the input file
 end
 
 

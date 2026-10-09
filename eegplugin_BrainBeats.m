@@ -46,7 +46,9 @@ addpath(fullfile(p,'sample_data'))
 
 % One 'BrainBeats' entry in the EEGLAB menu bar: it opens the BrainBeats
 % window (a dataset can also be loaded from there), runs the analysis on the
-% dataset, and stores the command in the EEGLAB history
+% dataset, and stores the command in the EEGLAB history. Enabled with an
+% epoched dataset too (the HEP output is one): the window then asks for a
+% continuous dataset, which can be loaded from it
 uimenu(fig, 'Label', 'BrainBeats', 'Tag', 'brainbeats', ...
-    'userdata', 'startup:on;continuous:on;epoch:off;study:off;erpset:off', ...
+    'userdata', 'startup:on;continuous:on;epoch:on;study:off;erpset:off', ...
     'CallBack', [try_strings.no_check '[EEG, LASTCOM] = pop_brainbeats(EEG);' catch_strings.new_and_hist]);
