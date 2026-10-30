@@ -46,3 +46,18 @@ reuses the cleaning ICA (faster, one decomposition).
 - get_RR fails on recordings shorter than ~3 s (filter length).
 - Without an ECG, 'ppg_transit' needs the delay from the user: a default per sensor site
   (finger, ear, wrist) could be offered.
+
+## Python port
+- 'ppg_transit' values are in ms, not samples: ESTIMATE_PAT pairs each PPG beat with the
+  closest preceding R-peak within 50-600 ms (no cross-correlation), and BRAINBEATS_PROCESS
+  shifts the beats by round(pat/1000*srate). The 424 on the sample data is 424 ms (106
+  samples at 250 Hz; 420 ms from the EEG alone), a normal pulse arrival time for a pulse
+  onset (literature: ~250 ms at the finger, 200-450 ms overall), not 1.7 s. The port should
+  read it in ms.
+- The MATLAB reference changed in v1.6 after bd71e56 (PPG detection, HRPC name, 0.5-Hz HEP
+  high-pass, surrogates, 'hep_level', 'heart_removal'): regenerate the reference fixtures.
+- Main changed again after the audit of the MATLAB code (2026-10-30), to mirror: HRPC p-values
+  from an exponential tail, exp(-(1+z)), not a Gaussian one; 'hep_surrogate_mode' 'shuffle'
+  renamed 'random' (one surrogate beat at a random position in each inter-beat interval);
+  cfa_amplitude returns [QRS late] (200-500 ms); command-line default low-pass 40 Hz for
+  features and coherence; eeg_norm 2 = relative power; band values no longer rounded.
