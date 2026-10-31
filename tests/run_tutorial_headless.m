@@ -15,7 +15,7 @@ function results = run_tutorial_headless(ids)
 %   ids     - indices of the tests to run (default: all)
 %
 % Output:
-%   results - struct array with fields name, status ('PASS'/'FAIL'),
+%   results - struct array with fields name, status ('PASS'/'FAIL'/'SKIP'),
 %             seconds, message (error and stack) and summary (key outputs)
 %
 % Notes:
@@ -64,7 +64,12 @@ for k = ids
     tic; status = 'PASS'; msg = ''; info = '';
     try
         EEG = T(k).fn();
-        info = summarize(EEG);
+        if isempty(EEG)
+            status = 'SKIP';
+        else
+            assert(isfield(EEG,'brainbeats'), 'No BrainBeats output')
+            info = summarize(EEG);
+        end
     catch ME
         status = 'FAIL';
         msg = sprintf('%s: %s', ME.identifier, ME.message);
@@ -82,7 +87,7 @@ for k = 1:numel(results)
     if ~isempty(results(k).message), fprintf('    %s\n', strrep(results(k).message, newline, [newline '    '])); end
     fprintf('%s', results(k).summary);
 end
-fprintf('%d/%d passed\n', sum(strcmp({results.status},'PASS')), numel(results));
+fprintf('%d/%d passed, %d skipped\n', sum(strcmp({results.status},'PASS')), numel(results), sum(strcmp({results.status},'SKIP')));
 end
 
 % -------------------------------------------------------------------------
@@ -103,7 +108,7 @@ T(end+1) = struct('name','hep_ppg','fn', @() bbp(L(),'analysis','hep','heart_sig
 T(end+1) = struct('name','feat_ecg_clean','fn', @() bbp(L(),'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50,'parpool',true));
 T(end+1) = struct('name','feat_ppg_noclean','fn', @() bbp(pop_select(L(),'nochannel',{'ECG'}), ...
-    'analysis','features','heart_signal','PPG','heart_channels',{'PPG'},'clean_eeg',false,'linenoise',50, ...
+    'analysis','features','heart_signal','PPG','heart_channels',{'PPG'},'clean_eeg',false, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','LombScargle', ...
     'eeg_features', {'time' 'frequency'},'eeg_norm',0,'parpool','on','save',false));
 T(end+1) = struct('name','hrv_ecg_eegoff','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
@@ -123,7 +128,7 @@ T(end+1) = struct('name','rm_heart','fn', @() bbp(L(), 'analysis', 'rm_heart', .
     'conf_thresh', .65, 'ica_method', 2, 'ref', 'average', 'keep_heart',true));
 T(end+1) = struct('name','coh_ecg','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
     'analysis','coherence','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',0,'linenoise',50,'ref','infinity','ica_method',1,'parpool',0));
+    'heart_channels',{'ECG'},'clean_eeg',0,'parpool',0));
 T(end+1) = struct('name','coh_ppg','fn', @() bbp(pop_select(L(),'nochannel',{'ECG'}), ...
     'analysis','coherence','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
@@ -149,6 +154,8 @@ T(end+1) = struct('name','feat_csd','fn', @() bbp(pop_select(L(),'nochannel',{'P
     'eeg_features',{'frequency'},'hrv_features','off','save',0));
 T(end+1) = struct('name','hep_gedai','fn', @() hep_gedai(L));
 T(end+1) = struct('name','hep_ecg_regression','fn', @() hep_ecgreg(L));
+T(end+1) = struct('name','input_errors','fn', @() input_errors(L));
+T(end+1) = struct('name','feat_relative_power','fn', @() feat_relative(L));
 end
 
 function EEG = bbp(EEG, varargin)
@@ -255,6 +262,7 @@ nIC = numel(I.ic);
 assert(nIC > 1 && size(I.hep,1) == nIC && size(I.tf.hrsp,1) == nIC && size(I.maps,2) == nIC, 'Incomplete IC outputs')
 assert(isequal(size(I.tf.hrsp), size(I.surrogate.hrsp.p_fdr)) && size(I.iclabel,1) == nIC, 'Incomplete IC statistics')
 assert(isfield(EEG.brainbeats,'roi'), 'ROI outputs missing')
+assert(isempty(intersect(I.ic, I.removed_ics)) && max([I.ic; I.removed_ics]) == numel(I.ic) + numel(I.removed_ics), 'IC numbers do not match the decomposition')
 fprintf('%d ICs: HEP, HRSP, HRPC and surrogates; %d HEP points FDR-significant\n', nIC, sum(I.surrogate.hep.p_fdr(:) < .05));
 end
 
@@ -286,11 +294,52 @@ function EEG = hep_gedai(L)
 % installed by the test)
 if ~exist('GEDAI','file')
     fprintf('SKIPPED: GEDAI plugin not installed.\n');
-    EEG = L(); return
+    EEG = []; return
 end
 EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',true,'clean_method','gedai','hep_level','ics','icamethod',1,'save',0);
 assert(isfield(EEG.brainbeats,'ics') && isfield(EEG.etc,'GEDAI'), 'GEDAI or IC outputs missing')
+assert(isfield(EEG.brainbeats.preprocessings,'cfa_gedai'), 'Heart-locked amplitude of GEDAI missing')
+end
+
+function EEG = input_errors(L)
+% On the command line, failed checks and unknown inputs must raise errors
+EEG = pop_select(L(),'nochannel',{'PPG'});
+good = {'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',false,'save',0};
+bad = { [good(1:4) {'heart_channels',{'NOPE'}} good(7:end)], ...   % heart channel not in the data
+    [good {'lowpas',20}], ...                                      % typo in an input
+    [good {'vis_outputs'}] };                                      % not 'key', value pairs
+for k = 1:numel(bad)
+    id = '';
+    try
+        bbp(EEG, bad{k}{:});
+    catch ME
+        id = ME.identifier;
+    end
+    assert(strcmp(id,'BrainBeats:input'), 'Bad input %d did not raise a BrainBeats error (got ''%s'')', k, id)
+end
+% A value equal to a key is not read as that key
+P = getparams_cmd('analysis','hep','heart_signal','ppg','heart_channels',{'PPG'},'ppg_transit','eeg', ...
+    'clean_eeg',false,'parpool',0,'gpu',0);
+assert(isequal(P.eeg,true) && strcmp(P.ppg_transit,'eeg'), '''ppg_transit'',''eeg'' was read as the ''eeg'' input')
+EEG = bbp(EEG, good{:});
+% A dataset without a file is saved under its name
+[name, folder] = output_file(struct('filename','','filepath','','setname','my data 1'), '_HEP.set');
+assert(strcmp(name,'my_data_1_HEP.set') && strcmp(folder,pwd), 'Output file: %s', name)
+end
+
+function EEG = feat_relative(L)
+% 'eeg_norm',2: the band values are the relative powers, unrounded
+EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','features','eeg','on','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',false,'hrv_features','off','eeg_features',{'frequency'},'eeg_norm',2,'save',0);
+F = EEG.brainbeats.features.EEG;
+for b = {'delta' 'theta' 'alpha' 'beta' 'gamma'}
+    assert(isequal(F.frequency.(b{1}), F.qeeg.([b{1} '_rel'])), '%s is not the relative power', b{1})
+end
+tot = F.frequency.delta + F.frequency.theta + F.frequency.alpha + F.frequency.beta + F.frequency.gamma;
+assert(all(tot > 0.5 & tot <= 1.01), 'Relative powers sum to %.2f-%.2f', min(tot), max(tot))
+assert(any(mod(F.frequency.gamma*1e3, 1) ~= 0), 'Band values are rounded')
+fprintf('Relative power: bands sum to %.2f-%.2f of the total; gamma %.5f on average\n', min(tot), max(tot), mean(F.frequency.gamma));
 end
 
 % -------------------------------------------------------------------------

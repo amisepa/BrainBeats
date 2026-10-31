@@ -1,7 +1,7 @@
 %% Welcome to the BrainBeats tutorial for command line use
 %
 % REQUIREMENTS:
-%   1) MATLAB (requires a license) or Octave
+%   1) MATLAB (requires a license)
 %
 %   2) EEGLAB
 %   Download: https://github.com/sccn/eeglab
@@ -32,7 +32,7 @@
 % a bad channel, since there were no bad channels in this dataset. We also
 % added electrode artifacts at the beginning of the file and some muscle
 % artifacts at 3-6 s on temporal channels, to illustrate artifact removal.
-% The script used to prepare this file is "functions" > "prep_sampledata.m".
+% The script used to prepare this file is "tests" > "prep_sampledata.m".
 %
 % You can run each section one by one by clicking in the section and
 % pressing CTRL (Windows) or CMD (Mac) + ENTER.
@@ -68,8 +68,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %       epochs, ICA + ICLabel; the ICA is fitted on a 1-Hz high-passed copy)
 %   - 'ica_method' set to 1 (Picard, fast) instead of 2 (Infomax, default)
 %   - 'hep_surrogates' set to 100 to test the heartbeat locking of the HEP,
-%       HRSP and HRPC against 100 surrogate heartbeat trains (shuffled
-%       inter-beat intervals)
+%       HRSP and HRPC against 100 surrogate heartbeat trains (beats at
+%       random cardiac phases)
 %   - 'keep_heart' set to true to keep the heart channel in the output
 % Epochs span -300 to 600 ms around the R-peaks by default ('hep_window'),
 % and heartbeats followed by the next one within 650 ms are rejected so no
@@ -176,7 +176,7 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',false,'linenoise',50, ...
+    'heart_channels',{'PPG'},'clean_eeg',false, ...
     'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','LombScargle', ...
     'eeg_features', {'time' 'frequency'},'eeg_norm',0,...
     'parpool','on','save',false,'vis_cleaning',false,'vis_outputs',true);
@@ -241,16 +241,16 @@ EEG = brainbeats_process(EEG, 'analysis', 'rm_heart', ...
     'ref', ref_mode, 'keep_heart',true); 
 
 
-%% METHOD 4: Brain-heart coherence (beta; command line only)
-% This method has not been extensively tested yet. Please use with caution
-% and report any errors at: https://github.com/amisepa/BrainBeats/issues
+%% METHOD 4: Brain-heart coherence (experimental; command line only)
+% Do not interpret these values: the heart signal here is the NN series,
+% high-passed at 0.5 Hz, so it holds almost no heart rate variability in the
+% 0-40 Hz bands analyzed. Kept for development only.
 
 % ECG
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG'});  % remove PPG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',0,'linenoise',50,'ref','infinity','ica_method',1,...
-    'parpool',0,'vis_outputs',1);
+    'heart_channels',{'ECG'},'clean_eeg',0,'parpool',0,'vis_outputs',1);
 
 % PPG
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));

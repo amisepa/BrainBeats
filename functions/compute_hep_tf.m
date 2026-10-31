@@ -15,27 +15,31 @@
 %
 % Surrogate control (opts.nSurr > 0). Two kinds of surrogate heartbeat trains
 % (opts.surrMode):
-%   'shuffle' (default) - the inter-beat intervals of the whole heartbeat
-%       train (opts.allBeats) are shuffled and the train is rebuilt from a
-%       random start, so the surrogate beats fall at random cardiac phases;
-%       as many surrogate beats as real ones are drawn. The null is the
-%       average of windows unrelated to the heartbeat, and the question
-%       answered is whether the activity at a given latency is locked to the
-%       heartbeats. Suited to the HEP, HRSP and HRPC of one condition.
+%   'random' (default) - one surrogate beat is drawn at a random position in
+%       each inter-beat interval of the whole heartbeat train (opts.allBeats),
+%       so the surrogate beats fall at independent random cardiac phases
+%       whatever the heart rate variability; as many surrogate beats as real
+%       ones are drawn. The null is the average of windows unrelated to the
+%       heartbeat, and the question answered is whether the activity at a
+%       given latency is locked to the heartbeats (one condition).
 %   'rigid' - the whole train is shifted by one random delay (default -500 to
 %       500 ms, excluding shifts shorter than a quarter of the median
 %       inter-beat interval; Park et al., 2018). A shifted train is still
 %       heartbeat-locked at another phase, so its null is the activity at
-%       other cardiac phases: suited to contrasts between conditions, not to
-%       one condition (its band spans the HEP's own range).
+%       other cardiac phases: not suited to one condition (its band spans
+%       the HEP's own range).
 % The HEP, HRSP and HRPC are recomputed for each surrogate, and each point
 % (channel x [frequency x] latency) is compared with its surrogate
-% distribution at the same latency: z-score, p-value from the z-score
-% (two-sided for HEP and HRSP, one-sided for HRPC), FDR-corrected across all
-% points (Benjamini & Hochberg), and the empirical p-value (smallest possible:
-% 1/(nSurr+1)).
-% Note: the cardiac field artifact is heartbeat-locked too, so the control
-% does not test a neural origin.
+% distribution at the same latency: z-score, p-value from the z-score,
+% FDR-corrected across all points (Benjamini & Hochberg), and the empirical
+% p-value (smallest possible: 1/(nSurr+1)). HEP and HRSP: two-sided Gaussian
+% tail. HRPC: one-sided exponential tail, exp(-(1+z)), since with random
+% phases the pairwise phase consistency is a shifted exponential, not a
+% Gaussian (Rayleigh; a Gaussian tail gave 2.5-4% FDR-significant points on
+% pure noise).
+% Note: this is a check of heartbeat locking. The cardiac field artifact is
+% heartbeat-locked too, so it does not test a neural origin, and it does not
+% compare conditions.
 %
 % Usage:
 %   [tf, surr] = compute_hep_tf(X, fs, beats, win, opts)
@@ -51,9 +55,9 @@
 %           .tstep      output time step in ms (default ~10)
 %           .tf         compute HRSP and HRPC (default true)
 %           .nSurr      number of surrogates (default 0 = none)
-%           .surrMode   'shuffle' (default) or 'rigid' (see above)
+%           .surrMode   'random' (default) or 'rigid' (see above)
 %           .allBeats   all heartbeats of the recording (sample indices), from
-%                       which the 'shuffle' surrogates are built (default: beats)
+%                       which the 'random' surrogates are built (default: beats)
 %           .shift      'rigid' shift range in ms (default [-500 500])
 %           .boundaries sample positions of data discontinuities (EEGLAB
 %                       'boundary' events): windows crossing them are excluded
@@ -89,7 +93,7 @@ cycles = getdef(opts, 'cycles', 5);
 tstep  = getdef(opts, 'tstep', 10);
 doTF   = getdef(opts, 'tf', true);
 nSurr  = getdef(opts, 'nSurr', 0);
-surrMode = getdef(opts, 'surrMode', 'shuffle');
+surrMode = getdef(opts, 'surrMode', 'random');
 shiftR = getdef(opts, 'shift', [-500 500]);
 bnd    = getdef(opts, 'boundaries', []);
 seed   = getdef(opts, 'seed', 1);
@@ -147,13 +151,13 @@ if nSurr > 0
             surrBeats{s} = b(okBeat(b));
         end
     else
-        % Shuffled inter-beat intervals of the whole train, from a random
-        % start within the first interval; nB valid surrogate beats drawn
+        % One beat at a random position in each inter-beat interval of the
+        % whole train; nB valid surrogate beats drawn
         allB = sort(round(getdef(opts, 'allBeats', beats)));
         allB = allB(:);
         ibi = diff(allB);
         for s = 1:nSurr
-            b = allB(1) + floor(rand(rs)*ibi(1)) + [0; cumsum(ibi(randperm(rs, numel(ibi))))];
+            b = allB(1:end-1) + floor(rand(rs, numel(ibi), 1) .* ibi);
             b = b(okBeat(b));
             if numel(b) > nB
                 b = sort(b(randperm(rs, numel(b), nB)));
@@ -228,7 +232,7 @@ if nSurr > 0
     clear nullP
     surr.hrsp = surrogate_stats(tf.hrsp, nullH, 'both');
     clear nullH
-    surr.hrpc = surrogate_stats(tf.hrpc, double(nullC), 'right');
+    surr.hrpc = surrogate_stats(tf.hrpc, double(nullC), 'exponential');
 end
 end
 
@@ -275,7 +279,7 @@ if strcmp(tail, 'both')
     S.p = erfc(abs(S.z)/sqrt(2));
     S.p_emp = (sum(dev >= abs(real - S.null_mean), nd) + 1) / (nSurr + 1);
 else
-    S.p = 0.5*erfc(S.z/sqrt(2));
+    S.p = min(1, exp(-(1 + S.z)));      % z + 1 ~ Exp(1) under the null
     S.p_emp = (sum(null >= real, nd) + 1) / (nSurr + 1);
 end
 S.p_fdr = fdr_bh(S.p);

@@ -38,7 +38,6 @@ cases = {
     {'hep','ppg','PPG','both'}
     {'features','ecg','ECG',''}
     {'features','ppg','PPG',''}
-    {'coherence','ecg','ECG',''}
     };
 for c = 1:numel(cases)
     P = run_gui(EEG, base, cases{c});

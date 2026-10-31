@@ -25,7 +25,7 @@
 %
 % Copyright (C) - Cedric Cannard, 2023
 
-function [EEG, params, err] = run_checks(EEG, params)
+function [EEG, params, err] = run_checks(EEG, params, isCmd)
 
 fprintf('Running basic checks... \n')
 
@@ -33,13 +33,13 @@ err = false;
 
 % Only continuous data are supported (HEP epochs are created internally)
 if length(size(EEG.data)) ~= 2
-    errordlg("Epoched EEG data detected. BrainBeats only supports continuous data at the moment.")
+    bb_fail(isCmd, "Epoched EEG data detected. BrainBeats only supports continuous data at the moment.")
     err = true; return
 end
 
 % Check heart signal type
 if ~contains(params.heart_signal, {'ecg' 'ppg' 'rr' 'off'})
-    errordlg('Heart signal should be either ECG, PPG, RR, or off')
+    bb_fail(isCmd, 'Heart signal should be either ECG, PPG, RR, or off')
     err = true; return
 end
 
@@ -60,7 +60,7 @@ if ~strcmpi(params.heart_signal,'off') && ~strcmpi(params.heart_signal,'rr')
         end
     end
     if length(idx) ~= sum(idx)
-        errordlg("At least one heart channel was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channels.")
+        bb_fail(isCmd, "At least one heart channel was not found in this dataset's channel list. Please make sure that you typed the correct label for your heart channels.")
         err = true; return
     end
 end
@@ -78,7 +78,7 @@ end
 % Check for channel locations
 if params.eeg_features~=0 && params.vis_outputs
     if ~isfield(EEG.chanlocs, 'X') || isempty(EEG.chanlocs(1).X)
-        errordlg("Electrode location coordinates must be loaded for visualizing outputs.")
+        bb_fail(isCmd, "Electrode location coordinates must be loaded for visualizing outputs.")
         err = true; return
     end
 end

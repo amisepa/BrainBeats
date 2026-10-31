@@ -52,15 +52,19 @@ end
 idx = ismember(lower({EEG.chanlocs.labels}), lower(params.heart_channels));  % exact labels, not substrings
 EEG.data(idx,:) = rescale(EEG.data(idx,:), -500, 500);
 
-% Heartbeats on the (first) heart channel, for the CFA readout
+% Heartbeats on the (first) heart channel, for the CFA readout (not with
+% PPG: its pulses come after the cardiac field artifact)
 hIdx = find(idx, 1);
 beatParams = params;
 beatParams.fs = EEG.srate;
-try
-    [~, ~, beats] = get_RR(EEG.data(hIdx,:), EEG.times, beatParams);
-    cfaBefore = cfa_amplitude(EEG.data(~idx,:), beats, EEG.srate);
-catch
-    beats = []; cfaBefore = NaN;
+beats = []; cfaBefore = [NaN NaN];
+if ~strcmpi(params.heart_signal,'ppg')
+    try
+        [~, ~, beats] = get_RR(EEG.data(hIdx,:), EEG.times, beatParams);
+        cfaBefore = cfa_amplitude(EEG.data(~idx,:), beats, EEG.srate);
+    catch
+        beats = []; cfaBefore = [NaN NaN];
+    end
 end
 
 % Run ICA at the effective data rank to avoid ghost ICs (Kim et al. 2023).
@@ -122,8 +126,6 @@ if ~isempty(heart_comp)
     end
     
     cfaAfter = cfa_amplitude(EEG.data(~idx,:), beats, EEG.srate);
-    fprintf('Heart-locked EEG amplitude (-50 to 100 ms): %.2f uV before, %.2f uV after (%.0f%% reduction). \n', ...
-        cfaBefore, cfaAfter, 100*(1 - cfaAfter/cfaBefore));
 else
     cfaAfter = cfaBefore;
     fprintf('Sorry, no heart component was detected. Make sure the CARDIO channel you selected is correct. \nYou may try to clean large artifacts in your file to improve ICA performance (or lower the condidence threshold but not recommended). \n')
@@ -137,11 +139,13 @@ end
 % Store parameters in EEG structure for reporting in publications
 EEG.brainbeats.parameters = params;
 EEG.brainbeats.preprocessings.removed_heart_components = heart_comp;
-EEG.brainbeats.preprocessings.cfa_before = cfaBefore;
-EEG.brainbeats.preprocessings.cfa_after = cfaAfter;
+if ~isnan(cfaBefore(1))
+    S = cfa_report(cfaBefore, cfaAfter, 'heart components');
+    for fn = fieldnames(S)', EEG.brainbeats.preprocessings.(fn{1}) = S.(fn{1}); end
+end
 
 % Save
 if params.save
-    newname = sprintf('%s_no-heart.set', EEG.filename(1:end-4));
-    EEG = pop_saveset(EEG,'filename',newname,'filepath',EEG.filepath);   % the output then points to this file, not to the input file
+    [name, folder] = output_file(EEG, '_no-heart.set');
+    EEG = pop_saveset(EEG,'filename',name,'filepath',folder);   % the output then points to this file, not to the input file
 end

@@ -5,11 +5,13 @@ function test_compute_hep_tf
 %      peaks at 300 ms in the HRSP at every frequency of the burst.
 %   2. HRPC is high for a phase-locked burst and ~0 for random phases (same
 %      power), and the HRSP sees both.
-%   3. Surrogate control, 'shuffle' (default) and 'rigid' surrogates: an
+%   3. Surrogate control, 'random' (default) and 'rigid' surrogates: an
 %      evoked deflection at 400 ms is significant (FDR-corrected), and pure
-%      noise gives no significant point. With 'shuffle', the null band of a
+%      noise gives no significant point. With 'random', the null band of a
 %      noise channel is at the noise level of an average of nB windows.
 %   4. Heartbeats whose window crosses a discontinuity are left out.
+%   5. HRPC p-values: pure noise gives (almost) no FDR-significant point, and
+%      a phase-locked burst is detected.
 
 addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))),'functions'));
 fs = 250; nPts = 250*240; rng(3);
@@ -44,7 +46,7 @@ X = randn(2,nPts);
 for b = beats'
     X(1,b + round(0.4*fs) + (-5:5)) = X(1,b + round(0.4*fs) + (-5:5)) + 1.5*hann(11)';
 end
-for mode = {'shuffle' 'rigid'}
+for mode = {'random' 'rigid'}
     [tf, surr] = compute_hep_tf(X, fs, beats, [-300 600], struct('freqs',6:10,'nSurr',100,'tf',false,'surrMode',mode{1}));
     i400 = abs(tf.hep_times - 400) < 5;
     assert(all(surr.hep.p_fdr(1,i400) < .05), '%s: evoked deflection not significant after correction', mode{1})
@@ -53,7 +55,7 @@ for mode = {'shuffle' 'rigid'}
         assert(all(abs(surr.shifts) >= 0.25*median(diff(beats))/fs*1000 - 1e-9), 'Surrogate shift too small')
     else
         sdNoise = median(surr.hep.null_sd(2,:)); expected = 1/sqrt(tf.nBeats);
-        assert(abs(sdNoise/expected - 1) < 0.25, 'shuffle: null SD %.3f, expected ~%.3f', sdNoise, expected)
+        assert(abs(sdNoise/expected - 1) < 0.25, 'random: null SD %.3f, expected ~%.3f', sdNoise, expected)
     end
     fprintf('3 OK (%s): evoked peak z = %.1f (FDR p = %.1e, empirical p = %.3f); noise: min FDR p = %.2f\n', ...
         mode{1}, min(surr.hep.z(1,i400)), max(surr.hep.p_fdr(1,i400)), max(surr.hep.p_emp(1,i400)), min(surr.hep.p_fdr(2,:)));
@@ -63,4 +65,23 @@ end
 tf2 = compute_hep_tf(X, fs, beats, [-300 600], struct('tf',false,'boundaries',beats(10)+10));
 assert(tf2.nBeats < numel(beats), 'Heartbeat crossing a discontinuity was kept')
 fprintf('4 OK: %d/%d heartbeats kept with one discontinuity\n', tf2.nBeats, numel(beats));
+
+% 5. HRPC calibration (a Gaussian tail gave 2.5-4% false points here)
+o = struct('freqs',6:2:14,'nSurr',100);
+hits = zeros(1,5);
+for r = 1:5
+    rng(10+r); o.seed = r;
+    [~, surr] = compute_hep_tf(randn(1,nPts), fs, beats, [-300 600], o);
+    hits(r) = mean(surr.hrpc.p_fdr(:) < .05);
+end
+assert(mean(hits) < .005, 'HRPC: %.2f%% FDR-significant points on pure noise', 100*mean(hits))
+X = randn(1,nPts);
+for b = beats'
+    idx = b + (-0.3*fs:0.6*fs);
+    X(idx) = X(idx) + 0.5*env .* cos(2*pi*10*t);
+end
+[tf, surr] = compute_hep_tf(X, fs, beats, [-300 600], o);
+i10 = tf.freqs == 10; i300 = abs(tf.times - 300) <= 10;
+assert(all(surr.hrpc.p_fdr(1,i10,i300) < .05), 'HRPC: phase-locked burst not detected')
+fprintf('5 OK: HRPC FDR-significant points on noise %.2f%%; phase-locked burst detected\n', 100*mean(hits));
 fprintf('All compute_hep_tf checks passed.\n')

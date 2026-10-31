@@ -1,7 +1,7 @@
 # BrainBeats TODO
 
 ## Before the v1.6 release
-- [ ] Update the copy of the plugin in eeglab/plugins (git pull) before testing in EEGLAB.
+- [x] Update the copy of the plugin in eeglab/plugins (git pull) before testing in EEGLAB.
 - [ ] Click through the new GUI: 'BrainBeats' in the EEGLAB menu bar, main window (logo,
       section headings, Load dataset / Sample dataset, analysis, heart channels and the '...'
       channel list, 'Perform analysis on'), parameters window (heart artifact removal: ICA,
@@ -12,14 +12,55 @@
 - [x] Run `tests/test_gui_params` and the full `tests/run_tutorial_headless` once more: pass
       (26/26), with `tests/run_command_lines` (tutorial and help commands as written, 11/11;
       2026-10-07).
-- [ ] Run `tests/make_readme_figures` in the MATLAB desktop (plotting paths are not
-      exercised headless): it saves the 11 figures README.md points to (gui_main,
-      heartbeats_ecg, hep_ecg, hep_tf, hep_ppg, features_psd, features_eeg,
-      rm_heart_components, rm_heart_data, coherence_spectra, coherence_bands). Check each,
-      then `git rm` the unreferenced old figures (fig4, fig11, fig17, fig21, fig22, fig27,
-      coherence_allfreqs, coherence_topo, diagram, logo2-4).
+- [ ] Look at the 9 figures of the README (made by `tests/make_readme_figures`, which now runs
+      headless too) in the MATLAB desktop once.
 - [ ] GUI ASR cutoff default is 30, command line default 50: pick one.
 - [ ] Decide the release date in README "Version history" (written as 9/2026).
+- [ ] tests/data (Muse EEG, PPG and beat detections, added 2026-03-06): public on main with no
+      stated source or consent. Confirm whose data they are and that public release is
+      covered; otherwise replace them with synthetic data and remove them from the history.
+
+## From the code review of v1.6 (fixed ones are in the README version history)
+Scientific, may change results:
+- Brain-heart coherence (experimental, out of the GUI): redesign at HRV time scales (NN series
+  not high-passed at 0.5 Hz, MVAR at a matching rate); fit at the data rank with QR, not
+  `(Y*Z')/(Z*Z')` and inv() in fdMVAR_5order, since cleaned EEG is rank-deficient.
+- HRSP normalized over a window that includes the QRS: synthetic check (broadband transient at
+  0 ms in noise, FDR points at 300-600 ms); if there is an offset, normalize by the mean power
+  of the continuous data per channel and frequency.
+- Surrogate beats can fall on epochs rejected by the cleaning (wider null, depends on the
+  artifact load): pass the rejected spans to compute_hep_tf as exclusions.
+- HRV normalized Lomb-Scargle: LF comes from 125-s windows and HF from 34-s windows, each
+  normalized by its own variance, and band powers scale with the heart rate. Change the default
+  to 'LombScargle' (ms^2), LF and HF from one window of 2 min or more, plus LF/(LF+HF)?
+- clean_rr keeps ectopic pairs (0.75 x / 1.25 x the local interval pass both rules; RMSSD +40%
+  at 30 ms over 4 min): injection check, then a successive-difference rule.
+- PAT fallback (250 ms) is a warning: error unless 'ppg_transit' is given? Show the PAT method
+  in the HEP figure titles; check the censoring of the pairing in 'peaks' mode.
+- Validation: every number in the README comes from one subject. Run other ds003838 subjects,
+  an annotated ECG/PPG benchmark and an HRV cross-check; v1.4 vs v1.6 table of changed outputs.
+- Alpha asymmetry is ln(L) - ln(R), the opposite of the usual convention: flip it or state it.
+- PRSA uses 20% (PhysioNet default); Bauer et al. (2006) use 5%.
+Robustness:
+- Absolute thresholds: rank `eig(cov) > 1e-7` (clean_eeg, remove_heartcomp, run_HEP, apply_car),
+  flatline `< 0.05` in get_RR (fails for ECG in volts), `signal_filt(fs:...)` with non-integer fs.
+- PPG SQI clipping test (`|diff| > 0.5`) is in absolute units: normalize each beat.
+- Fewer than 30 channels: no re-reference before ICLabel: allow average with a warning, or say so.
+- Bad-epoch HF metric (data minus 45-Hz low-pass) does nothing after a 30-Hz low-pass, and the
+  padded epochs overlap: evaluate on the analysis window with a band under the low-pass.
+- IBIs are computed after synthetic beats are dropped: compute them before.
+- 'rr' mode cannot take a PAT: accept a numeric 'ppg_transit'; tests/test_rr_vs_ppg.m locks HEPs
+  to pulses.
+- Nonlinear EEG features are O(N^2) on whole recordings and on by default: use 30-60 s windows.
+- Generic helper names on the path: package them in the redesign.
+- Tests: most headless cases only check that the run finishes: add tests/readme_numbers.m (the
+  numbers quoted in the README, with tolerances) and a synthetic HRV and EEG features test.
+Documentation:
+- References to check: 'Park et al. (2018)' in compute_hep_tf.m and the README (surrogate
+  heartbeats; Park et al., 2014, Nature Neuroscience?), Steinfath 2026, Ros 2025, Lee 2024; "used
+  and cited in" mixes uses and reviews.
+- Plugin header says GPL-2+, LICENSE is GPL-3; GEDAI is installed without asking.
+- tests/prep_sampledata.m says 125 Hz; the sample dataset is 250 Hz.
 
 ## Redesign (after v1.6)
 Goal: steps that can be combined, instead of 4 exclusive analyses; nothing slow computed
@@ -52,12 +93,12 @@ heart-component removal keeps the heart channel in the ICA (as rm_heart does now
 reuses the cleaning ICA (faster, one decomposition).
 
 ## Next (other)
-- (done in v1.6: coherence in the GUI, unused GUI options removed; the command-line parser
-  still accepts the legacy RR/PPG options, unused.) Old note: unused GUI options (RR-correction methods, legacy PPG
-  detector options, eeg_interp) could be removed (part of the redesign).
-- Heart artifact removal on the sample data: ICA removes ~40-50% of the heart-locked EEG
-  amplitude (one ICLabel heart component), the ECG regression 72%. The regression was checked
-  on one subject and one synthetic response (91% kept): validate it on more data.
+- Heart artifact removal on the sample data: 'rm_heart' (ICA with the ECG channel, threshold
+  .65) removes 47% of the heart-locked EEG amplitude and the ECG regression 72%, but the default
+  HEP cleaning (ICA without the ECG channel, threshold .75) only 2% (2.18 -> 2.14 uV; 21% at 200-500
+  ms). Should the default change (lower threshold, ICA with the ECG channel, regression when
+  there is an ECG)? The regression was checked on one subject and one synthetic response (91%
+  kept): validate it on more data.
 - Surrogates also for HEP contrasts between conditions (e.g. per-condition beat subsets).
 - 'individualized' EEG bands: only alpha is individualized (per-channel peaks are unreliable
   for the other bands).
@@ -66,14 +107,3 @@ reuses the cleaning ICA (faster, one decomposition).
   (420 vs 424 ms with the ECG): check it on datasets with ECG + PPG + EEG (e.g. Heartbeam), and
   whether the 2x peak/median GFP threshold rejects bad estimates.
 - 'keep_heart' stores the raw heart channel (sample ECG has a large DC offset): filter it?
-
-## Python port (branch python-port)
-- 'ppg_transit' values are in ms, not samples: ESTIMATE_PAT pairs each PPG beat with the
-  closest preceding R-peak within 50-600 ms (no cross-correlation), and BRAINBEATS_PROCESS
-  shifts the beats by round(pat/1000*srate). The 424 on the sample data is 424 ms (106
-  samples at 250 Hz; 420 ms from the EEG alone), a normal pulse arrival time for a pulse
-  onset (literature: ~250 ms at the finger, 200-450 ms overall), not 1.7 s. The port should
-  read it in ms.
-- The MATLAB reference changed in v1.6 after bd71e56 (PPG detection, HRPC name, 0.5-Hz HEP
-  high-pass, surrogates, 'hep_level', 'heart_removal'): regenerate the reference fixtures.
-

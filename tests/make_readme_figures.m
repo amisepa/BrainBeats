@@ -1,8 +1,8 @@
 function make_readme_figures(runs)
 % MAKE_README_FIGURES - Regenerate the README figures from the sample data.
 %
-% Saves the BrainBeats window, then runs HEP (ECG, and PPG with the pulse arrival time corrected), features, rm_heart and
-% coherence on sample_data/dataset.set with the plots on, and saves the
+% Saves the BrainBeats window, then runs HEP (ECG, and PPG with the pulse arrival time corrected), features, and rm_heart
+% on sample_data/dataset.set with the plots on, and saves the
 % figures shown in README.md into the figures folder (existing files are
 % overwritten). It also serves as the interactive check of the plotting code
 % before a release.
@@ -13,10 +13,11 @@ function make_readme_figures(runs)
 %
 % Input:
 %   runs - any of 'gui', 'hep_ecg', 'hep_ppg', 'features',
-%          'rm_heart', 'coherence' (default: all)
+%          'rm_heart' (default: all)
 %
 % Notes:
-% - Run it in MATLAB with the desktop: drawing can hang under 'matlab -batch'.
+% - Works with the desktop or under 'matlab -batch' (MATLAB may then not exit
+%   after drawing: wrap it in a timeout, and check the figures were saved).
 % - Nothing is saved next to the sample data ('save' is off), and the working
 %   directory is tempdir during the runs (the 3D headplot writes a spline file).
 % - Any other copy of BrainBeats on the path (e.g. eeglab/plugins/BrainBeats*)
@@ -42,7 +43,7 @@ olddir = cd(tempdir);
 restore = onCleanup(@() cd(olddir));
 
 if nargin < 1 || isempty(runs)
-    runs = {'gui' 'hep_ecg' 'hep_ppg' 'features' 'rm_heart' 'coherence'};
+    runs = {'gui' 'hep_ecg' 'hep_ppg' 'features' 'rm_heart'};
 end
 runs = cellstr(runs);
 common = {'save',false,'gong',false};
@@ -103,23 +104,18 @@ for r = 1:numel(runs)
                 'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50, ...
                 'conf_thresh',.65,'icamethod',1,'keep_heart',true, ...
                 'vis_cleaning',false,'vis_outputs',true,common{:});
-            save_fig(byname('Heart component(s) removed',1), outdir, 'rm_heart_components.png', 'frame');
+            % EEGLAB's window is tiny with one component and its labels overlap:
+            % its scalp map and ICLabel class alone, in a larger figure
+            f = byname('Heart component(s) removed',1);
+            txt = findall(f,'Type','text');
+            lab = txt(arrayfun(@(t) contains(strjoin(cellstr(t.String)),'Heart'), txt));
+            g = figure('Color','w','Position',[100 100 420 460]);
+            colormap(g,'parula');
+            ax = copyobj(ancestor(lab(1),'axes'), g);
+            set(ax,'Units','normalized','Position',[.08 .05 .84 .84]);
+            title(ax, char(lab(1).String), 'Visible','on', 'FontSize',14, 'FontWeight','bold');
+            save_fig(g, outdir, 'rm_heart_components.png', 'export');
             save_fig(byname('Heart components removed',1), outdir, 'rm_heart_data.png', 'frame');
-
-        case 'coherence'
-            % Unnamed figures, in creation order: spectra of the 4 measures,
-            % then coherence, partial, directed and partial directed topos
-            EEG = pop_select(EEG,'nochannel',{'PPG'});
-            brainbeats_process(EEG,'analysis','coherence','heart_signal','ECG', ...
-                'heart_channels',{'ECG'},'clean_eeg',false,'parpool',false, ...
-                'vis_cleaning',false,'vis_outputs',true,common{:});
-            figs = sortfigs(findall(groot,'Type','figure'));
-            if numel(figs) >= 2
-                save_fig(figs(1), outdir, 'coherence_spectra.png', 'export');
-                save_fig(figs(2), outdir, 'coherence_bands.png', 'export');
-            else
-                warning('Expected at least 2 coherence figures, found %d.', numel(figs))
-            end
 
         otherwise
             warning('Unknown run ''%s'' (skipped).', runs{r})

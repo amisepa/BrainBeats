@@ -4,8 +4,8 @@
 %   [params, abort, EEG] = getparams_gui(EEG)
 %
 % The main window (BRAINBEATS_MAIN_WINDOW, with the BrainBeats logo) shows
-% the dataset (or loads one) and selects the analysis ('hep', 'features' or
-% 'coherence'), the heart signal and channel(s), for HEP whether
+% the dataset (or loads one) and selects the analysis ('hep' or 'features'),
+% the heart signal and channel(s), for HEP whether
 % the measures are computed on the scalp channels, the components or both, and the
 % plots and saving. The parameters window that follows sets, depending on
 % the analysis: the heartbeat detection (ECG: R-peak threshold, refractory
@@ -54,7 +54,7 @@ freqrange = '[1 40]';
 wintype = {'hamming' 'hann' 'rectwin' 'blackmanharris'};
 freqbounds = {'Conventional (e.g., alpha = 8-13 Hz)' 'Individualized (e.g., alpha = 7.8-12.3 Hz)'};
 winlen = '2';
-eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Decibels + divided by total power'};
+eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Relative power (share of the total power)'};
 asynorm = {'None' 'Divided by total power'};
 roiDefault = 'F1 F2 F3 F4 Fz FC1 FC2 FC3 FC4 FCz C1 C2 C3 C4 Cz';
 heartRemovals = {'ICA (ICLabel heart components)' 'ECG regression (lags -20 to 20 ms)' 'None'};
@@ -160,7 +160,7 @@ end
 
 uilist = L;     % one cell per control ({} = empty slot)
 uigeom = G;     % one vector per row
-titles = struct('hep','HEP, HRSP and HRPC','features','features','coherence','brain-heart coherence');
+titles = struct('hep','HEP, HRSP and HRPC','features','features');
 [res,~,~,p2] = inputgui(uigeom, uilist, 'pophelp(''brainbeats_process'')', ...
     sprintf('BrainBeats: parameters for %s', titles.(params.analysis)), EEG);
 if isempty(res), return; end

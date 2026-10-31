@@ -82,11 +82,13 @@ else
 end
 if isfield(params,'lowpass')
     lowpass = params.lowpass;
-else
-    lowpass = 30;   % default = 30 Hz: removes 50/60 Hz line noise with a low
-                    % filter order (fewer ripples, faster), speeds up ICA
-                    % and smooths ERPs
+elseif any(strcmp(params.analysis, {'hep' 'rm_heart'}))
+    lowpass = 30;   % removes 50/60 Hz line noise with a low filter order
+                    % (fewer ripples, faster), speeds up ICA and smooths ERPs
     params.lowpass = 30;    % for user
+else
+    lowpass = 40;   % top of the EEG features (gamma = 30-40 Hz)
+    params.lowpass = 40;    % for user
 end
 if isfield(params,'filttype')
     if strcmpi(params.filttype,'causal')
@@ -249,7 +251,12 @@ if params.clean_eeg_step == 0
 
     % GEDAI on the continuous data (replaces ASR/ICA of stage 1)
     if useGEDAI
+        before = [];
+        if isfield(params,'cfa_beats'), before = cfa_amplitude(EEG.data, params.cfa_beats, EEG.srate); end
         EEG = run_gedai(EEG, params);
+        if ~isempty(before)
+            params.cfa_gedai = cfa_report(before, cfa_amplitude(EEG.data, params.cfa_beats, EEG.srate), 'GEDAI');
+        end
         if strcmp(reref,'infinity') && EEG.nbchan >= 30
             try
                 EEG = rest_ref(EEG);

@@ -19,7 +19,7 @@
 %                      these bounds, the other limits are conventional.
 %                      Falls back to 'conventional' if no alpha peak is found.
 %     eeg_norm       - band power units: 0 = uV^2/Hz, 1 = dB (default),
-%                      2 = uV^2/Hz divided by the channel's total power
+%                      2 = relative power (share of the channel's total power)
 %     asy_norm       - normalize alpha asymmetry (default false, see compute_asymmetry)
 %     gpu, parpool   - use GPU / parallel pool (default false). Without
 %                      parpool, parfor loops run serially.
@@ -79,6 +79,9 @@ if params.eeg_frequency
     else
         fRange = [1 40];        % overall frequency range to compute PSD (in Hz)
         params.eeg_frange = fRange; % to export
+    end
+    if isfield(params,'clean_eeg') && params.clean_eeg && isfield(params,'lowpass') && params.lowpass < fRange(2)
+        warning('The low-pass filter (%g Hz) is below the top of the EEG frequency range (%g Hz): the highest band is attenuated.', params.lowpass, fRange(2))
     end
     if isfield(params,'eeg_wintype') && ~isempty(params.eeg_wintype)
         wintype = params.eeg_wintype;
@@ -227,8 +230,6 @@ if params.eeg_frequency
             bp = [mean(pwr(idxD)) mean(pwr(idxT)) mean(pwr(idxA)) mean(pwr(idxB)) mean(pwr(idxG))];
         elseif eeg_norm == 1    % dB
             bp = [mean(pwr_dB(idxD)) mean(pwr_dB(idxT)) mean(pwr_dB(idxA)) mean(pwr_dB(idxB)) mean(pwr_dB(idxG))];
-        elseif eeg_norm == 2    % normalized by total power of same channel
-            bp = [mean(pwr(idxD)) mean(pwr(idxT)) mean(pwr(idxA)) mean(pwr(idxB)) mean(pwr(idxG))] ./ sum(pwr);
         end
 
         PWR(iChan,:) = pwr;
@@ -260,6 +261,10 @@ if params.eeg_frequency
         REL_ALPHA(iChan) = absA / den;
         REL_BETA(iChan)  = absB / den;
         REL_GAMMA(iChan) = absG / den;
+        if eeg_norm == 2        % relative power
+            DELTA(iChan,:) = REL_DELTA(iChan); THETA(iChan,:) = REL_THETA(iChan); ALPHA(iChan,:) = REL_ALPHA(iChan);
+            BETA(iChan,:) = REL_BETA(iChan); GAMMA(iChan,:) = REL_GAMMA(iChan);
+        end
         
         % Ratios on linear power
         R_AT(iChan)   = absA / max(absT, eps);              % alpha/theta
@@ -305,11 +310,11 @@ if params.eeg_frequency
     elseif eeg_norm == 1 || eeg_norm == 2
         eeg_features.frequency.pwr = PWR_DB;
     end
-    eeg_features.frequency.delta = round(DELTA,3);
-    eeg_features.frequency.theta = round(THETA,3);
-    eeg_features.frequency.alpha = round(ALPHA,3);
-    eeg_features.frequency.beta = round(BETA,3);
-    eeg_features.frequency.gamma = round(GAMMA,3);
+    eeg_features.frequency.delta = DELTA;
+    eeg_features.frequency.theta = THETA;
+    eeg_features.frequency.alpha = ALPHA;
+    eeg_features.frequency.beta = BETA;
+    eeg_features.frequency.gamma = GAMMA;
     eeg_features.frequency.bands = bands;
 
     % qEEG features (not rounded)

@@ -9,7 +9,8 @@
 %   'analysis'       - 'hep'       heartbeat-evoked potentials and oscillations
 %                      'features'  EEG and HRV features
 %                      'rm_heart'  remove heart components from the EEG (ICA + ICLabel)
-%                      'coherence' brain-heart coherence (beta)
+%                      'coherence' brain-heart coherence (experimental, not
+%                                  for interpretation: see the README)
 %   'heart_signal'   - 'ecg', 'ppg', 'rr' (beat times detected elsewhere), or
 %                      'off' (EEG features only)
 %   'heart_channels' - cell array of heart channel labels, e.g. {'ECG'}. With
@@ -18,7 +19,8 @@
 %   'beat_latencies' - ('rr' only) beat times in s from the start of the data.
 %                      Peak detection, SQI and RR cleaning are skipped.
 %   'clean_eeg'      - preprocess the EEG (default false): FIR filter (0.5-30 Hz
-%                      for 'hep', 1-30 Hz otherwise), re-reference, remove and
+%                      for 'hep', 1-30 Hz for 'rm_heart', 1-40 Hz otherwise),
+%                      re-reference, remove and
 %                      interpolate bad channels, remove bad epochs ('hep') or
 %                      segments with ASR, then remove artifactual ICA components
 %                      with ICLabel (or GEDAI instead, see 'clean_method').
@@ -80,10 +82,10 @@
 %                        (default 0 = none; 100 in the GUI). Results in
 %                        EEG.brainbeats.surrogate (HEP, all channels) and
 %                        EEG.brainbeats.roi or .ics (ROI/IC HEP, HRSP, HRPC).
-%   'hep_surrogate_mode' - 'shuffle' (default: shuffled inter-beat intervals, so
-%                        surrogate beats fall at random cardiac phases) or 'rigid'
-%                        (whole train shifted by up to +/-500 ms, for contrasts
-%                        between conditions); see COMPUTE_HEP_TF
+%   'hep_surrogate_mode' - 'random' (default: one surrogate beat at a random
+%                        position in each inter-beat interval, so at random
+%                        cardiac phases) or 'rigid' (whole train shifted by up
+%                        to +/-500 ms); see COMPUTE_HEP_TF
 %
 % EEG preprocessing options (with 'clean_eeg'):
 %   'clean_method'   - 'asr_ica' (default: bad epochs ('hep') or ASR, then ICA +
@@ -171,13 +173,15 @@ if nargin == 1
     end
 end
 
-% Basic checks on EEG data
+% Basic checks on EEG data (failures: an error on the command line, a dialog
+% in the GUI)
+isCmd = nargin > 1;
 if isempty(EEG) || isempty(EEG.data)
-    errordlg('Empty EEG dataset: load a dataset with EEG and ECG/PPG channels first.');
+    bb_fail(isCmd, 'Empty EEG dataset: load a dataset with EEG and ECG/PPG channels first.');
     return
 end
 if isempty(EEG.chanlocs(1).labels)
-    errordlg('No channel labels.');
+    bb_fail(isCmd, 'No channel labels.');
     return
 end
 
@@ -187,8 +191,9 @@ if nargin > 1
 end
 
 % Routine checks, defaults, plugin installs, parallel pool
-[EEG, params, err] = run_checks(EEG,params);
+[EEG, params, err] = run_checks(EEG,params,isCmd);
 if err, return; end  % errordlg does not stop execution
+params.version = eegplugin_BrainBeats;
 
 % Separate the heart channels (CARDIO) from the EEG
 if strcmpi(params.heart_signal, 'rr')
@@ -326,7 +331,7 @@ if ~strcmpi(params.heart_signal,'off')
             % Sample indices are shared with the EEG below
             factor = EEG.srate / CARDIO.srate;
             if factor ~= 1
-                errordlg("Your EEG and cardiovascular data must have the same sampling rate.")
+                error('BrainBeats:input', 'Your EEG and cardiovascular data must have the same sampling rate.')
             end
 
             % Signal quality index (SQI; Vest et al., 2018)
@@ -545,10 +550,17 @@ end
 if params.clean_eeg
     params.clean_eeg_step = 0;
     params.orichanlocs = EEG.chanlocs;
+    if strcmp(params.analysis,'hep') && isfield(params,'clean_method') && strcmpi(params.clean_method,'gedai')
+        params.cfa_beats = Rpeaks;   % heart-locked amplitude before and after GEDAI
+    end
     [EEG, params] = clean_eeg(EEG, params);
 
     % Preprocessing outputs
     EEG.brainbeats.preprocessings.removed_eeg_channels = params.removed_eeg_channels;
+    if isfield(params,'cfa_gedai')
+        EEG.brainbeats.preprocessings.cfa_gedai = params.cfa_gedai;
+        params = rmfield(params, {'cfa_gedai' 'cfa_beats'});
+    end
 
     % HEP: cardiac field artifact removed by regressing the ECG out of the EEG
     if strcmp(params.analysis,'hep') && isfield(params,'heart_removal') && strcmp(params.heart_removal,'ecg_regression')
@@ -588,6 +600,8 @@ elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params
 %%%%% MODE 3: Brain-heart coherence %%%%%
 elseif strcmpi(params.analysis,'coherence')
     disp("Computing brain-heart coupling...")
+    warning(['Brain-heart coherence is experimental: it relates the EEG at 0-40 Hz to the NN series, whose ' ...
+        'variations (HRV) are below 0.5 Hz and are high-passed at 0.5 Hz here. Do not interpret these values.'])
 
     if length(params.heart_channels)>1
         error("Sorry, this method only supports one hear channel at the moment. Please select only one of your heart channels and try again.")
@@ -675,9 +689,10 @@ if strcmp(params.analysis,'features')
 
     % Save next to the input file
     if params.save
-        outputPath = fullfile(EEG.filepath, sprintf('%s_features.mat', EEG.filename(1:end-4)));
+        [name, folder] = output_file(EEG, '_features.mat');
+        outputPath = fullfile(folder, name);
         fprintf("Exporting all features in a .mat file at this location: %s \n", outputPath);
-        save(outputPath,'Features');
+        save(outputPath,'Features','params');
     end
 
     % Plot features

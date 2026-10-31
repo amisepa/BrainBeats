@@ -75,17 +75,17 @@ B = (X(:,ok) * R(:,ok)') * pinv(R(:,ok) * R(:,ok)');
 Y = X - B * R;
 
 % Report on the artifact-free samples too: heartbeats whose window (-200 to
-% 400 ms) holds no large EEG artifact
-w = round(-0.2*EEG.srate):round(0.4*EEG.srate);
+% 500 ms) holds no large EEG artifact
+w = round(-0.2*EEG.srate):round(0.5*EEG.srate);
 beats = beats(beats + w(1) >= 1 & beats + w(end) <= n);
 beats = beats(arrayfun(@(b) all(ok(b + w)), beats));
 info.lags_ms = (-L:L) / EEG.srate * 1000;
 info.samples_fitted = 100 * mean(ok);   % %
-info.cfa_before = cfa_amplitude(X, beats, EEG.srate);
-info.cfa_after = cfa_amplitude(Y, beats, EEG.srate);
+S = cfa_report(cfa_amplitude(X, beats, EEG.srate), cfa_amplitude(Y, beats, EEG.srate), ...
+    sprintf('ECG regression, lags -%g to %g ms', maxLag, maxLag));
+for fn = fieldnames(S)', info.(fn{1}) = S.(fn{1}); end
 info.variance_removed = 100 * (1 - sum(sum(Y(:,ok).^2)) / sum(sum(X(:,ok).^2)));
-fprintf('ECG regression (lags -%g to %g ms): heart-locked EEG amplitude (-50 to 100 ms) %.2f uV before, %.2f uV after (%.0f%% reduction); %.1f%% of the EEG variance removed. \n', ...
-    maxLag, maxLag, info.cfa_before, info.cfa_after, 100*(1 - info.cfa_after/info.cfa_before), info.variance_removed);
+fprintf('%.1f%% of the EEG variance removed. \n', info.variance_removed);
 
 oriEEG = EEG;
 EEG.data(:,1:n) = Y;

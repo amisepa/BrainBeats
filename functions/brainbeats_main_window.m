@@ -37,8 +37,8 @@ end
 bbroot = fileparts(which('eegplugin_BrainBeats.m'));
 [bg, fg] = eeglab_colors();
 analyses = {'HEP, HRSP, HRPC: heartbeat-evoked potentials, spectral perturbations, phase consistency' ...
-    'EEG and heart-rate variability (HRV) features' 'Brain-heart coherence (beta)'};
-analysisKeys = {'hep' 'features' 'coherence'};
+    'EEG and heart-rate variability (HRV) features'};
+analysisKeys = {'hep' 'features'};
 heartTypes = {'ECG' 'PPG'};
 domains = {'Scalp channels' 'Independent components' 'Both'};
 
@@ -167,9 +167,6 @@ if isgraphics(f), delete(f); end
                 end
             case 2
                 s = 'HRV (time, frequency, nonlinear) and EEG (time, frequency, nonlinear) features of the continuous data.';
-            case 3
-                s = ['Coherence, partial and directed coherence between each EEG channel and the heart ' ...
-                    '(NN intervals), from a multivariate autoregressive model. Beta: not validated yet.'];
         end
         set(hInfo,'String',s);
     end

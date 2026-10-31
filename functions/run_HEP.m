@@ -26,7 +26,8 @@
 %      else of an ICA run here (Picard). No component is selected: whether
 %      a heartbeat-locked response can be separated from the cardiac field
 %      artifact is not known. Results in HEP.brainbeats.ics, with each IC's
-%      scalp map and ICLabel classification.
+%      scalp map and ICLabel classification; .ic holds the IC numbers of the
+%      decomposition, .removed_ics those removed by the cleaning.
 %   7. With 'ref','csd', the surface Laplacian is applied to the epochs and
 %      the continuous data (after the IC step, which uses the average-
 %      referenced data).
@@ -40,7 +41,7 @@
 %      plots (params.hep_roi, default frontocentral: F1-F4, Fz, FC1-FC4,
 %      FCz, C1-C4, Cz; their average signal; HEP.brainbeats.roi). With
 %      params.hep_surrogates > 0, surrogate heartbeat control
-%      (params.hep_surrogate_mode, 'shuffle' by default) of the HEP, HRSP
+%      (params.hep_surrogate_mode, 'random' by default) of the HEP, HRSP
 %      and HRPC of all channels (HEP.brainbeats.surrogate) and of the ROI.
 %   10. With params.keep_heart, the heart channel(s) are added to the epochs
 %      (in their own units, after the EEG cleaning).
@@ -124,6 +125,13 @@ if ~isempty(outliers)
     keep(outliers) = false;
 end
 fprintf('%g/%g heartbeats kept for HEP epochs. \n', sum(keep), length(Rpeaks))
+nShort = sum(IBI < minIBI);
+if nShort > .25*length(Rpeaks)
+    warning(['%.0f%% of the heartbeats are followed by the next one within %g ms: the HEP comes from the slower ' ...
+        'heartbeats of this recording, a subset that depends on the heart rate.'], 100*nShort/length(Rpeaks), minIBI)
+end
+beatCounts = struct('total',length(Rpeaks), 'short_ibi',nShort, 'outlier_ibi',length(outliers), ...
+    'median_ibi_all',median(IBI,'omitnan'), 'median_ibi_kept',median(IBI(keep),'omitnan'));
 allBeats = Rpeaks;   % whole heartbeat train, for the surrogates
 Rpeaks = Rpeaks(keep);
 IBI = IBI(keep);
@@ -166,7 +174,7 @@ useCSD = params.clean_eeg && isfield(params,'ref') && strcmp(params.ref,'csd');
 useGEDAI = isfield(params,'clean_method') && strcmpi(params.clean_method,'gedai');
 nSurr = 0;
 if isfield(params,'hep_surrogates') && ~isempty(params.hep_surrogates), nSurr = params.hep_surrogates; end
-surrMode = 'shuffle';
+surrMode = 'random';
 if isfield(params,'hep_surrogate_mode') && ~isempty(params.hep_surrogate_mode), surrMode = params.hep_surrogate_mode; end
 tfFreqs = 4:30;
 if isfield(params,'hep_tf_freqs') && ~isempty(params.hep_tf_freqs)
@@ -237,6 +245,9 @@ if isfield(HEP.epoch,'eventurevent')
 end
 HEP = eeg_checkset(HEP);
 HEP.brainbeats.preprocessings.hep_window = epochWin;   % ms
+beatCounts.bad_epochs = numel(params.removed_eeg_trials);
+beatCounts.kept = HEP.trials;
+HEP.brainbeats.preprocessings.hep_beats = beatCounts;
 
 % Continuous sample of each epoch's heartbeat, and data discontinuities
 beatIdx = arrayfun(@(e) HEP.event(e.event(1)).beat, HEP.epoch);
@@ -261,15 +272,22 @@ if needCont
         if err > 1e-3
             warning('The EEG cleaning of the epochs is not reproduced exactly on the continuous data (relative error %.1e).', err)
         end
+        before = cfa_amplitude(Xc, hepBeats, EEG.srate);
         Xc = T * Xc;
         clear Xr Yc
+        if ~useGEDAI    % GEDAI cleaned the continuous data: reported by CLEAN_EEG
+            S = cfa_report(before, cfa_amplitude(Xc, hepBeats, EEG.srate), 'EEG cleaning');
+            for fn = fieldnames(S)', HEP.brainbeats.preprocessings.(fn{1}) = S.(fn{1}); end
+        end
     end
 end
 
 % HEP, HRSP, HRPC (and surrogate control) of all independent components
 if doICs
+    removedICs = [];
+    if isfield(params,'removed_eeg_components'), removedICs = params.removed_eeg_components; end
     HEP.brainbeats.ics = hep_all_ics(HEPwide, Xc, hepBeats, epochWin, EEG.srate, struct('freqs',tfFreqs, ...
-        'nSurr',nSurr, 'surrMode',surrMode, 'allBeats',allBeats, 'boundaries',bnd, 'hep_times',HEP.times));
+        'nSurr',nSurr, 'surrMode',surrMode, 'allBeats',allBeats, 'boundaries',bnd, 'hep_times',HEP.times), removedICs);
 end
 
 % Surface Laplacian (after the ICA-based steps, which need average-
@@ -353,6 +371,13 @@ if isfield(params,'keep_heart') && params.keep_heart && ~isempty(CARDIO)
 end
 
 
+% Save next to the input file (before the plots: a plotting error must not
+% lose the results)
+if params.save
+    [name, folder] = output_file(HEP, '_HEP.set');
+    saved = pop_saveset(HEP,'filename',name,'filepath',folder);
+end
+
 %% Plots. HEP effects are usually reported 200-600 ms after the R-peak, over
 % frontocentral electrodes.
 
@@ -373,7 +398,7 @@ if params.vis_outputs
 
     % Trimmed-mean HEP at each electrode (click on one to enlarge it)
     options = { 'frames' EEGonly.pnts 'limits' [EEGonly.xmin EEGonly.xmax 0 0]*1000 ...
-        'title' 'Heartbeat-evoked potentials (HEP)' 'chans' 1:EEGonly.nbchan ...
+        'title' 'Heartbeat-evoked potentials (HEP, 20% trimmed mean)' 'chans' 1:EEGonly.nbchan ...
         'chanlocs' EEGonly.chanlocs 'ydir' 1 'legend' {'uV' 'Time (ms)'}};
     figure
     plottopo( trimmean(EEGonly.data,20,3), options{:} );
@@ -401,7 +426,7 @@ if params.vis_outputs
         end
         xline(0,'k--'); xlim(HEP.times([1 end])); box on
         xlabel('Latency (ms)'); ylabel('Potential (\muV)');
-        title(sprintf('Heartbeat-evoked potentials (HEP) - all electrodes, and %s (black, scaled)', ...
+        title(sprintf('Heartbeat-evoked potentials (HEP, 20%% trimmed mean) - all electrodes, and %s (black, scaled)', ...
             strjoin({HEP.chanlocs(nEEG+1:end).labels}, ', ')));
     else
         pop_timtopo(EEGonly, [EEGonly.times(1) EEGonly.times(end)], [-25 0 250 350 450], ...
@@ -417,22 +442,26 @@ if params.vis_outputs
     set(gcf,'Name','HEP','NumberTitle','Off')
     finish_figure(gcf)
 
-    % ROI: HEP against the surrogates, HRSP and HRPC
-    plot_hep_tf(tfMain, surrMain, sigName, unit);
+    % ROI: HEP against the surrogates, HRSP and HRPC, with the shortest
+    % intervals to the previous and next heartbeats of the beats used
+    ibis = diff(allBeats) / EEG.srate * 1000;
+    [~, loc] = ismember(hepBeats, allBeats);
+    near = [min(ibis(loc(loc > 1) - 1)) min(ibis(loc(loc <= numel(ibis))))];
+    plot_hep_tf(tfMain, surrMain, sigName, unit, near);
 end
 
-% Save next to the input file
+% The output points to its own file, not to the input file
 if params.save
-    newname = sprintf('%s_HEP.set', HEP.filename(1:end-4));
-    HEP = pop_saveset(HEP,'filename',newname,'filepath',HEP.filepath);   % the output then points to this file, not to the input file
+    HEP = saved;
 end
 
 
 %% Subfunctions
 
-function out = hep_all_ics(HEPwide, Xc, hepBeats, epochWin, fs, opts)
-% HEP, HRSP, HRPC and surrogate control of all ICs, from their activations
-% on the continuous (cleaned) data; polarity: largest map value positive
+function out = hep_all_ics(HEPwide, Xc, hepBeats, epochWin, fs, opts, removed)
+% HEP, HRSP, HRPC and surrogate control of the ICs left after the cleaning,
+% from their activations on the continuous (cleaned) data; polarity: largest
+% map value positive. removed: IC numbers removed by the cleaning.
 out = [];
 if isempty(HEPwide.icaweights)
     warning('No ICA decomposition: the IC measures need one (''clean_eeg'' or an ICA in the dataset).')
@@ -456,17 +485,20 @@ sgn = sign(maps(sub2ind(size(maps), iMax, 1:size(maps,2))));
 A = (W * Xc(chIdx,:)) .* sgn(:);
 fprintf('Computing HEP, HRSP and HRPC of %d independent components... \n', size(A,1))
 [tf, surr] = compute_hep_tf(A, fs, hepBeats, epochWin, opts);
-out = struct('ic', (1:size(A,1))', 'maps', maps .* sgn, 'polarity', sgn(:), ...
+out = struct('ic', setdiff(1:size(A,1)+numel(removed), removed)', 'removed_ics', removed(:), ...
+    'maps', maps .* sgn, 'polarity', sgn(:), ...
     'chanlocs', HEPwide.chanlocs(chIdx), 'iclabel', probs, ...
     'iclabel_classes', {{'Brain' 'Muscle' 'Eye' 'Heart' 'Line Noise' 'Channel Noise' 'Other'}}, ...
     'hep', tf.hep, 'hep_times', tf.hep_times, 'tf', rmfield(tf,'hep'), 'surrogate', surr);
 
 
-function plot_hep_tf(tf, surr, sigName, unit)
+function plot_hep_tf(tf, surr, sigName, unit, near)
 % HEP of the ROI signal against the surrogates (gray: 95% of the
 % surrogates, red: FDR p < .05), HRSP and HRPC with their FDR contours. The
 % dashed lines mark +/-2 SD of the wavelets around the R-peak: within them,
 % the time-frequency values include the QRS and its cardiac field artifact.
+% The dotted lines do the same for the nearest previous and next heartbeats
+% (near: shortest intervals to them, in ms).
 if isempty(tf), return; end
 figure('color','w','Name','HEP time-frequency','NumberTitle','Off');
 try icadefs; set(gcf, 'color', BACKCOLOR); catch; end
@@ -512,6 +544,7 @@ for k = 1:2
         contour(tf.times, tf.freqs, double(squeeze(p(1,:,:)) < .05), [.5 .5], 'k', 'LineWidth', 1.5);
     end
     plot(-guide, tf.freqs, 'w--', guide, tf.freqs, 'w--', 'LineWidth', 1);
+    plot(guide - near(1), tf.freqs, 'w:', near(2) - guide, tf.freqs, 'w:', 'LineWidth', 1.5);
     xline(0,'k--');
     if k == 1
         lim = max(abs(M(:)));
