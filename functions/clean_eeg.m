@@ -25,7 +25,7 @@
 %     'infinity' is then applied after GEDAI (which re-references to average).
 % Stage 1 (params.clean_eeg_step == 1): remove artifacts, interpolate, ICA
 %   - 'hep': remove bad epochs with find_badTrials (params.detectMethod,
-%     default 'grubbs'). 'features', 'rm_heart', 'coherence': remove bad
+%     default 'grubbs'). 'features', 'coherence': remove bad
 %     segments with ASR (params.asr_cutoff, default 30 SD; params.asr_mem,
 %     default .85 of available RAM).
 %   - Interpolate removed channels back to params.orichanlocs (> 10 channels).
@@ -39,7 +39,6 @@
 %     3 = extended Infomax with lrate 1e-5 and maxsteps 2000 (slower, more
 %     replicable).
 %   - ICLabel, then remove muscle, eye, heart, line and channel-noise ICs:
-%       'rm_heart': .99/.90/-/.99/.99 (heart left for remove_heartcomp)
 %       'hep':      .99/.90/.75/.99/.99 (heart: params.conf_thresh; none if
 %                   params.heart_removal is 'ecg_regression' or 'none')
 %       otherwise:  .95/.95/.99/.99/.99
@@ -82,7 +81,7 @@ else
 end
 if isfield(params,'lowpass')
     lowpass = params.lowpass;
-elseif any(strcmp(params.analysis, {'hep' 'rm_heart'}))
+elseif strcmp(params.analysis, 'hep')
     lowpass = 30;   % removes 50/60 Hz line noise with a low filter order
                     % (fewer ripples, faster), speeds up ICA and smooths ERPs
     params.lowpass = 30;    % for user
@@ -169,7 +168,7 @@ if params.clean_eeg_step == 0
     % methodology to user guidelines. Journal of Neuroscience Methods.
     if ~strcmp(reref,'off')
         if EEG.nbchan < 30
-            warndlg('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
+            bb_warndlg('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
             warning('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
         else
             if strcmp(reref,'infinity') && useGEDAI
@@ -295,7 +294,7 @@ elseif params.clean_eeg_step == 1
         params.removed_eeg_segments = [];
 
     % ASR on continuous data
-    elseif contains(params.analysis, {'features' 'rm_heart' 'coherence'})
+    elseif contains(params.analysis, {'features' 'coherence'})
         
         % Identify artifacts using ASR
         oriEEG = EEG;
@@ -352,7 +351,7 @@ elseif params.clean_eeg_step == 1
             params.ica_source = pop_interp(params.ica_source, params.orichanlocs, 'spherical');
         end
     else
-        warndlg('Cannot interpolate bad EEG channels reliably with less than 10 channels')
+        bb_warndlg('Cannot interpolate bad EEG channels reliably with less than 10 channels')
         warning('Cannot interpolate bad EEG channels reliably with less than 10 channels')
     end
 
@@ -411,11 +410,7 @@ elseif params.clean_eeg_step == 1
     % Classify and flag bad components with ICLabel. pop_icflag rows:
     % brain, muscle, eye, heart, line noise, channel noise, other
     EEG = pop_iclabel(EEG,'default');
-    if contains(params.analysis, 'rm_heart')
-        % Keep heart components: remove_heartcomp removes them next with the
-        % user's confidence threshold
-        EEG = pop_icflag(EEG,[NaN NaN; .99 1; .9 1; NaN NaN; .99 1; .99 1; NaN NaN]);
-    elseif contains(params.analysis, 'hep')
+    if contains(params.analysis, 'hep')
         % HEP: heart (cardiac field artifact) components are removed too
         % with params.heart_removal = 'ica' (default); params.conf_thresh:
         % minimum ICLabel heart probability (default .75)
@@ -447,7 +442,8 @@ elseif params.clean_eeg_step == 1
             end
             colormap("parula"); finish_figure(gcf)
         else
-            warndlg("No independent components in your dataset. Somethig went wrong with your ICA decomposition.")
+            warning('No independent components in your dataset: something went wrong with the ICA decomposition.')
+            bb_warndlg('No independent components in your dataset: something went wrong with the ICA decomposition.')
         end
     end
     

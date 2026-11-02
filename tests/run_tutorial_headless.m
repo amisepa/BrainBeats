@@ -122,10 +122,6 @@ T(end+1) = struct('name','eeg_only','fn', @() bbp(pop_select(L(),'nochannel',{'P
     'analysis','features','heart_signal','off', ...
     'eeg_features',{'time' 'frequency','nonlinear'},'clean_eeg',1,'linenoise',50, ...
     'ref','infinity','ica_method',1,'parpool',1,'save',1));
-T(end+1) = struct('name','rm_heart','fn', @() bbp(L(), 'analysis', 'rm_heart', ...
-    'heart_signal', 'ECG', 'heart_channels', {'ECG'}, ...
-    'clean_eeg', true, 'filttype', 'noncausal','linenoise', 50, ...
-    'conf_thresh', .65, 'ica_method', 2, 'ref', 'average', 'keep_heart',true));
 T(end+1) = struct('name','coh_ecg','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
     'analysis','coherence','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',0,'parpool',0));
@@ -267,10 +263,18 @@ fprintf('%d ICs: HEP, HRSP, HRPC and surrogates; %d HEP points FDR-significant\n
 end
 
 function EEG = hep_ppg_pat_eeg(L)
-% PPG without ECG: the pulse arrival time comes from the EEG cardiac field
-% artifact and must be close to the ECG-based one (424 ms on the sample)
-EEG = bbp(pop_select(L(),'nochannel',{'ECG'}),'analysis','hep','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',false,'save',0);
+% PPG without ECG: no pulse arrival time unless one is given ('auto' is an
+% error); with 'eeg' it comes from the EEG cardiac field artifact and must be
+% close to the ECG-based one (424 ms on the sample)
+args = {'analysis','hep','heart_signal','PPG','heart_channels',{'PPG'},'clean_eeg',false,'save',0};
+id = '';
+try
+    bbp(pop_select(L(),'nochannel',{'ECG'}), args{:});
+catch ME
+    id = ME.identifier;
+end
+assert(strcmp(id,'BrainBeats:input'), 'PPG without ECG and without a pulse arrival time did not raise an error')
+EEG = bbp(pop_select(L(),'nochannel',{'ECG'}), args{:}, 'ppg_transit','eeg');
 p = EEG.brainbeats.preprocessings.ppg_transit;
 assert(contains(p.method,'EEG') && abs(p.pat - 424) < 50, 'PAT from the EEG: %g ms (%s)', p.pat, p.method)
 fprintf('PAT from the EEG: %.0f ms (ECG: 424 ms)\n', p.pat);

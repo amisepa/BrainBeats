@@ -120,14 +120,6 @@ if params.clean_eeg
         end
     end
 end
-if strcmp(params.analysis,'rm_heart')
-    if ~exist('picard','file') && params.icamethod == 1
-        plugin_askinstall('picard', 'picard', 1);
-    end
-    if ~exist('iclabel','file')
-        plugin_askinstall('iclabel', 'iclabel', 1);
-    end
-end
 
 % Ensure data have double precision
 EEG.data = double(EEG.data);
@@ -168,7 +160,7 @@ if params.parpool
         end
     else
         warning("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
-        warndlg("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
+        bb_warndlg("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
         params.parpool = false;
     end
 else

@@ -77,15 +77,20 @@ if ~isempty(idx)
     params.analysis = lower(varargin{idx+1});
     fprintf('Selected mode to run: %s \n', params.analysis);
 else
-    error("Analysis type not defined. Must be set to either 'hep', 'features', 'rm_heart', or 'coherence'. ")
+    error("Analysis type not defined. Must be set to either 'hep', 'features', or 'coherence'. ")
 end
-if ~any(strcmp(params.analysis, {'hep' 'features' 'rm_heart' 'coherence'}))
-    error("Analysis '%s' not recognized. Must be 'hep', 'features', 'rm_heart', or 'coherence'.", params.analysis)
+if strcmp(params.analysis, 'rm_heart')
+    error('BrainBeats:input', ['The ''rm_heart'' analysis was removed in v1.6: ICA with the ECG channel ' ...
+        'removed most of a synthetic heartbeat-locked brain response on 5 of 6 test subjects. Use ' ...
+        '''analysis'',''hep'' with ''heart_removal'' (''ica'' or ''ecg_regression'').'])
 end
-if ~params.heart && any(strcmp(params.analysis, {'hep' 'rm_heart' 'coherence'}))
+if ~any(strcmp(params.analysis, {'hep' 'features' 'coherence'}))
+    error("Analysis '%s' not recognized. Must be 'hep', 'features', or 'coherence'.", params.analysis)
+end
+if ~params.heart && any(strcmp(params.analysis, {'hep' 'coherence'}))
     error("The '%s' analysis needs a heart signal: 'heart_signal' cannot be 'off'.", params.analysis)
 end
-if strcmp(params.heart_signal,'rr') && any(strcmp(params.analysis, {'rm_heart' 'coherence'}))
+if strcmp(params.heart_signal,'rr') && strcmp(params.analysis, 'coherence')
     error("The '%s' analysis needs the ECG/PPG signal itself: 'heart_signal' cannot be 'rr'.", params.analysis)
 end
 
@@ -116,7 +121,7 @@ if params.heart
     end
 
     % Heart components: minimum ICLabel heart probability to remove them
-    % ('rm_heart': default .9; 'hep' with 'clean_eeg': default .75)
+    % ('hep' with 'clean_eeg' and 'heart_removal','ica'; default .75)
     idx = find(strcmpi(keys,'conf_thresh'));
     if ~isempty(idx)
         params.conf_thresh = varargin{idx+1};
@@ -132,11 +137,10 @@ if params.heart
         if strcmp(params.heart_removal,'ecg_regression') && ~strcmpi(params.heart_signal,'ecg')
             error("'heart_removal','ecg_regression' needs an ECG ('heart_signal','ecg').")
         end
-    elseif strcmpi(params.heart_signal,'ecg')
-        % Default with an ECG: on the sample data it removed 72% of the
-        % heart-locked EEG amplitude, the default ICA of the HEP cleaning 2%
-        params.heart_removal = 'ecg_regression';
     else
+        % Default: ICA. The ECG regression removed 29% of the heart-locked
+        % EEG amplitude on 6 ds003838 subjects (3-70%), but also 20% of a
+        % synthetic heartbeat-locked response (0-46%)
         params.heart_removal = 'ica';
     end
     % PPG fiducial: detect pulse-wave valleys (default) or peaks (get_RR.m)
@@ -357,10 +361,6 @@ if params.eeg
         params.clean_method = lower(varargin{idx+1});
         if ~any(strcmp(params.clean_method, {'asr_ica','gedai'}))
             error("'clean_method' must be 'asr_ica' or 'gedai'.")
-        end
-        if strcmp(params.clean_method,'gedai') && strcmp(params.analysis,'rm_heart')
-            warning("GEDAI already removes the heart artifacts: 'rm_heart' uses ASR + ICA ('clean_method','asr_ica').")
-            params.clean_method = 'asr_ica';
         end
     end
     idx = find(strcmpi(keys,'linenoise'));

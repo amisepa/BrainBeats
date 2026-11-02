@@ -1,8 +1,8 @@
 function make_readme_figures(runs)
 % MAKE_README_FIGURES - Regenerate the README figures from the sample data.
 %
-% Saves the BrainBeats window, then runs HEP (ECG, and PPG with the pulse arrival time corrected), features, and rm_heart
-% on sample_data/dataset.set with the plots on, and saves the
+% Saves the BrainBeats window, then runs HEP (ECG, and PPG with the pulse arrival time corrected) and
+% features on sample_data/dataset.set with the plots on, and saves the
 % figures shown in README.md into the figures folder (existing files are
 % overwritten). It also serves as the interactive check of the plotting code
 % before a release.
@@ -12,8 +12,7 @@ function make_readme_figures(runs)
 %   make_readme_figures({'hep_ecg' 'features'})  % a subset of the runs
 %
 % Input:
-%   runs - any of 'gui', 'hep_ecg', 'hep_ppg', 'features',
-%          'rm_heart' (default: all)
+%   runs - any of 'gui', 'hep_ecg', 'hep_ppg', 'features' (default: all)
 %
 % Notes:
 % - Works with the desktop or under 'matlab -batch' (MATLAB may then not exit
@@ -43,7 +42,7 @@ olddir = cd(tempdir);
 restore = onCleanup(@() cd(olddir));
 
 if nargin < 1 || isempty(runs)
-    runs = {'gui' 'hep_ecg' 'hep_ppg' 'features' 'rm_heart'};
+    runs = {'gui' 'hep_ecg' 'hep_ppg' 'features'};
 end
 runs = cellstr(runs);
 common = {'save',false,'gong',false};
@@ -78,10 +77,8 @@ for r = 1:numel(runs)
             save_fig(byname('HEP time-frequency',1), outdir, 'hep_tf.png', 'export');
 
         case 'hep_ppg'
-            % PPG beats shifted back by the pulse arrival time, estimated
-            % from the EEG cardiac field artifact (ECG removed), same
-            % cleaning as the ECG run
-            EEG = pop_select(EEG,'nochannel',{'ECG'});
+            % PPG beats shifted back by the pulse arrival time measured from
+            % the ECG of the file, same cleaning as the ECG run
             brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
                 'heart_channels',{'PPG'},'clean_eeg',true,'icamethod',1, ...
                 'vis_cleaning',false,'vis_outputs',true,common{:});
@@ -96,26 +93,6 @@ for r = 1:numel(runs)
                 'vis_cleaning',false,'vis_outputs',true,common{:});
             save_fig(byname('Visualization of features',1), outdir, 'features_psd.png', 'export');
             save_fig(byname('Visualization of features',2), outdir, 'features_eeg.png', 'export');
-
-        case 'rm_heart'
-            % Same settings as the tutorial (Picard to save time)
-            EEG = pop_select(EEG,'nochannel',{'PPG'});
-            brainbeats_process(EEG,'analysis','rm_heart','heart_signal','ECG', ...
-                'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50, ...
-                'conf_thresh',.65,'icamethod',1,'keep_heart',true, ...
-                'vis_cleaning',false,'vis_outputs',true,common{:});
-            % EEGLAB's window is tiny with one component and its labels overlap:
-            % its scalp map and ICLabel class alone, in a larger figure
-            f = byname('Heart component(s) removed',1);
-            txt = findall(f,'Type','text');
-            lab = txt(arrayfun(@(t) contains(strjoin(cellstr(t.String)),'Heart'), txt));
-            g = figure('Color','w','Position',[100 100 420 460]);
-            colormap(g,'parula');
-            ax = copyobj(ancestor(lab(1),'axes'), g);
-            set(ax,'Units','normalized','Position',[.08 .05 .84 .84]);
-            title(ax, char(lab(1).String), 'Visible','on', 'FontSize',14, 'FontWeight','bold');
-            save_fig(g, outdir, 'rm_heart_components.png', 'export');
-            save_fig(byname('Heart components removed',1), outdir, 'rm_heart_data.png', 'frame');
 
         otherwise
             warning('Unknown run ''%s'' (skipped).', runs{r})

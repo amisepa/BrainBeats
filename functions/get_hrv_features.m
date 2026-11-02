@@ -223,18 +223,18 @@ if params.hrv_frequency
             HRV.frequency.ttlpwr = sum([mean(HRV.frequency.ulf) mean(HRV.frequency.vlf) ...
                 mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
         catch
-            warndlg('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
+            bb_warndlg('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
             warning('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
             try
                 HRV.frequency.ttlpwr = sum([mean(HRV.frequency.vlf) mean(HRV.frequency.lf) ...
                     mean(HRV.frequency.hf)]);
             catch
-                warndlg('HRV total power does not include VLF power (likely due to the short length of the cardiovascular time series).')
+                bb_warndlg('HRV total power does not include VLF power (likely due to the short length of the cardiovascular time series).')
                 warning('HRV total power does not include VLF power (likely due to the short length of the cardiovascular time series).')
                 try
                     HRV.frequency.ttlpwr = sum([mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
                 catch
-                    warndlg('Sorry, LF-HRV and HF-HRV power could not be normalized to total power.')
+                    bb_warndlg('Sorry, LF-HRV and HF-HRV power could not be normalized to total power.')
                     warning('Sorry, LF-HRV and HF-HRV power could not be normalized to total power.')
                 end
             end

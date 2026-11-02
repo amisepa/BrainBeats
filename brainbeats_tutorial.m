@@ -131,8 +131,9 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % PPG pulses reach the sensor ~200-450 ms after the heartbeat (pulse
 % arrival time, PAT), so the PPG beats are shifted back by the PAT
 % ('ppg_transit','auto', default): measured here from the ECG channel of the
-% file; without an ECG, from the cardiac field artifact of the EEG (420 ms
-% on these data, vs 424 ms with the ECG), else the literature value (250 ms).
+% file. Without an ECG, give the delay in ms, or 'eeg' to estimate it from the
+% cardiac field artifact of the EEG (420 ms on these data, vs 424 ms with the
+% ECG; check its figure: it was wrong on 2 of 6 test subjects).
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
     'ref','infinity','highpass',1,'lowpass',20,'filttype','causal', ...
@@ -227,21 +228,7 @@ EEG.brainbeats.preprocessings
 EEG.brainbeats.features.EEG
 
 
-%% METHOD 3: Remove cardiac field artifacts (CFA) from EEG signals using ICA
-% and ICLabel.
-
-conf_thresh = .65;    % minimum ICLabel confidence to classify a component as heart (.65 = 65%; default = .9)
-ica_mode = 2;         % 1 = Picard (fast); 2 = Infomax (default); 3 = replicable Infomax (very slow)
-ref_mode = 'average'; % re-referencing method ('average', 'infinity', or 'csd')
-EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
-EEG = brainbeats_process(EEG, 'analysis', 'rm_heart', ...
-    'heart_signal', 'ECG', 'heart_channels', {'ECG'}, ...
-    'clean_eeg', true, 'vis_cleaning', true, 'filttype', 'noncausal','linenoise', 50,...
-    'conf_thresh', conf_thresh, 'ica_method', ica_mode,...
-    'ref', ref_mode, 'keep_heart',true); 
-
-
-%% METHOD 4: Brain-heart coherence (experimental; command line only)
+%% METHOD 3: Brain-heart coherence (experimental; command line only)
 % Do not interpret these values: the heart signal here is the NN series,
 % high-passed at 0.5 Hz, so it holds almost no heart rate variability in the
 % 0-40 Hz bands analyzed. Kept for development only.

@@ -39,7 +39,7 @@ Scientific, may change results:
 - Alpha asymmetry is ln(L) - ln(R), the opposite of the usual convention: flip it or state it.
 - PRSA uses 20% (PhysioNet default); Bauer et al. (2006) use 5%.
 Robustness:
-- Absolute thresholds: rank `eig(cov) > 1e-7` (clean_eeg, remove_heartcomp, run_HEP, apply_car),
+- Absolute thresholds: rank `eig(cov) > 1e-7` (clean_eeg, run_HEP, apply_car),
   flatline `< 0.05` in get_RR (fails for ECG in volts), `signal_filt(fs:...)` with non-integer fs.
 - PPG SQI clipping test (`|diff| > 0.5`) is in absolute units: normalize each beat.
 - Fewer than 30 channels: no re-reference before ICLabel: allow average with a warning, or say so.
@@ -62,7 +62,7 @@ Documentation:
 ## Redesign (after v1.6)
 Goal: steps that can be combined, instead of 4 exclusive analyses; nothing slow computed
 unless asked; heart-component removal as an optional preprocessing step (done for HEP in
-v1.6: 'heart_removal'; the 'rm_heart' analysis remains in the command line).
+v1.6: 'heart_removal'; the 'rm_heart' analysis was removed).
 
 1. Steps, each a function usable alone and recorded in EEG.brainbeats:
    - heart: beat detection (ECG/PPG/rr), QA (SQI, rpeak_qa), clean_rr, PPG transit time;
@@ -74,7 +74,7 @@ v1.6: 'heart_removal'; the 'rm_heart' analysis remains in the command line).
      HRV features, EEG features, brain-heart coherence
 2. brainbeats_process becomes a driver: 'steps' (or checkboxes in the GUI) select what
    runs; the current 'analysis' values map onto steps so existing scripts keep working
-   ('hep' = heart + cleaning + HEP; 'rm_heart' = heart + cleaning + heart removal).
+   ('hep' = heart + cleaning + HEP).
 3. GUI in three parts: (1) data & heart signal, (2) preprocessing (EEG cleaning, heart-
    component removal), (3) measures: one checkbox per measure with an "Options" button,
    all off by default except the ones the user ticks. EEGLAB's inputgui has no tabs:
@@ -86,22 +86,43 @@ v1.6: 'heart_removal'; the 'rm_heart' analysis remains in the command line).
 5. Tests: one headless test per step, plus the GUI stub checks for the new windows.
 
 Decisions needed: tabs vs successive windows; second output for the HEP dataset; whether
-heart-component removal keeps the heart channel in the ICA (as rm_heart does now) or
+heart-component removal keeps the heart channel in the ICA (as 'rm_heart' did) or
 reuses the cleaning ICA (faster, one decomposition).
 
 ## Next (other)
-- Heart artifact removal on the sample data: 'rm_heart' (ICA with the ECG channel, threshold
+- Heart artifact removal on the sample data: ICA with the ECG channel (former 'rm_heart', threshold
   .65) removes 47% of the heart-locked EEG amplitude and the ECG regression 72%, but the default
   HEP cleaning (ICA without the ECG channel, threshold .75) only 2% (2.18 -> 2.14 uV; 21% at 200-500
-  ms). Default is now ECG regression when there is an ECG (2026-11-02, provisional). To do:
-  tests/compare_heart_removal.m on 3-5 more ds003838 subjects, including ICA with the ECG
-  channel in the HEP cleaning (not implemented yet), and the synthetic-response check (91% of a
-  1-uV response kept on the sample); then confirm or change the default.
+  ms). 6 ds003838 subjects (2026-11-02, tests/compare_heart_removal.m): 'ica' removed nothing on
+  any; regression 29% of the QRS amplitude on average (3-70%) and kept 80% (54-100%) of a
+  synthetic response; ICA with the ECG channel ('rm_heart', removed) took the response on 5/6.
+  Default: 'ica' (user, 2026-11-02). Candidates from the literature (2026-11-02), to test with
+  compare_heart_removal before adding any:
+  - Heart ICs by correlation of the IC time course with the ECG (SASICA, threshold .6): sensitivity
+    .975 vs .21 for ICLabel on 21,375 ICs (Champetier et al., CARACAS, bioRxiv 2025,
+    doi:10.1101/2025.09.02.673728); same idea as MNE ICA.find_bads_ecg ('correlation' or 'ctps').
+    Likely why ICLabel found no heart IC here. Risk: also removes heartbeat-locked brain activity.
+  - CARACAS (same paper): heart ICs without an ECG (R-wave detection on each IC), in SASICA.
+  - MNE compute_proj_ecg: SSP projectors from ECG-locked epochs (removes a fixed topography).
+  - Controls rather than perfect removal: surrogate-heartbeat correction (Steinfath et al., 2026,
+    Psychophysiology, doi:10.1111/psyp.70297), pseudotrial correction for task data (Imaging
+    Neuroscience 2025, doi:10.1162/IMAG.a.30), surface Laplacian check, analysis windows after the
+    T wave. Isoelectric-patient study (Kandasamy et al., bioRxiv 2026): ICA weakened the HEP, and
+    the cardiac artefact topography is not predicted by the ECG.
+  Open: ICA with the ECG channel only for components not locked to the heartbeat? A realistic
+  synthetic HEP (variable amplitude and latency, cortical topography).
 - Surrogates also for HEP contrasts between conditions (e.g. per-condition beat subsets).
 - 'individualized' EEG bands: only alpha is individualized (per-channel peaks are unreliable
   for the other bands).
 - get_RR fails on recordings shorter than ~3 s (filter length).
-- PAT from the EEG cardiac field artifact (ESTIMATE_PAT_EEG) is validated on one subject only
-  (420 vs 424 ms with the ECG): check it on datasets with ECG + PPG + EEG (e.g. Heartbeam), and
-  whether the 2x peak/median GFP threshold rejects bad estimates.
+- PAT without an ECG (tests/compare_ppg_transit.m, 6 ds003838 subjects, 2026-11-02): the EEG
+  estimate was wrong on 2/6 (628 and 116 ms vs 408 and 392 ms from the ECG) with ratios 2.2/2.1,
+  like a correct one (2.1); the 250 ms default was wrong on 6/6 (true 384-424 ms). With an ECG the
+  correction works (r .52-.86 with the ECG-locked HEP). Decide: no silent correction without ECG?
+- PPG polarity: the ds003838 PPG (sample included) is in light-intensity convention (fast DOWNWARD
+  edge at each pulse), so 'valleys' marks the systolic volume peak (R + 384-424 ms) and 'peaks' a
+  point just before the pulse onset (R + 108-128 ms, smoothed). 'peaks' matched the ECG-locked HEP
+  better on 4/6 subjects (beat-to-beat IQR 9-24 vs 16-44 ms). Detect the polarity (as for the ECG)
+  so that 'valleys' is the pulse onset whatever the device; then locate the onset on a less
+  smoothed signal.
 - 'keep_heart' stores the raw heart channel (sample ECG has a large DC offset): filter it?

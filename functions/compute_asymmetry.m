@@ -55,7 +55,8 @@ try
         end
     end
 catch
-    warndlg(sprintf("'compute_asymmetry' failed to find the electrode pairs to compute alpha asymmetry. \n\nThis can occur if your dataset contains auxiliary (non-EEG) electrodes, channels without locations, or only one EEG channel."))
+    msg = sprintf("'compute_asymmetry' failed to find the electrode pairs to compute alpha asymmetry. \n\nThis can occur if your dataset contains auxiliary (non-EEG) electrodes, channels without locations, or only one EEG channel.");
+    warning('%s', msg); bb_warndlg(msg)
 end
 
 % Remove empty pairNums

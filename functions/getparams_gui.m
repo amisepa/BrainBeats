@@ -45,7 +45,7 @@ filtTypes = {'Zero-phase (default)' 'Causal (minimum-phase)'};
 icaMethods = {'Picard (fast)' 'Infomax (default)' 'Infomax, replicable (slow)'};
 badEpochs = {'Aggressive (quartiles)' 'Moderate (Grubbs, default)' 'Lax (mean)'};
 ppgModes = {'Pulse onsets (valleys, default)' 'Systolic peaks'};
-patModes = {'Automatic (recommended)' 'Fixed delay (ms):' 'None'};
+patModes = {'Automatic (recommended)' 'Fixed delay (ms):' 'None' 'From the EEG cardiac field (check its figure)'};
 hepWins = {'Fixed (default)' 'Adaptive to the heart rate (within-subject only)'};
 hepBls = {'None (recommended)' 'Regression (Alday, 2019)'};
 spectypes = {'Normalized Lomb-Scargle periodogram (default)' 'Lomb-Scargle periodogram' 'Welch (requires resampling)' 'FFT (requires resampling)'};
@@ -57,12 +57,10 @@ winlen = '2';
 eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Relative power (share of the total power)'};
 asynorm = {'None' 'Divided by total power'};
 roiDefault = 'F1 F2 F3 F4 Fz FC1 FC2 FC3 FC4 FCz C1 C2 C3 C4 Cz';
-% The first item is the default: ECG regression with an ECG (it needs one),
-% ICA otherwise
-heartRemovals = {'ECG regression (lags -20 to 20 ms)' 'ICA (ICLabel heart components)' 'None'};
-heartRemovalKeys = {'ecg_regression' 'ica' 'none'};
-if ~isECG
-    heartRemovals(1) = []; heartRemovalKeys(1) = [];
+heartRemovals = {'ICA (ICLabel heart components)' 'ECG regression (lags -20 to 20 ms)' 'None'};
+heartRemovalKeys = {'ica' 'ecg_regression' 'none'};
+if ~isECG   % the regression needs the ECG
+    heartRemovals(2) = []; heartRemovalKeys(2) = [];
 end
 
 % Callbacks: enable the options of a checked box (userdata = its tag)
@@ -90,11 +88,13 @@ else
         ecgLab = labs(contains(lower(labs), {'ecg' 'ekg'}));
         if ~isempty(ecgLab)
             patInfo = sprintf('Automatic: measured from ECG channel %s', ecgLab{1});
+            patMode = 1; patVal = '';
         else
-            patInfo = 'Automatic: from the EEG cardiac field artifact (no ECG), else 250 ms';
+            patInfo = 'No ECG: enter the delay (e.g. measured with an ECG on the same device and site)';
+            patMode = 2; patVal = '';
         end
         L = [L {{} {'style' 'text' 'string' 'Pulse arrival time (shifts the pulses to the heartbeats):'} ...
-            {'style' 'popupmenu' 'string' patModes 'tag' 'ppg_transit_mode'} {'style' 'edit' 'string' '250' 'tag' 'ppg_transit'}} ...
+            {'style' 'popupmenu' 'string' patModes 'tag' 'ppg_transit_mode' 'value' patMode} {'style' 'edit' 'string' patVal 'tag' 'ppg_transit'}} ...
             {{} {'style' 'text' 'string' patInfo 'fontangle' 'italic'}}];
         G = [G {row4 [.02 .8]}];
     end
@@ -191,8 +191,12 @@ if isfield(params,'ppg_transit_mode')
         case 1, params.ppg_transit = 'auto';
         case 2, params.ppg_transit = str2double(params.ppg_transit);
         case 3, params.ppg_transit = 'off';
+        case 4, params.ppg_transit = 'eeg';
     end
     params = rmfield(params,'ppg_transit_mode');
+    if isnumeric(params.ppg_transit) && (isnan(params.ppg_transit) || params.ppg_transit < 0)
+        error('Enter the PPG pulse arrival time in ms (a delay of 0 or more), or choose another option.')
+    end
 end
 if isfield(params,'clean_method')
     methods = {'asr_ica' 'gedai'}; params.clean_method = methods{params.clean_method};
