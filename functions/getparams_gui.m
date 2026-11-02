@@ -57,10 +57,12 @@ winlen = '2';
 eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Relative power (share of the total power)'};
 asynorm = {'None' 'Divided by total power'};
 roiDefault = 'F1 F2 F3 F4 Fz FC1 FC2 FC3 FC4 FCz C1 C2 C3 C4 Cz';
-heartRemovals = {'ICA (ICLabel heart components)' 'ECG regression (lags -20 to 20 ms)' 'None'};
-heartRemovalKeys = {'ica' 'ecg_regression' 'none'};
-if ~isECG   % the regression needs the ECG
-    heartRemovals(2) = []; heartRemovalKeys(2) = [];
+% The first item is the default: ECG regression with an ECG (it needs one),
+% ICA otherwise
+heartRemovals = {'ECG regression (lags -20 to 20 ms)' 'ICA (ICLabel heart components)' 'None'};
+heartRemovalKeys = {'ecg_regression' 'ica' 'none'};
+if ~isECG
+    heartRemovals(1) = []; heartRemovalKeys(1) = [];
 end
 
 % Callbacks: enable the options of a checked box (userdata = its tag)

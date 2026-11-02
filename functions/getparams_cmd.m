@@ -132,6 +132,12 @@ if params.heart
         if strcmp(params.heart_removal,'ecg_regression') && ~strcmpi(params.heart_signal,'ecg')
             error("'heart_removal','ecg_regression' needs an ECG ('heart_signal','ecg').")
         end
+    elseif strcmpi(params.heart_signal,'ecg')
+        % Default with an ECG: on the sample data it removed 72% of the
+        % heart-locked EEG amplitude, the default ICA of the HEP cleaning 2%
+        params.heart_removal = 'ecg_regression';
+    else
+        params.heart_removal = 'ica';
     end
     % PPG fiducial: detect pulse-wave valleys (default) or peaks (get_RR.m)
     idx = find(strcmpi(keys,'ppg_detect_mode'));

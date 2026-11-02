@@ -115,11 +115,12 @@
 %   'gpu'            - use GPU computing (default false)
 %
 % Heart components:
-%   'heart_removal'  - ('hep' with 'clean_eeg') 'ica' (default): the heart
-%                      components found by ICLabel are removed with the other
-%                      artifact components; 'ecg_regression': the ECG, shifted
-%                      by -20 to +20 ms, is regressed out of each EEG channel
-%                      (ECG only; see REMOVE_HEART_REGRESSION); or 'none'
+%   'heart_removal'  - ('hep' with 'clean_eeg') 'ecg_regression' (default
+%                      with an ECG): the ECG, shifted by -20 to +20 ms, is
+%                      regressed out of each EEG channel (see
+%                      REMOVE_HEART_REGRESSION); 'ica' (default with PPG): the
+%                      heart components found by ICLabel are removed with the
+%                      other artifact components; or 'none'
 %   'conf_thresh'    - minimum ICLabel heart probability to remove a component
 %                      (default 0.75 for 'hep', 0.9 for 'rm_heart')
 % rm_heart ('analysis','rm_heart', command line only; in the GUI, heart

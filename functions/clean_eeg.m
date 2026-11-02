@@ -26,7 +26,7 @@
 % Stage 1 (params.clean_eeg_step == 1): remove artifacts, interpolate, ICA
 %   - 'hep': remove bad epochs with find_badTrials (params.detectMethod,
 %     default 'grubbs'). 'features', 'rm_heart', 'coherence': remove bad
-%     segments with ASR (params.asr_cutoff, default 50 SD; params.asr_mem,
+%     segments with ASR (params.asr_cutoff, default 30 SD; params.asr_mem,
 %     default .85 of available RAM).
 %   - Interpolate removed channels back to params.orichanlocs (> 10 channels).
 %   - ICA at the effective data rank to avoid ghost ICs (Kim et al. 2023).
@@ -139,7 +139,7 @@ end
 if isfield(params,'asr_cutoff')
     asr_cutoff = params.asr_cutoff;
 else
-    asr_cutoff = 50;  % main ASR SD cutoff (lower = more aggressive, higher = more lax)
+    asr_cutoff = 30;  % main ASR SD cutoff (lower = more aggressive, higher = more lax; same as the GUI)
 end
 if isfield(params,'asr_mem')
     asr_mem = params.asr_mem;

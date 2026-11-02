@@ -44,7 +44,7 @@ for c = 1:numel(cases)
     assert(strcmp(P.ref,'average') && strcmp(P.clean_method,'asr_ica') && P.linenoise == 50 && strcmp(P.filttype,'noncausal'))
     if strcmp(P.analysis,'hep')
         assert(P.highpass == 0.5 && P.lowpass == 30 && isequal(P.hep_window,[-300 600]) && strcmp(P.hep_baseline,'none'))
-        assert(P.hep_surrogates == 100 && strcmp(P.detectMethod,'grubbs') && strcmp(P.heart_removal,'ica') && abs(P.conf_thresh - .75) < 1e-9)
+        assert(P.hep_surrogates == 100 && strcmp(P.detectMethod,'grubbs') && strcmp(P.heart_removal, ternary(strcmp(P.heart_signal,'ecg'),'ecg_regression','ica')) && abs(P.conf_thresh - .75) < 1e-9)
         assert(strcmp(P.hep_level, cases{c}{4}) && isfield(P,'hep_roi') ~= strcmp(P.hep_level,'ics'))
         if strcmp(P.heart_signal,'ppg'), assert(strcmp(P.ppg_transit,'auto') && strcmp(P.ppg_detect_mode,'valleys')); end
     else
@@ -66,7 +66,7 @@ P = run_gui(EEG, base, {'hep','ecg','ECG','channels'});
 assert(~P.clean_eeg && ~isfield(P,'ref') && ~isfield(P,'highpass') && ~isfield(P,'heart_removal'))
 setappdata(0,'inputgui_override',struct('heart_removal',2));
 P = run_gui(EEG, base, {'hep','ecg','ECG','channels'});
-assert(strcmp(P.heart_removal,'ecg_regression'))
+assert(strcmp(P.heart_removal,'ica'))
 fprintf('OK: non-default choices, cleaning off\n');
 
 % 3. A run through the GUI path, and its history command again
@@ -131,4 +131,8 @@ code = {
 };
 fid = fopen(file,'w'); fprintf(fid,'%s\n',code{:}); fclose(fid);
 rehash
+end
+
+function out = ternary(c, a, b)
+if c, out = a; else, out = b; end
 end

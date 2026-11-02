@@ -14,11 +14,8 @@
       2026-10-07).
 - [ ] Look at the 9 figures of the README (made by `tests/make_readme_figures`, which now runs
       headless too) in the MATLAB desktop once.
-- [ ] GUI ASR cutoff default is 30, command line default 50: pick one.
+- [x] ASR cutoff default: 30 SD in the GUI and the command line (user, 2026-11-02).
 - [ ] Decide the release date in README "Version history" (written as 9/2026).
-- [ ] tests/data (Muse EEG, PPG and beat detections, added 2026-03-06): public on main with no
-      stated source or consent. Confirm whose data they are and that public release is
-      covered; otherwise replace them with synthetic data and remove them from the history.
 
 ## From the code review of v1.6 (fixed ones are in the README version history)
 Scientific, may change results:
@@ -96,9 +93,10 @@ reuses the cleaning ICA (faster, one decomposition).
 - Heart artifact removal on the sample data: 'rm_heart' (ICA with the ECG channel, threshold
   .65) removes 47% of the heart-locked EEG amplitude and the ECG regression 72%, but the default
   HEP cleaning (ICA without the ECG channel, threshold .75) only 2% (2.18 -> 2.14 uV; 21% at 200-500
-  ms). Should the default change (lower threshold, ICA with the ECG channel, regression when
-  there is an ECG)? The regression was checked on one subject and one synthetic response (91%
-  kept): validate it on more data.
+  ms). Default is now ECG regression when there is an ECG (2026-11-02, provisional). To do:
+  tests/compare_heart_removal.m on 3-5 more ds003838 subjects, including ICA with the ECG
+  channel in the HEP cleaning (not implemented yet), and the synthetic-response check (91% of a
+  1-uV response kept on the sample); then confirm or change the default.
 - Surrogates also for HEP contrasts between conditions (e.g. per-condition beat subsets).
 - 'individualized' EEG bands: only alpha is individualized (per-channel peaks are unreliable
   for the other bands).
