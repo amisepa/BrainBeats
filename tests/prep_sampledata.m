@@ -2,7 +2,7 @@
 % (sample_data/dataset.set).
 %
 % Merges one subject's resting-state EEG with its ECG and PPG channels,
-% adds 10-20 channel locations (standard_1005.elc), downsamples to 125 Hz,
+% adds 10-20 channel locations (standard_1005.elc), downsamples (see Note),
 % and adds artifacts so that the cleaning steps have something to remove:
 % a bad channel (channel 10 time-reversed and x3), a large artifact on all
 % EEG channels over the first 150 samples, and 3 s of white noise (SD 100)
@@ -11,6 +11,9 @@
 % Kept as a record of how the sample data were made: the hardcoded input
 % and output paths are those of the machine that ran it (output saved as
 % dataset-new.set; the repository copy is sample_data/dataset.set).
+% Note: the repository copy is at 250 Hz, not the 125 Hz of this script, so
+% it was made with pop_resample(EEG,250); this script as written does not
+% reproduce it.
 %
 % Copyright (C) - Cedric Cannard, 2023
 

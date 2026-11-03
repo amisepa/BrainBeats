@@ -4,9 +4,10 @@
 - [x] Update the copy of the plugin in eeglab/plugins (git pull) before testing in EEGLAB.
 - [ ] Click through the new GUI: 'BrainBeats' in the EEGLAB menu bar, main window (logo,
       section headings, Load dataset / Sample dataset, analysis, heart channels and the '...'
-      channel list, 'Perform analysis on'), parameters window (heart artifact removal: ICA,
-      ECG regression or none). The window layouts and all plots have only been checked by
-      automated tests that do not draw them.
+      channel list, 'Perform analysis on'), parameters window (heart artifact removal: none,
+      ICA, CARACAS, and with an ECG: ECG correlation, ECG regression, SSP; PPG pulse arrival
+      time options). The window layouts and all plots have only been checked by automated
+      tests that do not draw them.
 - [x] Rerun `run_tutorial_headless(9)` ('rm_heart'): passes (160 s, 1 heart IC, 2.10 -> 1.12 uV,
       2026-10-07); the two timeouts were a busy machine.
 - [x] Run `tests/test_gui_params` and the full `tests/run_tutorial_headless` once more: pass
@@ -15,29 +16,64 @@
 - [ ] Look at the 9 figures of the README (made by `tests/make_readme_figures`, which now runs
       headless too) in the MATLAB desktop once.
 - [x] ASR cutoff default: 30 SD in the GUI and the command line (user, 2026-11-02).
-- [ ] Decide the release date in README "Version history" (written as 9/2026).
+- [x] Release date in README "Version history": 11/2026 (user asked to push v1.6, 2026-11-03).
+
+## Next (user, 2026-11-03)
+- [ ] ICA quality for HEP (user: improve the decomposition rather than lower the ICLabel eye
+      threshold, .90 kept): compare Picard (used for the README figures and the screening) with
+      extended Infomax (the default, 'icamethod' 2), with and without ASR on the ICA copy (item
+      below). Measures: ICLabel brain/eye IC counts, eye activity left in the kept epochs,
+      ROI HEP and its surrogate test.
+- [ ] Surrogate statistics more conservative than per-latency FDR (user): max-statistic (tmax,
+      FWER: null = max |z| over latencies of each surrogate) and 1-D TFCE over time, null from
+      the surrogates' TFCE maxima. Needs more surrogates (100 gives a coarse 95th percentile of
+      maxima; ~1000 for the HEP, cheap without HRSP/HRPC). Validate on noise (FWER ~5%) and on
+      sub-047 before switching the default.
+- [ ] IC figure: fewer plots. Clustering within one recording would merge independent sources;
+      rather sort by heartbeat locking (max |z|) and optionally show only ICs that pass the
+      surrogate test or are classified brain. Across subjects, cluster ICs in an EEGLAB STUDY
+      (scalp maps + HEP).
+- [ ] README: hep_ecg and hep_ppg look the same by design (the PPG beats are shifted back by the
+      pulse arrival time measured from the ECG). A single overlay of the ROI HEP from the ECG,
+      the corrected PPG and the uncorrected PPG would show that instead.
+- [ ] plot_NN labels the ECG in uV; ds003838 stores the ECG in raw amplifier units (50,000-
+      730,000 at the 99.5th percentile across 21 recordings, the tutorial dataset included).
+      Label from EEG.chanlocs/units when known, else 'a.u.'.
+- [ ] More ds003838 subjects if a clearer HEP is needed: 22 of 65 usable screened (sample, 033-036,
+      038-054); 055-098 not yet.
+- [ ] HEP cleaning, ASR on the ICA copy (user, 2026-11-03): ICA is already fitted on a 1-Hz
+      high-passed copy (filtered continuous, then epoched; bad epochs removed from both) and the
+      weights applied to the 0.5-Hz data, but the HEP path has no ASR (bad epochs only). Try ASR
+      on the 1-Hz continuous copy before epoching it, for the ICA fit only (the HEP data are not
+      modified by ASR), with a very lax cutoff (~100 SD, user) so ocular activity stays in the
+      copy and ICA can model it; compare a few cutoffs (e.g. 50, 100). Measure first on the 22 screened ds003838 recordings: ICLabel brain/eye
+      IC counts, frontal-pole activity left in the kept epochs, ROI HEP and its surrogate test,
+      with and without. Same rank question: ICA's rank is counted with an absolute 1e-7
+      threshold on the covariance eigenvalues (uV^2), in clean_eeg and run_HEP.
 
 ## From the code review of v1.6 (fixed ones are in the README version history)
 Scientific, may change results:
 - Brain-heart coherence (experimental, out of the GUI): redesign at HRV time scales (NN series
   not high-passed at 0.5 Hz, MVAR at a matching rate); fit at the data rank with QR, not
   `(Y*Z')/(Z*Z')` and inv() in fdMVAR_5order, since cleaned EEG is rank-deficient.
-- HRSP normalized over a window that includes the QRS: synthetic check (broadband transient at
-  0 ms in noise, FDR points at 300-600 ms); if there is an offset, normalize by the mean power
-  of the continuous data per channel and frequency.
+- HRSP and the QRS (checked 2026-11-03): a heartbeat-locked broadband transient 5 x the noise SD
+  makes every point at 350-600 ms a significant power decrease (-1.7 dB) against the 'random'
+  surrogates (none at 2 x); normalizing by the continuous data gives the same (-1.9 dB), since it
+  contains every QRS. Possible fix: a QRS-free null (surrogate power from samples away from the
+  R-peaks); impossible at low frequencies (a 5-cycle wavelet at 4 Hz spans a whole cycle). Size
+  of the effect on real data: measure on ds003838 (HRSP at 350-600 ms vs the CFA amplitude).
 - Surrogate beats can fall on epochs rejected by the cleaning (wider null, depends on the
   artifact load): pass the rejected spans to compute_hep_tf as exclusions.
-- HRV normalized Lomb-Scargle: LF comes from 125-s windows and HF from 34-s windows, each
-  normalized by its own variance, and band powers scale with the heart rate. Change the default
-  to 'LombScargle' (ms^2), LF and HF from one window of 2 min or more, plus LF/(LF+HF)?
-- clean_rr keeps ectopic pairs (0.75 x / 1.25 x the local interval pass both rules; RMSSD +40%
-  at 30 ms over 4 min): injection check, then a successive-difference rule.
-- PAT fallback (250 ms) is a warning: error unless 'ppg_transit' is given? Show the PAT method
-  in the HEP figure titles; check the censoring of the pairing in 'peaks' mode.
+- HRV: LF (125-s windows) and HF (34-s windows) come from windows of different lengths; with ms^2
+  (default since 2026-11-03) both estimate the same spectrum, but LF and HF from one window of
+  2 min or more would be simpler. LF/(LF+HF) = 'hrv_norm' when VLF is not estimated.
+- clean_rr ectopic rule (20%): detected 1-6 of 6 injected premature beats at 0.70 x per
+  recording, 1-4 at 0.75 x; looser rules flagged beats in the high-RMSSD sub-033. An adaptive
+  rule (Lipponen & Tarvainen, 2019) could do better: compare on an annotated arrhythmia database.
+- PAT: show the method in the HEP figure titles; check the censoring of the pairing in 'peaks'
+  mode. (The 250 ms fallback is gone: without an ECG, 'ppg_transit' must be given or 'eeg'.)
 - Validation: every number in the README comes from one subject. Run other ds003838 subjects,
   an annotated ECG/PPG benchmark and an HRV cross-check; v1.4 vs v1.6 table of changed outputs.
-- Alpha asymmetry is ln(L) - ln(R), the opposite of the usual convention: flip it or state it.
-- PRSA uses 20% (PhysioNet default); Bauer et al. (2006) use 5%.
 Robustness:
 - Absolute thresholds: rank `eig(cov) > 1e-7` (clean_eeg, run_HEP, apply_car),
   flatline `< 0.05` in get_RR (fails for ECG in volts), `signal_filt(fs:...)` with non-integer fs.
@@ -53,11 +89,12 @@ Robustness:
 - Tests: most headless cases only check that the run finishes: add tests/readme_numbers.m (the
   numbers quoted in the README, with tolerances) and a synthetic HRV and EEG features test.
 Documentation:
-- References to check: 'Park et al. (2018)' in compute_hep_tf.m and the README (surrogate
-  heartbeats; Park et al., 2014, Nature Neuroscience?), Steinfath 2026, Ros 2025, Lee 2024; "used
-  and cited in" mixes uses and reviews.
-- Plugin header says GPL-2+, LICENSE is GPL-3; GEDAI is installed without asking.
-- tests/prep_sampledata.m says 125 Hz; the sample dataset is 250 Hz.
+- References checked 2026-11-03: Park et al. (2018, Cerebral Cortex 28:2351, surrogate R-peaks
+  shifted by -500 to +500 ms, after Park et al., 2014) and Lee et al. (2024, NeuroImage 299:120797)
+  are right; Ros et al. (2025) is a bioRxiv preprint (GEDAI); Steinfath et al. (2026), the
+  systematic review of heartbeat-evoked responses (bioRxiv 2025.08.08.668923), check the journal
+  version before the release; the pseudotrial paper (Imaging Neuroscience, doi:10.1162/IMAG.a.30):
+  add its authors to the README.
 
 ## Redesign (after v1.6)
 Goal: steps that can be combined, instead of 4 exclusive analyses; nothing slow computed
@@ -107,11 +144,16 @@ reuses the cleaning ICA (faster, one decomposition).
 - PAT without an ECG (tests/compare_ppg_transit.m, 6 ds003838 subjects, 2026-11-02): the EEG
   estimate was wrong on 2/6 (628 and 116 ms vs 408 and 392 ms from the ECG) with ratios 2.2/2.1,
   like a correct one (2.1); the 250 ms default was wrong on 6/6 (true 384-424 ms). With an ECG the
-  correction works (r .52-.86 with the ECG-locked HEP). Decide: no silent correction without ECG?
-- PPG polarity: the ds003838 PPG (sample included) is in light-intensity convention (fast DOWNWARD
-  edge at each pulse), so 'valleys' marks the systolic volume peak (R + 384-424 ms) and 'peaks' a
-  point just before the pulse onset (R + 108-128 ms, smoothed). 'peaks' matched the ECG-locked HEP
-  better on 4/6 subjects (beat-to-beat IQR 9-24 vs 16-44 ms). Detect the polarity (as for the ECG)
-  so that 'valleys' is the pulse onset whatever the device; then locate the onset on a less
-  smoothed signal.
+  correction works (r .52-.86 with the ECG-locked HEP). Decided (2026-11-02): no silent correction
+  without an ECG ('auto' errors with the EEG estimate as a suggestion; 'eeg' only on request).
+  After the PPG polarity fix (2026-11-03, pulse onsets): PAT 92-112 ms, ECG correction r .68-.92;
+  EEG estimate right on 3, wrong on 1 (404 vs 104 ms, ratio 2.05), not clear enough on 2.
+- PPG pulse onset: detected on the 0.5-3 Hz signal (R + 92-112 ms after the polarity fix); locate
+  it on a less smoothed signal (e.g. maximum of the second derivative) and compare the HEP match.
+- Python port (../BrainBeats-py): carry over the 2026-11-03 changes (PPG polarity, ectopic rule,
+  Lomb-Scargle ms^2 default and grid, half-open EEG bands, asymmetry sign, qeeg paf, no 'mode').
+- EEG aperiodic activity (user, 2026-11-03): add the aperiodic exponent and offset, and the
+  spectrum and band power after removing the aperiodic component compared with before, as in
+  ASCENT (github.com/amisepa/Ascent, specparam; offer to install the plugin on the fly when
+  missing, as for GEDAI).
 - 'keep_heart' stores the raw heart channel (sample ECG has a large DC offset): filter it?

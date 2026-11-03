@@ -46,6 +46,20 @@ for keep = [true false]
         'HRSP and HRPC images missing in the ''HEP time-frequency'' figure (keep_heart = %d)', keep)
     fprintf('OK: HEP figures (keep_heart = %d): single heartbeats %d x %d, HRSP, HRPC\n', keep, sz{find(ok,1)});
 end
+% IC level: one scalp map and one HEP with the surrogate band per IC
+close all force
+EEG = pop_loadset('filename','dataset.set','filepath',fullfile(bb,'sample_data'));
+EEG = pop_select(EEG,'nochannel',{'PPG'});
+HEP = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'}, ...
+    'clean_eeg',false,'icamethod',1,'hep_level','ics','hep_surrogates',20,'hep_tf_freqs',[8 10], ...
+    'vis_cleaning',false,'vis_outputs',true,'save',false,'gong',false);
+nIC = numel(HEP.brainbeats.ics.ic);
+f = findall(0,'type','figure','-regexp','Name','^HEP of the independent components');
+nAx = sum(arrayfun(@(h) numel(findall(h,'type','axes')), f));
+nBand = sum(arrayfun(@(h) numel(findall(h,'type','patch','FaceColor',[.8 .8 .8])), f));
+assert(~isempty(f) && nAx == 2*nIC && nBand == nIC, ...
+    'IC figure(s): %d axes and %d surrogate bands for %d ICs (expected %d and %d)', nAx, nBand, nIC, 2*nIC, nIC)
+fprintf('OK: IC figure(s): %d ICs, each with its map and HEP against the surrogates\n', nIC);
 close all force
 fprintf('All HEP figure checks passed.\n');
 end

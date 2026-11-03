@@ -26,16 +26,23 @@
 %
 % Outputs:
 %   eeg_features - structure (one row per channel):
-%     time      - rms, mode, var, skewness, kurtosis, iqr
+%     time      - rms, var, skewness, kurtosis, iqr
 %     frequency - freqs, pwr (PSD, channels x freqs; in dB if eeg_norm > 0),
-%                 mean band power: delta (f(1)-3 Hz), theta (4-7), alpha (8-13),
-%                 beta (13-30), gamma (30-fRange(2)) with conventional bounds;
-%                 bands (band limits used, Hz, rows delta to gamma); IAF and
-%                 IAF_mean (alpha center of gravity, Hz); alpha asymmetry
-%                 and electrode pairs
+%                 mean band power: delta (f(1)-4 Hz), theta (4-8), alpha (8-13),
+%                 beta (13-30), gamma (30-fRange(2)) with conventional bounds,
+%                 each band from its lower bound up to, not including, its
+%                 upper bound (the last one included), so that every
+%                 frequency bin belongs to one band (with 3-4 and 7-8 Hz out of
+%                 all bands, the relative powers did not sum to 1); in dB, the
+%                 mean of the dB values; bands (band limits used, Hz, rows
+%                 delta to gamma); IAF and IAF_mean (alpha center of gravity,
+%                 Hz); alpha asymmetry, ln(right) - ln(left) (positive: more
+%                 alpha on the right, i.e. relatively more left-hemisphere
+%                 activity), and electrode pairs
 %     qeeg      - absolute (uV^2) and relative band power, total power,
 %                 alpha/theta, theta/beta, alpha/beta, alpha/(theta+beta),
-%                 peak alpha frequency (7-13 Hz), median and 90% spectral edge frequency (Hz)
+%                 paf (peak alpha frequency: maximum of the PSD at 7-13 Hz),
+%                 median and 90% spectral edge frequency (Hz)
 %     nonlinear - FD (fractal dimension), FE (fuzzy entropy, m=2, r=0.15, n=2,
 %                 tau=1), computed on data resampled to ~90 Hz when fs > 100 Hz
 %   params       - input params plus the defaults used (eeg_frange, eeg_wintype,
@@ -140,7 +147,6 @@ disp('----------------------------------------------------')
 if params.eeg_time
     disp('Calculating time-domain EEG features...')
     eeg_features.time.rms = rms(signals,2);
-    eeg_features.time.mode = mode(signals,2);
     eeg_features.time.var = var(signals,0,2);
     eeg_features.time.skewness = skewness(signals,0,2);
     eeg_features.time.kurtosis = kurtosis(signals,0,2);
@@ -156,8 +162,9 @@ if params.eeg_frequency
     [~, ~, f] = compute_psd(signals(1,:),fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
     f = gather(f);
 
-    % Band limits (Hz), rows: delta, theta, alpha, beta, gamma
-    bands = [f(1) 3; 4 7; 8 13; 13 30; 30 fRange(2)];
+    % Band limits (Hz), rows: delta, theta, alpha, beta, gamma; each band is
+    % [lower upper), the last one [lower upper] (see band_mask)
+    bands = [f(1) 4; 4 8; 8 13; 13 30; 30 fRange(2)];
 
     % Individualized bounds: alpha bounds (minima on either side of the alpha
     % peak, 7-14 Hz search window) of each channel with a detectable peak,
@@ -218,11 +225,11 @@ if params.eeg_frequency
         [pwr, pwr_dB, ~] = compute_psd(sig,fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
 
         % Band masks (limits set above)
-        idxD = f >= bands(1,1) & f <= bands(1,2);
-        idxT = f >= bands(2,1) & f <= bands(2,2);
-        idxA = f >= bands(3,1) & f <= bands(3,2);
-        idxB = f >= bands(4,1) & f <= bands(4,2);
-        idxG = f >= bands(5,1) & f <= bands(5,2);
+        idxD = band_mask(f, bands, 1);
+        idxT = band_mask(f, bands, 2);
+        idxA = band_mask(f, bands, 3);
+        idxB = band_mask(f, bands, 4);
+        idxG = band_mask(f, bands, 5);
 
         % Mean band power in the units set by eeg_norm
         bp = nan(1,5);
@@ -336,7 +343,7 @@ if params.eeg_frequency
     eeg_features.qeeg.alpha_beta  = R_AB;
     eeg_features.qeeg.alpha_tplusb = R_A_TB;
     
-    eeg_features.qeeg.iaf    = IAF_Hz;
+    eeg_features.qeeg.paf    = IAF_Hz;
     eeg_features.qeeg.median = MF_Hz;
     eeg_features.qeeg.sef90  = SEF90_Hz;
 
@@ -358,7 +365,7 @@ if params.eeg_frequency
 
     %%%%% Alpha asymmetry %%%%%
     if length(chanlocs)>1
-        alpha_pwr = mean(PWR(:,f >= bands(3,1) & f <= bands(3,2)),2,'omitnan');  % IMPORTANT: use power in μV^2/Hz here, NOT in log or decibels
+        alpha_pwr = mean(PWR(:,band_mask(f, bands, 3)),2,'omitnan');  % IMPORTANT: use power in μV^2/Hz here, NOT in log or decibels
         tot_pwr = mean(PWR,2,'omitnan');    % mean PSD over fRange (same units), for asy_norm
         [asy, pairLabels, pairNums] = compute_asymmetry(alpha_pwr, asy_norm, chanlocs, false, tot_pwr);
         eeg_features.frequency.asymmetry = round(asy,3);
@@ -423,3 +430,13 @@ if params.eeg_nonlinear
 end
 
 fprintf('Time to extract EEG features: %g min \n', round(toc(tstart)/60,1))
+end
+
+function m = band_mask(f, bands, i)
+% Frequency bins of band i: [lower upper), the last band [lower upper]
+if i == size(bands,1)
+    m = f >= bands(i,1) & f <= bands(i,2);
+else
+    m = f >= bands(i,1) & f < bands(i,2);
+end
+end

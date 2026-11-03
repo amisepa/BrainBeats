@@ -8,11 +8,14 @@
 %   NN_times - time of each NN interval (s)
 %   params   - struct. Required: .hrv_time, .hrv_frequency, .hrv_nonlinear
 %              (true/false for each domain). Optional:
-%              .hrv_spec    - PSD method: 'LombScargle_norm' (default),
-%                             'LombScargle', 'welch' or 'fft' (the last two
-%                             on NN resampled at 7 Hz, mean removed)
+%              .hrv_spec    - PSD method: 'LombScargle' (default),
+%                             'LombScargle_norm', 'welch' or 'fft' (the last
+%                             two on NN resampled at 7 Hz, mean removed)
 %              .hrv_norm    - divide band powers by total power (default false)
 %              .hrv_overlap - sliding-window overlap, fraction (default 0.25)
+%              .prsa_thresh - PRSA anchors: NN changes larger than this
+%                             (%) are left out (default 20; Bauer et al.,
+%                             2006: 5)
 %
 % Outputs:
 %   HRV    - struct with fields present for the domains computed:
@@ -21,13 +24,16 @@
 %                  the band) averaged over windows. Units: ms^2 for
 %                  'LombScargle', 'welch' and 'fft' (PSD of NN in s^2/Hz,
 %                  x1e6); unitless for 'LombScargle_norm' (periodogram
-%                  normalized by the variance, comparable across bands and
-%                  recordings, not with ms^2); fraction of ttlpwr if
-%                  hrv_norm. Bands the recording is too short for are
-%                  absent; all four are NaN if none can be estimated (< 34 s).
-%                  Also lfhf, ttlpwr (hrv_norm only), pwr/pwr_freqs
+%                  divided by twice the variance of each window: LF and HF
+%                  come from windows of different lengths, each with its
+%                  own variance, and the values grow with the number of
+%                  beats per window, i.e. the heart rate: same modulation
+%                  in ms, LF +41% at 90 vs 60 bpm, ms^2 -3%); fraction of
+%                  ttlpwr if hrv_norm. Bands the recording is too short for
+%                  are absent; all four are NaN if none can be estimated
+%                  (< 34 s). Also lfhf, ttlpwr (hrv_norm only), pwr/pwr_freqs
 %                  (spectrum of the last window of each band, concatenated;
-%                  s^2/Hz or unitless), bands (Hz)
+%                  ms^2/Hz, or unitless), bands (Hz)
 %     .nonlinear - Poincare SD1, SD2 (ms) and SD1SD2, FE (fuzzy entropy),
 %                  FD (fractal volatility), PRSA_AC, PRSA_DC (ms)
 %   params - input params plus the settings used, for export (hrv_spec,
@@ -75,7 +81,7 @@ if params.hrv_frequency
     if isfield(params,'hrv_spec') && ~isempty(params.hrv_spec)
         hrv_spec = params.hrv_spec;
     else
-        hrv_spec = 'LombScargle_norm';
+        hrv_spec = 'LombScargle';
     end
     if ~any(strcmp(hrv_spec, {'LombScargle_norm' 'LombScargle' 'welch' 'fft'}))
         error("get_hrv_features: unknown hrv_spec '%s'. Use 'LombScargle_norm', 'LombScargle', 'welch' or 'fft'.", hrv_spec)
@@ -142,10 +148,12 @@ if params.hrv_frequency
                 warning("This window contains a gap greater than 15% of the minimum window required for this band (likely from cleaning of RR artifacts by clean_rr).")
             end
 
-            % Frequency vector for Lomb-Scargle: step 1/nfft Hz, nfft = next
-            % power of 2 of the number of NN intervals in the window
-            nfft = 2^nextpow2(length(NN(win_idx)));
-            fvec = bands(iBand,1):1/nfft:bands(iBand,2);
+            % Frequency vector for Lomb-Scargle: at least 4 points per
+            % resolution step (1/window length), and at most 1/512 Hz apart, so
+            % that the band integral and the plotted spectrum follow the peaks
+            % (a step of 1/(number of beats) gave ~2 points per HF peak)
+            df = min(1/512, 1/(4*winLength));
+            fvec = bands(iBand,1):df:bands(iBand,2);
 
             % Lomb-Scargle periodogram (no resampling required)
             if strcmp(hrv_spec, 'LombScargle_norm')
@@ -198,8 +206,9 @@ if params.hrv_frequency
                 HRV.frequency.hf(iWin,:) = bandPwr;       % HF
             end
 
-            % Spectrum for export (overwritten each window: the last one is kept)
-            PWR{iBand,1} = pwr;
+            % Spectrum for export (overwritten each window: the last one is
+            % kept), in ms^2/Hz or unitless
+            PWR{iBand,1} = pwr * pwrScale;
             PWR_freqs{iBand,1} = freqs;
 
         end
@@ -321,10 +330,17 @@ if params.hrv_nonlinear
 
     % Phase rectified signal averaging (PRSA). Anchors: beats whose NN
     % shortens (AC) or lengthens (DC) by less than thresh % (larger changes
-    % are treated as artifacts)
+    % are treated as artifacts). 20% by default: Bauer et al. (2006) used 5%
+    % on 24-h recordings, but on 6 ds003838 resting recordings (NN already
+    % cleaned by clean_rr) 5% left out 18-61% of the anchors and halved AC
+    % and DC, so values are not comparable with their risk cut-offs.
     fprintf('Computing phase rectified signal averaging (PRSA)... \n')
-    thresh = 20;
-    params.prsa_thresh = 20;  % for exportation for users
+    if isfield(params,'prsa_thresh') && ~isempty(params.prsa_thresh)
+        thresh = params.prsa_thresh;
+    else
+        thresh = 20;
+    end
+    params.prsa_thresh = thresh;  % for exportation for users
     lowAnchor = 1-thresh/100-0.0001; % lower limit for the AC anchor selection
     highAnchor = 1+thresh/100;      % The upper limit for the DC anchor selection
     NN = NN(:);

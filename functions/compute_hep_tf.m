@@ -8,7 +8,13 @@
 %   power - mean power across heartbeats (uV^2; wavelets normalized so that a
 %           sinusoid of amplitude A gives A^2)
 %   hrsp  - power in dB relative to its mean over the epoch window (the whole
-%           cardiac cycle), for each channel and frequency
+%           cardiac cycle), for each channel and frequency. A heartbeat-locked
+%           broadband transient (the QRS of the cardiac field artifact) raises
+%           that mean, so latencies away from it show a power decrease, which
+%           the 'random' surrogates (whose windows contain the QRS at random
+%           latencies) find significant: normalizing by the mean of the
+%           continuous data gives the same (-1.9 vs -1.7 dB for a transient
+%           5 x the noise SD; none at 2 x)
 %   hrpc  - pairwise phase consistency across heartbeats (Vinck et al., 2010):
 %           unbiased, so its expected value is 0 for random phases whatever
 %           the number of heartbeats (unlike ITC)
@@ -79,7 +85,10 @@
 %   Lee et al. (2024). Heartbeat-related spectral perturbation of
 %   electroencephalogram reflects dynamic interoceptive attention states in
 %   the trial-by-trial classification analysis. NeuroImage.
-%   Park et al. (2018). Heartbeat-evoked cortical responses... (surrogate R-peaks)
+%   Park et al. (2018). Neural sources and underlying mechanisms of neural
+%   responses to heartbeats, and their role in bodily self-consciousness: an
+%   intracranial EEG study. Cerebral Cortex, 28(7), 2351-2364 (surrogate
+%   R-peaks shifted by -500 to +500 ms, after Park et al., 2014).
 %   Vinck et al. (2010). The pairwise phase consistency: a bias-free measure of
 %   rhythmic neuronal synchronization. NeuroImage.
 %

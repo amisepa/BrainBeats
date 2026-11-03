@@ -1,5 +1,8 @@
 % COMPUTE_ASYMMETRY - Alpha asymmetry on all symmetric pairs of electrodes:
-% ln(alpha_left + eps) - ln(alpha_right + eps).
+% ln(alpha_right + eps) - ln(alpha_left + eps), the usual convention (e.g.
+% F4 - F3; Allen et al., 2004): since alpha power is inversely related to
+% cortical activity, positive values mean relatively more left-hemisphere
+% activity. (Before v1.6: left - right, the opposite sign.)
 %
 % eps avoids the log of zero power. Each left electrode is paired with the
 % right electrode closest to its mirror position (within 10% of the head
@@ -21,7 +24,7 @@
 %                PSD over the whole frequency range); required if norm is true
 %
 % Outputs:
-%   asy        - asymmetry for each pair (pairs x 1)
+%   asy        - asymmetry for each pair, ln(right) - ln(left) (pairs x 1)
 %   pairLabels - 'left right' electrode labels of each pair (pairs x 1 cell)
 %   pairNums   - [left right] channel indices of each pair (pairs x 2)
 %
@@ -87,8 +90,8 @@ for iPair = 1:nPairs
     alpha_left = alpha_pwr(pairNums(iPair,1));
     alpha_right = alpha_pwr(pairNums(iPair,2));
 
-    % Compute asymmetry
-    asy(iPair,:) = alpha_left - alpha_right;
+    % Compute asymmetry (right - left)
+    asy(iPair,:) = alpha_right - alpha_left;
 
 end
 
@@ -111,7 +114,7 @@ if ~isempty(asy)
     disp('Electrode pairs: ')
     fprintf('   %s \n', pairLabels{:})
     fprintf(['Alpha asymmetry was succesfully computed on %g channel pairs. ' ...
-        'Values are ln(left alpha) - ln(right alpha): since alpha is inversely related to cortical activity, positive values reflect greater right-hemispheric activity, and negative values greater left-hemispheric activity \n'], length(asy))
+        'Values are ln(right alpha) - ln(left alpha): since alpha is inversely related to cortical activity, positive values reflect greater left-hemispheric activity, and negative values greater right-hemispheric activity \n'], length(asy))
 else
     warning("Failed to compute alpha asymmetry on these data")
 end

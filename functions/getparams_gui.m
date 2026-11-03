@@ -48,7 +48,7 @@ ppgModes = {'Pulse onsets (valleys, default)' 'Systolic peaks'};
 patModes = {'Automatic (recommended)' 'Fixed delay (ms):' 'None' 'From the EEG cardiac field (check its figure)'};
 hepWins = {'Fixed (default)' 'Adaptive to the heart rate (within-subject only)'};
 hepBls = {'None (recommended)' 'Regression (Alday, 2019)'};
-spectypes = {'Normalized Lomb-Scargle periodogram (default)' 'Lomb-Scargle periodogram' 'Welch (requires resampling)' 'FFT (requires resampling)'};
+spectypes = {'Lomb-Scargle periodogram (ms^2, default)' 'Normalized Lomb-Scargle periodogram (unitless)' 'Welch (requires resampling)' 'FFT (requires resampling)'};
 hrvnorm = {'Yes' 'No (default)'};
 freqrange = '[1 40]';
 wintype = {'hamming' 'hann' 'rectwin' 'blackmanharris'};
@@ -253,7 +253,7 @@ end
 if isfield(params,'hrv_freq_opts')
     o = params.hrv_freq_opts;
     if iscell(o) && ~isempty(o)
-        specs = {'LombScargle_norm' 'LombScargle' 'welch' 'fft'};
+        specs = {'LombScargle' 'LombScargle_norm' 'welch' 'fft'};
         params.hrv_spec = specs{str2double(o{find(strcmp(o,'hrvspec'))+1})};
         params.hrv_overlap = str2double(o{find(strcmp(o,'winoverlap'))+1})/100;
         params.hrv_norm = strcmp(o{find(strcmp(o,'hrvnorm'))+1}, '1');

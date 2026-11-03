@@ -21,8 +21,12 @@
 %                         DC shifts (default false = one global QRS vote)
 %     .ecg_flip_signal  - flip an inverted lead so R-peaks are positive (default true)
 %   Optional PPG fields:
+%     .ppg_polarity      - 1 (blood volume: systolic peak up) or -1 (light
+%                          intensity, inverted); default [] = automatic (see
+%                          Method)
 %     .ppg_bandpass      - 0.5-3 Hz FIR bandpass (default true); false to skip
 %     .ppg_detect_mode   - 'valleys' (pulse onsets, default) or 'peaks'
+%                          (systolic peaks)
 %     .ppg_height_method - 'prominence' (default): each pulse must stand out by
 %                          30% of the local (2-s) pulse amplitude, so beats are
 %                          kept where the pulse amplitude drops; or a global
@@ -33,11 +37,12 @@
 %   RR       - RR intervals (s)
 %   RR_t     - time of the peak closing each interval (s)
 %   peaks    - sample index of the peak closing each interval
-%   signal   - filtered signal, column (ECG flipped if inverted); use it with
-%              peaks for HEP epoching
+%   signal   - filtered signal, column (ECG or PPG flipped if inverted); use
+%              it with peaks for HEP epoching
 %   times    - input time vector converted to s, column
 %   polarity - ECG: median amplitude of the detected peaks in the returned
-%              signal (positive once an inverted lead is flipped); [] for PPG
+%              signal (positive once an inverted lead is flipped); PPG: 1 or
+%              -1 (inverted input, flipped)
 %   HR       - instantaneous heart rate (bpm), 60 ./ RR
 %
 % Method:
@@ -46,7 +51,9 @@
 %   98th percentile of the integrated energy (1-90 s); gaps > 1.5x the
 %   median spacing are searched again. Each peak is the extremum of its
 %   segment, refined within +/-15 ms.
-%   PPG: findpeaks on the filtered signal (negated for valleys), with
+%   PPG: polarity from the skewness of the slope (0.5-8 Hz; the systolic
+%   upstroke is the fast edge), inverted signals flipped; then findpeaks on
+%   the filtered signal (negated for valleys), with
 %   MinPeakDistance = half the median interval of a first pass, and a
 %   prominence of at least 30% of the local peak-to-peak amplitude. A global
 %   height threshold missed low-amplitude pulses (first 3 s of the sample
@@ -374,6 +381,30 @@ elseif strcmpi(sig_type, 'ppg')
     if isfield(params, 'ppg_detect_mode'),   detect_mode   = params.ppg_detect_mode;   end
     if isfield(params, 'ppg_height_method'), height_method = params.ppg_height_method; end
     % ------------------------------------------------------------------
+
+    % Polarity: in a blood-volume PPG the systolic upstroke is the fast edge,
+    % so the slope (0.5-8 Hz) is skewed toward positive values. Raw device
+    % outputs are often light intensity, inverted (all 14 PPG we have: 6
+    % ds003838 recordings, skewness -0.59 to -2.34; 8 Muse optics channels,
+    % -0.98 to -1.51): they are flipped, so that 'valleys' are the pulse onsets
+    % and 'peaks' the systolic peaks whatever the device. Without the flip,
+    % 'valleys' marked the systolic peak of these recordings (R + 384-424 ms
+    % instead of R + 92-112 ms), and the PPG-locked HEP matched the ECG-locked
+    % one less well (r .52-.86 instead of .68-.92; tests/compare_ppg_transit.m).
+    if isfield(params, 'ppg_polarity') && ~isempty(params.ppg_polarity)
+        polarity = sign(params.ppg_polarity);
+        fprintf('  PPG polarity: forced %+d (params.ppg_polarity)\n', polarity);
+    else
+        [bP, aP] = butter(2, [0.5 min(8, 0.45*fs)]/(fs/2));
+        slopeSkew = skewness(diff(filtfilt(bP, aP, signal - mean(signal))));
+        polarity = 1 - 2*(slopeSkew < 0);
+        fprintf('  PPG polarity: skewness of the slope %+.2f (%s)\n', slopeSkew, ...
+            ternary(polarity > 0, 'blood volume', 'light intensity, inverted'));
+    end
+    if polarity < 0
+        signal = -signal;
+        fprintf('  Signal flipped: PPG in blood-volume convention (systolic peak up)\n');
+    end
 
     % Zero-phase FIR bandpass (skipped if pre-filtered externally)
     if ~isfield(params, 'ppg_bandpass') || params.ppg_bandpass

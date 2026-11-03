@@ -109,7 +109,7 @@ T(end+1) = struct('name','feat_ecg_clean','fn', @() bbp(L(),'analysis','features
     'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50,'parpool',true));
 T(end+1) = struct('name','feat_ppg_noclean','fn', @() bbp(pop_select(L(),'nochannel',{'ECG'}), ...
     'analysis','features','heart_signal','PPG','heart_channels',{'PPG'},'clean_eeg',false, ...
-    'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','LombScargle', ...
+    'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','welch', ...
     'eeg_features', {'time' 'frequency'},'eeg_norm',0,'parpool','on','save',false));
 T(end+1) = struct('name','hrv_ecg_eegoff','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
     'analysis','features','eeg','off','heart_signal','ECG','heart_channels',{'ECG'}, ...
@@ -268,7 +268,7 @@ end
 function EEG = hep_ppg_pat_eeg(L)
 % PPG without ECG: no pulse arrival time unless one is given ('auto' is an
 % error); with 'eeg' it comes from the EEG cardiac field artifact and must be
-% close to the ECG-based one (424 ms on the sample)
+% close to the ECG-based one (112 ms to the pulse onsets on the sample)
 args = {'analysis','hep','heart_signal','PPG','heart_channels',{'PPG'},'clean_eeg',false,'save',0};
 id = '';
 try
@@ -279,8 +279,8 @@ end
 assert(strcmp(id,'BrainBeats:input'), 'PPG without ECG and without a pulse arrival time did not raise an error')
 EEG = bbp(pop_select(L(),'nochannel',{'ECG'}), args{:}, 'ppg_transit','eeg');
 p = EEG.brainbeats.preprocessings.ppg_transit;
-assert(contains(p.method,'EEG') && abs(p.pat - 424) < 50, 'PAT from the EEG: %g ms (%s)', p.pat, p.method)
-fprintf('PAT from the EEG: %.0f ms (ECG: 424 ms)\n', p.pat);
+assert(contains(p.method,'EEG') && abs(p.pat - 112) < 50, 'PAT from the EEG: %g ms (%s)', p.pat, p.method)
+fprintf('PAT from the EEG: %.0f ms (ECG: 112 ms)\n', p.pat);
 end
 
 function EEG = hep_ecgreg(L)

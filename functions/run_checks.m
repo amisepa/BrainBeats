@@ -112,8 +112,15 @@ if params.clean_eeg
         end
     end
     % GEDAI artifact removal (external plugin, noncommercial license)
+    % asks first in the MATLAB desktop (license); installs directly without
+    % one (e.g. -batch), where 'clean_method','gedai' is the request
     if isfield(params,'clean_method') && strcmpi(params.clean_method,'gedai') && ~exist('GEDAI','file')
-        fprintf('Installing the GEDAI plugin (EEGLAB extension manager)... \n')
+        msg = ['GEDAI is not installed. It is an EEGLAB plugin under the PolyForm Noncommercial ' ...
+            'license (no commercial use).'];
+        fprintf('%s Installing it from the EEGLAB extension manager... \n', msg)
+        if usejava('desktop') && ~strcmp(questdlg([msg ' Install it now?'], 'GEDAI', 'Install', 'Cancel', 'Install'), 'Install')
+            error("GEDAI not installed: use 'clean_method','asr_ica', or install GEDAI from EEGLAB (File > Manage extensions).")
+        end
         plugin_askinstall('GEDAI', 'GEDAI', 1);
         if ~exist('GEDAI','file')
             error("The GEDAI plugin could not be installed: install it from EEGLAB (File > Manage extensions), or use 'clean_method','asr_ica'.")

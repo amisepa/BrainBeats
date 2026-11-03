@@ -46,8 +46,10 @@
 %   10. With params.keep_heart, the heart channel(s) are added to the epochs
 %      (in their own units, after the EEG cleaning).
 %   11. Plot (params.vis_outputs: IBI distribution, HEP of all channels with
-%      scalp maps, ROI/IC single-trial image, ROI/IC HEP against the
-%      surrogates with HRSP and HRPC) and save (params.save, as
+%      scalp maps at 0 ms and at the largest ROI deflection at 150-350 ms and
+%      after 350 ms, ROI single-trial image, ROI HEP against the surrogates
+%      with HRSP and HRPC; on the ICs, the map and HEP against the
+%      surrogates of each IC, PLOT_HEP_ICS) and save (params.save, as
 %      <filename>_HEP.set).
 %
 % Usage:
@@ -437,7 +439,18 @@ if params.vis_outputs
         title(sprintf('Heartbeat-evoked potentials (HEP, 20%% trimmed mean) - all electrodes, and %s (black, scaled)', ...
             strjoin({HEP.chanlocs(nEEG+1:end).labels}, ', ')));
     else
-        pop_timtopo(EEGonly, [EEGonly.times(1) EEGonly.times(end)], [-25 0 250 350 450], ...
+        % Scalp maps at the R-peak (cardiac field artifact) and at the largest
+        % deflection of the ROI HEP in an early (150-350 ms) and a late (350 ms
+        % to the epoch end) window
+        roiHEP = trimmean(mean(EEGonly.data(roi,:,:),1),20,3);
+        mapTimes = 0;
+        for w = [150 350; 350 EEGonly.times(end)]'
+            iW = find(EEGonly.times >= w(1) & EEGonly.times <= w(2));
+            if isempty(iW), continue, end
+            [~, iMax] = max(abs(roiHEP(iW)));
+            mapTimes(end+1) = EEGonly.times(iW(iMax)); %#ok<AGROW>
+        end
+        pop_timtopo(EEGonly, [EEGonly.times(1) EEGonly.times(end)], mapTimes, ...
             'Heartbeat-evoked potentials (HEP) - all electrodes','verbose','off');
     end
     subplot(2,1,2)
@@ -456,6 +469,11 @@ if params.vis_outputs
     [~, loc] = ismember(hepBeats, allBeats);
     near = [min(ibis(loc(loc > 1) - 1)) min(ibis(loc(loc <= numel(ibis))))];
     plot_hep_tf(tfMain, surrMain, sigName, unit, near);
+
+    % ICs: map and HEP against the surrogates of each one
+    if doICs && isfield(HEP.brainbeats,'ics')
+        plot_hep_ics(HEP.brainbeats.ics);
+    end
 end
 
 % The output points to its own file, not to the input file

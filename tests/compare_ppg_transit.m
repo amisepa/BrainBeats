@@ -6,8 +6,9 @@ function T = compare_ppg_transit(files, outfile)
 % is computed from the ECG R-peaks (the reference), and from the PPG beats
 % shifted back by: nothing ('off'), the PAT estimated from the ECG ('auto'
 % with the ECG in the file), the PAT estimated from the EEG cardiac field
-% artifact ('eeg', ECG removed), the literature default (250 ms to the
-% pulse onset), and, with 'ppg_detect_mode','peaks', the PAT from the ECG.
+% artifact ('eeg', ECG removed), a fixed 250 ms (a common literature value
+% for the pulse onset at the finger), and, with 'ppg_detect_mode','peaks'
+% (systolic peaks), the PAT from the ECG. A run that errors gets NaN.
 % Each PPG-locked HEP is compared with the ECG-locked one.
 %
 % Usage:
@@ -48,7 +49,13 @@ for k = 1:numel(files)
              'literature 250 ms', pop_select(EEG,'nochannel',{'ECG'}), {'ppg_transit',250}
              'ECG, PPG peaks',   EEG,                                  {'ppg_detect_mode','peaks'} };
     for r = 1:size(runs,1)
-        P = brainbeats_process(runs{r,2}, common{:}, ppg{:}, runs{r,3}{:});
+        try
+            P = brainbeats_process(runs{r,2}, common{:}, ppg{:}, runs{r,3}{:});
+        catch ME   % e.g. no clear cardiac field for the EEG estimate
+            fprintf('%s %-20s failed: %s\n', fn, runs{r,1}, ME.message);
+            rows(end+1,:) = {[fn ext], runs{r,1}, NaN, NaN, NaN, NaN, NaN, NaN, 0}; %#ok<AGROW>
+            continue
+        end
         pat = NaN; iqrP = NaN; ratio = NaN;
         if isfield(P.brainbeats.preprocessings,'ppg_transit')
             pt = P.brainbeats.preprocessings.ppg_transit;

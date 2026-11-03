@@ -18,6 +18,9 @@ function [nn_intervals, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(rr_t, rr_i
 %                           Inf disables)
 %   'win_size'            - local-median window (s, default 15)
 %   'gap_ratio'           - gap if interval > gap_ratio x local median (default 1.5)
+%   'ectopic_ratio'       - ectopic beat if its interval is shorter than
+%                           (1 - ratio) x the local median and the next one
+%                           longer than (1 + ratio) x (default 0.2; Inf disables)
 %   'ecg_signal'          - ECG/PPG signal, to place synthetic beats on samples
 %   'fs'                  - its sampling rate (Hz)
 %   'sig_t'               - its time axis in s (default (0:N-1)/fs)
@@ -36,6 +39,10 @@ function [nn_intervals, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(rr_t, rr_i
 %   2. Beats with outlying amplitude are removed.
 %   3. Intervals shorter than min RR are removed; a removed interval is
 %      added to the next kept one so NN still spans two kept beats.
+%   3b. Ectopic beats (premature beat then compensatory pause: a short-long
+%      pair against the local median) are removed the same way; the merged
+%      interval (~2 beats) is then filled by step 5. Without this, a pair
+%      at 0.75/1.25 x passed steps 3-4.
 %   4. Gaps: intervals > gap_ratio x the median of neighbors within win_size.
 %   5. Each gap is split into equal intervals by inserting
 %      round(gap / local median) - 1 synthetic beats.
@@ -56,6 +63,7 @@ addParameter(p, 'mad_threshold',       10,     @isnumeric);
 addParameter(p, 'amp_mad_threshold',   15,    @isnumeric);
 addParameter(p, 'win_size',            15,    @isnumeric);
 addParameter(p, 'gap_ratio',           1.5,   @isnumeric);
+addParameter(p, 'ectopic_ratio',       0.2,   @isnumeric);
 addParameter(p, 'ecg_signal',          [],    @isnumeric);
 addParameter(p, 'fs',                  [],    @isnumeric);
 addParameter(p, 'sig_t',               [],    @isnumeric);
@@ -66,6 +74,7 @@ mad_threshold       = p.Results.mad_threshold;
 amp_mad_threshold   = p.Results.amp_mad_threshold;
 win_size            = p.Results.win_size;
 gap_ratio           = p.Results.gap_ratio;
+ectopic_ratio       = p.Results.ectopic_ratio;
 ecg_signal          = p.Results.ecg_signal(:);
 fs                  = p.Results.fs;
 sig_t               = p.Results.sig_t(:);
@@ -150,19 +159,28 @@ if isempty(nn_intervals)
     return;
 end
 
+% Step 3b: Ectopic beats: a premature beat (its interval shorter than
+% (1 - ectopic_ratio) x the local median) followed by a compensatory pause
+% (longer than (1 + ectopic_ratio) x). The premature beat is removed and its
+% interval merged with the pause, which Steps 4-5 then fill.
+local_med = local_median(nn_intervals, nn_t, win_size, med_rr);
+ect = find(nn_intervals(1:end-1) < (1-ectopic_ratio)*local_med(1:end-1) & ...
+    nn_intervals(2:end) > (1+ectopic_ratio)*local_med(1:end-1));
+if ~isempty(ect)
+    fprintf('  Removing %d ectopic beats (short-long pair, %.0f%% from the local median)\n', ...
+        numel(ect), 100*ectopic_ratio);
+    nn_intervals(ect+1) = nn_intervals(ect+1) + nn_intervals(ect);
+    nn_intervals(ect) = [];
+    nn_t(ect)         = [];
+    nPeaks(ect)       = [];
+    idx_bad(ect)      = [];
+    idx_interp(ect)   = [];
+    n_removed = n_removed + numel(ect);
+end
+
 % Step 4: Detect gaps against the local median of neighboring intervals
 % (+/- win_size/2 s, excluding the interval itself)
-n  = length(nn_intervals);
-local_med = zeros(n, 1);
-for i = 1:n
-    in_win     = abs(nn_t - nn_t(i)) <= win_size/2;
-    in_win(i)  = false;
-    if any(in_win)
-        local_med(i) = median(nn_intervals(in_win), 'omitnan');
-    else
-        local_med(i) = med_rr;
-    end
-end
+local_med = local_median(nn_intervals, nn_t, win_size, med_rr);
 
 idx_bad = nn_intervals > gap_ratio * local_med;
 
@@ -238,7 +256,23 @@ fprintf('----------------\n');
 
 end
 
-%% Helper
+%% Helpers
 function idx = find_nearest_sample(sig_t, t)
 [~, idx] = min(abs(sig_t - t));
+end
+
+function local_med = local_median(nn, nn_t, win_size, med_rr)
+% Median of the neighboring intervals within +/- win_size/2 s (excluding the
+% interval itself), or med_rr without neighbors
+n = length(nn);
+local_med = zeros(n, 1);
+for i = 1:n
+    in_win     = abs(nn_t - nn_t(i)) <= win_size/2;
+    in_win(i)  = false;
+    if any(in_win)
+        local_med(i) = median(nn(in_win), 'omitnan');
+    else
+        local_med(i) = med_rr;
+    end
+end
 end

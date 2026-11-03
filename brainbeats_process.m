@@ -29,13 +29,16 @@
 %                      features in a .mat file (default true)
 %
 % Heart options:
-%   'ppg_detect_mode' - 'valleys' (default, pulse-wave onsets) or 'peaks'. PPG
-%                      pulses are detected with a prominence relative to the
-%                      local pulse amplitude, and their quality is scored on the
-%                      filtered PPG (bad = beats of unacceptable quality, Li &
-%                      Clifford, 2012).
+%   'ppg_detect_mode' - 'valleys' (default, pulse-wave onsets) or 'peaks'
+%                      (systolic peaks). An inverted PPG (light intensity, as
+%                      most raw device outputs) is detected and flipped first
+%                      ('ppg_polarity' to force it). PPG pulses are detected
+%                      with a prominence relative to the local pulse amplitude,
+%                      and their quality is scored on the filtered PPG (bad =
+%                      beats of unacceptable quality, Li & Clifford, 2012).
 %   'ecg_peakthresh', 'ecg_refperiod', 'ecg_bandpass', 'ecg_polarity',
-%   'ecg_adaptive_pol', 'ppg_bandpass', 'ppg_height_method' - see GET_RR
+%   'ecg_adaptive_pol', 'ppg_bandpass', 'ppg_height_method', 'ppg_polarity'
+%                     - see GET_RR
 %   'keep_heart'     - keep the heart channel in the output (default false)
 %   RR artifacts are corrected by CLEAN_RR (implausible beats removed, missing
 %   beats inserted in gaps). For ECG, RPEAK_QA reports beats detected on the
@@ -53,8 +56,9 @@
 %                        ECG, an error asks for it: a delay in ms (e.g. measured
 %                        with an ECG on the same device and sensor site), 'eeg'
 %                        (estimated from the cardiac field artifact of the EEG,
-%                        ESTIMATE_PAT_EEG: check its figure, it was wrong on 2 of
-%                        6 test subjects), the label of an ECG channel, or 'off'.
+%                        ESTIMATE_PAT_EEG: check its figure; on 6 test subjects
+%                        it was right on 3, wrong on 1 and not clear enough on
+%                        2), the label of an ECG channel, or 'off'.
 %                        Or: the label of an ECG channel, 'eeg', a delay in ms,
 %                        or 'off'.
 %   'hep_baseline'     - 'none' (default; recommended by Steinfath et al., 2026:
@@ -106,8 +110,8 @@
 %
 % Features options ('features'):
 %   'hrv_features'   - any of {'time' 'frequency' 'nonlinear'} (default all), or 'off'
-%   'hrv_spec'       - 'LombScargle_norm' (default), 'LombScargle', 'welch', 'fft'
-%   'hrv_norm', 'hrv_overlap' - see GET_HRV_FEATURES
+%   'hrv_spec'       - 'LombScargle' (default, ms^2), 'LombScargle_norm', 'welch', 'fft'
+%   'hrv_norm', 'hrv_overlap', 'prsa_thresh' - see GET_HRV_FEATURES
 %   'eeg'            - 'off' to turn off all EEG operations
 %   'eeg_features'   - any of {'time' 'frequency' 'nonlinear'} (default all), or 'off'
 %   'eeg_frange', 'eeg_wintype', 'eeg_winlen', 'eeg_winoverlap', 'eeg_norm',
@@ -465,9 +469,10 @@ if ~strcmpi(params.heart_signal,'off')
         % PPG: shift the pulse beats back to the heartbeats by the pulse
         % arrival time (PAT): from an ECG channel, a delay given by the user,
         % or, if asked ('eeg'), the cardiac field artifact of the EEG. No
-        % silent estimate without an ECG: on 6 subjects of ds003838, the EEG
-        % estimate was wrong on 2 (with the same peak/median GFP as a right
-        % one) and the literature value (250 ms) on all 6.
+        % silent estimate without an ECG: on 6 subjects of ds003838 (pulse
+        % onsets, PAT 92-112 ms from the ECG), the EEG estimate was right on 3,
+        % wrong on 1 (404 ms, peak/median GFP 2.05, just above the 2 needed)
+        % and not clear enough on 2, and a fixed 250 ms was wrong on all 6.
         if strcmpi(params.heart_signal,'ppg') && strcmp(params.analysis,'hep')
             if ~isfield(params,'ppg_transit') || isempty(params.ppg_transit)
                 params.ppg_transit = 'auto';
@@ -477,7 +482,7 @@ if ~strcmpi(params.heart_signal,'off')
                 pat = params.ppg_transit;
                 patInfo = struct('median',pat,'method','user');
             elseif strcmpi(params.ppg_transit,'off')
-                warning(['HEP time-locked to the PPG pulses, which follow the heartbeats by ~200-450 ms ' ...
+                warning(['HEP time-locked to the PPG pulses, which follow the heartbeats by ~100 ms (onsets) to ~400 ms (systolic peaks) ' ...
                     '(pulse arrival time): ''ppg_transit'' is off.'])
             elseif ~isempty(ECGREF)
                 if ECGREF.srate ~= EEG.srate
@@ -510,7 +515,7 @@ if ~strcmpi(params.heart_signal,'off')
                     bb_fail(isCmd, sprintf(['No ECG channel to measure the PPG pulse arrival time, which is needed to ' ...
                         'time-lock the HEP to the heartbeats. Set ''ppg_transit'' to the delay in ms (e.g. measured with ' ...
                         'an ECG on the same device and sensor site), to ''eeg'' to use the estimate from the cardiac field ' ...
-                        'artifact of the EEG (here: %s; check its figure: it was wrong on 2 of 6 test subjects), or to ''off''.'], sugg));
+                        'artifact of the EEG (here: %s; check its figure: it was wrong on 1 of 6 test subjects), or to ''off''.'], sugg));
                     return
                 end
                 if isnan(patEEG)
@@ -520,7 +525,7 @@ if ~strcmpi(params.heart_signal,'off')
                 end
                 pat = patEEG;
                 warning(['Pulse arrival time from the EEG cardiac field artifact: %.0f ms (peak/median GFP %.1f, %g beats). ' ...
-                    'Check the figure: this estimate was wrong on 2 of 6 test subjects.'], pat, patInfo.ratio, patInfo.nBeats)
+                    'Check the figure: this estimate was wrong on 1 of 6 test subjects.'], pat, patInfo.ratio, patInfo.nBeats)
             end
             if ~isnan(pat)
                 Rpeaks = Rpeaks - round(pat/1000*EEG.srate);

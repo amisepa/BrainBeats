@@ -4,3 +4,4 @@
 *.fig
 *.DS_Store
 *.set
+!sample_data/*.set

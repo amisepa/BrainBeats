@@ -2,13 +2,13 @@
 % cardiac field artifact (CFA) of the EEG, when no ECG was recorded.
 %
 % The QRS complex of each heartbeat reaches the scalp electrodes with no
-% delay (cardiac field artifact), while the PPG pulse arrives ~200-450 ms
-% later. Averaging the EEG around the PPG beats (median across beats, average
-% reference, 5-30 Hz) therefore shows the QRS field before the pulse: the
-% latency of the global field power (GFP) peak between -650 and -100 ms gives
-% the PAT. On the sample dataset: 420 ms (all 291 beats) and 432 ms (first 60
-% beats), for 424 ms measured with the ECG (the QRS field peaks 4 ms after the
-% R-peak).
+% delay (cardiac field artifact), while the PPG pulse arrives later (onset
+% ~100-130 ms, systolic peak ~380-430 ms after the R-peak at the finger on
+% the test data). Averaging the EEG around the PPG beats (median across
+% beats, average reference, 5-30 Hz) therefore shows the QRS field before
+% the pulse: the latency of the global field power (GFP) peak between -650
+% and -50 ms gives the PAT. Checked on 6 ds003838 recordings with
+% tests/compare_ppg_transit.m (see the README).
 %
 % Usage:
 %   [pat, info] = estimate_pat_eeg(X, fs, ppgbeats)
@@ -28,7 +28,7 @@
 function [pat, info] = estimate_pat_eeg(X, fs, ppgbeats)
 
 minRatio = 2;          % GFP peak / median GFP needed to trust the peak
-searchWin = [-650 -100];
+searchWin = [-650 -50];   % pulse onsets: R + ~100-130 ms on the test data
 
 X = double(X);
 X = X - mean(X, 1);                                 % average reference

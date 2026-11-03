@@ -2,7 +2,11 @@ function files = prep_ds003838(datapath, subjects, outpath)
 % PREP_DS003838 - Resting-state EEG + ECG datasets from OpenNeuro ds003838,
 % made like the sample dataset (see PREP_SAMPLEDATA) but without the
 % injected artifacts: EEG and heart channels merged, 10-20 channel
-% locations, downsampled to 250 Hz.
+% locations, downsampled to 250 Hz, single precision.
+%
+% sample_data/sub-047_rest.set (the dataset of the README HEP figures) was
+% made with prep_ds003838(datapath, {'sub-047'}, 'sample_data'). Files from
+% https://s3.amazonaws.com/openneuro.org/ds003838/sub-XXX/{eeg,ecg}/sub-XXX_task-rest_{eeg,ecg}.set
 %
 % Usage:
 %   files = prep_ds003838(datapath, {'sub-033' 'sub-034'}, outpath)
@@ -42,6 +46,7 @@ for k = 1:numel(subjects)
     end
     EEG = eeg_checkset(EEG);
     EEG = pop_resample(EEG, 250);
+    EEG.data = single(EEG.data);   % half the file size; EEGLAB computes in single by default
     EEG.setname = sprintf('%s rest', s);
     files{k} = fullfile(outpath, sprintf('%s_rest.set', s));
     pop_saveset(EEG,'filename',sprintf('%s_rest.set', s),'filepath',outpath);

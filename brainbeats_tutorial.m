@@ -58,6 +58,10 @@ cd(main_path)
 
 % Load the sample dataset into EEGLAB
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
+% Its HEP shows the cardiac field artifact but little after it. For a
+% clearer heartbeat-evoked response (the HEP figures of the README), load
+% sample_data/sub-047_rest.set instead (another participant of the same
+% study, 5.3 min).
 
 % Process file for HEP analysis using default parameters except for:
 %   - 'analysis' set to 'hep' (type of analysis)
@@ -128,12 +132,13 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'save' set to false to not save the final 'filename_HEP.set' file
 %   - 'vis_cleaning' set to true to visualize preprocessing plots
 %   - 'vis_outputs' set to true to visualize the final outputs
-% PPG pulses reach the sensor ~200-450 ms after the heartbeat (pulse
-% arrival time, PAT), so the PPG beats are shifted back by the PAT
-% ('ppg_transit','auto', default): measured here from the ECG channel of the
-% file. Without an ECG, give the delay in ms, or 'eeg' to estimate it from the
-% cardiac field artifact of the EEG (420 ms on these data, vs 424 ms with the
-% ECG; check its figure: it was wrong on 2 of 6 test subjects).
+% PPG pulses reach the sensor after the heartbeat (pulse arrival time, PAT:
+% 92-112 ms to the pulse onsets on our test data), so the PPG beats are
+% shifted back by the PAT ('ppg_transit','auto', default): measured here from
+% the ECG channel of the file. Without an ECG, give the delay in ms, or 'eeg'
+% to estimate it from the cardiac field artifact of the EEG (104 ms on these
+% data, vs 112 ms with the ECG; check its figure: on 6 test subjects it was
+% right on 3, wrong on 1, and not clear enough on 2).
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
     'ref','infinity','highpass',1,'lowpass',20,'filttype','causal', ...
@@ -167,8 +172,8 @@ EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
 %   - 'hrv_features' set to {'time' 'frequency' 'nonlinear'}
 %   - 'eeg_features' set to {'time' 'frequency'} to skip the (slow)
 %       nonlinear features
-%   - 'hrv_spec' set to 'LombScargle' to use the standard (not normalized)
-%       Lomb-Scargle periodogram instead of the default 'LombScargle_norm'
+%   - 'hrv_spec' set to 'welch' to use Welch's method on the NN series
+%       resampled at 7 Hz instead of the default Lomb-Scargle periodogram
 %   - 'eeg_norm' set to 0 to NOT convert PSD to decibels (dB; default = 1)
 %   - 'parpool' set to 'on' to use parallel computing
 %   - 'save' set to false to not save outputs
@@ -178,7 +183,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',false, ...
-    'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','LombScargle', ...
+    'hrv_features', {'time' 'frequency' 'nonlinear'},'hrv_spec','welch', ...
     'eeg_features', {'time' 'frequency'},'eeg_norm',0,...
     'parpool','on','save',false,'vis_cleaning',false,'vis_outputs',true);
 

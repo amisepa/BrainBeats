@@ -566,7 +566,7 @@ else
         pos = get(cb,'position');  
         set(cb,'position',[pos(1)-.06 pos(2) pos(3)*.9 pos(4)]); % slightly move left
         % set(cb,'fontSize',12,'fontweight','bold')
-        ylabel(cb,'Asymmetry score (log(uV^2/Hz))','Rotation',270,'fontSize',12,'fontweight','bold')
+        ylabel(cb,'Alpha asymmetry, ln(right) - ln(left)','Rotation',270,'fontSize',12,'fontweight','bold')
     end
 
     axes(HeadAxes);

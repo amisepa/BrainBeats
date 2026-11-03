@@ -10,8 +10,8 @@ function plot_features(Features,params)
 %   params   - (optional) BrainBeats parameters. Missing hrv_*/eeg_* flags are
 %              inferred from the fields present in Features. Fields read:
 %              hrv_features, hrv_frequency, hrv_spec (HRV PSD method, for
-%              the ylabel: 'LombScargle_norm' (default) = normalized,
-%              otherwise s^2/Hz), eeg_features, eeg_frequency,
+%              the ylabel: 'LombScargle_norm' = normalized, otherwise
+%              ms^2/Hz), eeg_features, eeg_frequency,
 %              eeg_nonlinear, eeg_norm (0 = uV^2/Hz, 1 = dB (default),
 %              2 = normalized; ylabel only), and chanlocs (EEG channel
 %              locations, required for EEG features)
@@ -20,7 +20,7 @@ function plot_features(Features,params)
 %   - PSD of HRV (areas of the ULF/VLF/LF/HF bands estimated; skipped with a
 %     warning if the recording was too short for any) and of EEG (20% trimmed mean across
 %     channels; delta, theta, alpha, beta, gamma areas, with the band limits
-%     used for the features), side by side if both.
+%     used for the features, and the IAF), side by side if both.
 %   - EEG scalp topographies: mean delta/theta/alpha/beta/gamma power, IAF,
 %     fuzzy entropy and fractal dimension, and a 3D headplot of alpha asymmetry.
 %
@@ -111,11 +111,11 @@ if plotHRVpsd
     axis tight; box on
     xlabel('Frequency (Hz)');
 
-    % Units depend on the PSD method (params.hrv_spec, default 'LombScargle_norm')
-    if isfield(params,'hrv_spec') && ~strcmp(params.hrv_spec,'LombScargle_norm')
-        ylabel('Power (s^2/Hz)');
-    else
+    % Units depend on the PSD method (params.hrv_spec, default 'LombScargle')
+    if isfield(params,'hrv_spec') && strcmp(params.hrv_spec,'LombScargle_norm')
         ylabel('Power (normalized)');
+    else
+        ylabel('Power (ms^2/Hz)');
     end
     title(sprintf('Power spectral density - HRV'))
     set(gcf,'Toolbar','none','Menu','none');  % remove toolbar and menu
@@ -139,12 +139,12 @@ if params.eeg_features && params.eeg_frequency
         if params.eeg_norm == 0
             units = 'Power (uV^2/Hz)';
         elseif params.eeg_norm == 1
-            units = 'Power (db)';
+            units = 'Power (dB)';
         elseif params.eeg_norm == 2
             units = 'Power (normalized)';
         end
     else
-        units = 'Power (db)';  % assume default
+        units = 'Power (dB)';  % assume default
     end        
 
     hold on
@@ -153,38 +153,34 @@ if params.eeg_features && params.eeg_frequency
     if isfield(EEG.frequency,'bands')
         bands = EEG.frequency.bands;    % band limits used by get_eeg_features
     else
-        bands = [0 3; 3 7; 7 13; 13 30; 30 max(freqs)];
+        bands = [freqs(1) 4; 4 8; 8 13; 13 30; 30 max(freqs)];
     end
     baseval = min(pwr);
 
-    % delta
-    x = freqs >= bands(1,1) & freqs <= bands(1,2);
-    y = pwr(x);
-    area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#A2142F",'FaceAlpha',.7)
+    % One area per band ([lower upper), as in get_eeg_features), each drawn up
+    % to the first bin of the next band so that the areas join without gaps
+    colors = {"#A2142F" "#D95319" "#EDB120" "#0072BD" "#4DBEEE"};
+    for iBand = 1:size(bands,1)
+        x = find(freqs >= bands(iBand,1) & freqs < bands(iBand,2));
+        if iBand == size(bands,1)
+            x = find(freqs >= bands(iBand,1) & freqs <= bands(iBand,2));
+        end
+        if isempty(x), continue; end
+        x = x(1):min(x(end)+1, numel(freqs));
+        area(freqs(x),pwr(x),'BaseValue',baseval,'FaceColor',colors{iBand},'FaceAlpha',.7)
+    end
+    labels = {'delta' 'theta' 'alpha' 'beta' 'gamma'};
 
-    % theta
-    x = freqs >= bands(2,1) & freqs <= bands(2,2);
-    y = pwr(x);
-    area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#D95319",'FaceAlpha',.7)
+    % Individual alpha frequency (mean alpha center of gravity across channels)
+    if isfield(EEG.frequency,'IAF_mean') && ~isnan(EEG.frequency.IAF_mean)
+        xline(EEG.frequency.IAF_mean, '--k', sprintf('IAF %.1f Hz', EEG.frequency.IAF_mean), ...
+            'LineWidth', 1.5, 'LabelOrientation', 'horizontal', 'LabelVerticalAlignment', 'top', 'FontWeight', 'bold');
+        labels{end+1} = 'IAF';
+    end
 
-    % alpha
-    x = freqs >= bands(3,1) & freqs <= bands(3,2);
-    y = pwr(x);
-    area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#EDB120",'FaceAlpha',.7)
-
-    % beta
-    x = freqs >= bands(4,1) & freqs <= bands(4,2);
-    y = pwr(x);
-    area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#0072BD",'FaceAlpha',.7)
-
-    % gamma
-    x = freqs >= bands(5,1) & freqs <= bands(5,2);
-    y = pwr(x);
-    area(freqs(x),y,'BaseValue',baseval,'FaceColor',"#4DBEEE",'FaceAlpha',.7)
-
-    title('Power spectral density - EEG'); 
+    title('Power spectral density - EEG');
     warning off
-    legend({'delta' 'theta' 'alpha' 'beta' 'gamma'})
+    legend(labels)
     warning on
     xlabel('Frequency (Hz)');
     ylabel(units); 
