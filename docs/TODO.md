@@ -90,27 +90,16 @@ heart-component removal keeps the heart channel in the ICA (as 'rm_heart' did) o
 reuses the cleaning ICA (faster, one decomposition).
 
 ## Next (other)
-- Heart artifact removal on the sample data: ICA with the ECG channel (former 'rm_heart', threshold
-  .65) removes 47% of the heart-locked EEG amplitude and the ECG regression 72%, but the default
-  HEP cleaning (ICA without the ECG channel, threshold .75) only 2% (2.18 -> 2.14 uV; 21% at 200-500
-  ms). 6 ds003838 subjects (2026-11-02, tests/compare_heart_removal.m): 'ica' removed nothing on
-  any; regression 29% of the QRS amplitude on average (3-70%) and kept 80% (54-100%) of a
-  synthetic response; ICA with the ECG channel ('rm_heart', removed) took the response on 5/6.
-  Default: 'ica' (user, 2026-11-02). Candidates from the literature (2026-11-02), to test with
-  compare_heart_removal before adding any:
-  - Heart ICs by correlation of the IC time course with the ECG (SASICA, threshold .6): sensitivity
-    .975 vs .21 for ICLabel on 21,375 ICs (Champetier et al., CARACAS, bioRxiv 2025,
-    doi:10.1101/2025.09.02.673728); same idea as MNE ICA.find_bads_ecg ('correlation' or 'ctps').
-    Likely why ICLabel found no heart IC here. Risk: also removes heartbeat-locked brain activity.
-  - CARACAS (same paper): heart ICs without an ECG (R-wave detection on each IC), in SASICA.
-  - MNE compute_proj_ecg: SSP projectors from ECG-locked epochs (removes a fixed topography).
-  - Controls rather than perfect removal: surrogate-heartbeat correction (Steinfath et al., 2026,
-    Psychophysiology, doi:10.1111/psyp.70297), pseudotrial correction for task data (Imaging
-    Neuroscience 2025, doi:10.1162/IMAG.a.30), surface Laplacian check, analysis windows after the
-    T wave. Isoelectric-patient study (Kandasamy et al., bioRxiv 2026): ICA weakened the HEP, and
-    the cardiac artefact topography is not predicted by the ECG.
-  Open: ICA with the ECG channel only for components not locked to the heartbeat? A realistic
-  synthetic HEP (variable amplitude and latency, cortical topography).
+- Heart artifact removal ('heart_removal'): default 'none' (user, 2026-11-02: "add all of them and
+  make it clear ... we actually recommend NOT to do them"); options 'ica', 'ica_caracas', 'ica_ecg',
+  'ecg_regression', 'ssp'. 6 ds003838 subjects (tests/compare_heart_removal.m, synthetic on): the
+  three IC-selection methods found no heart IC on any subject (ICLabel; CARACAS; |r| with the ECG
+  below .6, .55 on the sample); regression removed 29% (3-70) of the QRS amplitude and kept 80% of a
+  synthetic response; SSP 52% (27-73) and 57% (39-76). Open:
+  - CARACAS on the sample: the most ECG-like IC fails only skewness (0.90 vs 1). Longer or
+    higher-CFA recordings (e.g. more channels, supine) would test the IC methods better.
+  - A realistic synthetic HEP (variable amplitude and latency, cortical topography).
+  - Report the ECG's heartbeat-locked average per condition next to the HEP (README advises it).
 - Surrogates also for HEP contrasts between conditions (e.g. per-condition beat subsets).
 - 'individualized' EEG bands: only alpha is individualized (per-channel peaks are unreliable
   for the other bands).

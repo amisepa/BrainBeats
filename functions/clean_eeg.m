@@ -350,6 +350,9 @@ elseif params.clean_eeg_step == 1
         if isfield(params,'ica_source') && ~isempty(params.ica_source)
             params.ica_source = pop_interp(params.ica_source, params.orichanlocs, 'spherical');
         end
+        if isfield(params,'caracas_source') && ~isempty(params.caracas_source)
+            params.caracas_source = pop_interp(params.caracas_source, params.orichanlocs, 'spherical');
+        end
     else
         bb_warndlg('Cannot interpolate bad EEG channels reliably with less than 10 channels')
         warning('Cannot interpolate bad EEG channels reliably with less than 10 channels')
@@ -412,7 +415,7 @@ elseif params.clean_eeg_step == 1
     EEG = pop_iclabel(EEG,'default');
     if contains(params.analysis, 'hep')
         % HEP: heart (cardiac field artifact) components are removed too
-        % with params.heart_removal = 'ica' (default); params.conf_thresh:
+        % only with params.heart_removal = 'ica'; params.conf_thresh:
         % minimum ICLabel heart probability (default .75)
         conf_thresh = .75;
         if isfield(params,'conf_thresh') && ~isempty(params.conf_thresh), conf_thresh = params.conf_thresh; end
@@ -424,6 +427,78 @@ elseif params.clean_eeg_step == 1
     end
     badComp = find(EEG.reject.gcompreject);
     EEG = eeg_checkset(EEG);
+
+    % HEP, heart_removal 'ica_ecg': heart components are those whose time
+    % course correlates with the ECG (|r| >= params.ecg_corr, default .6 as in
+    % SASICA), whatever their ICLabel class; params.ecg_epochs from RUN_HEP
+    if contains(params.analysis,'hep') && isfield(params,'heart_removal') && strcmpi(params.heart_removal,'ica_ecg')
+        if ~isfield(params,'ecg_epochs') || isempty(params.ecg_epochs)
+            error('BrainBeats:input', "'heart_removal','ica_ecg' needs an ECG channel.")
+        end
+        thr = .6;
+        if isfield(params,'ecg_corr') && ~isempty(params.ecg_corr), thr = params.ecg_corr; end
+        ecg = params.ecg_epochs;
+        if isfield(params,'removed_eeg_trials') && ~isempty(params.removed_eeg_trials)
+            ecg(:,:,params.removed_eeg_trials) = [];
+        end
+        assert(size(ecg,3) == EEG.trials && size(ecg,2) == EEG.pnts, 'ECG epochs do not match the EEG epochs')
+        act = (EEG.icaweights*EEG.icasphere) * reshape(double(EEG.data(EEG.icachansind,:,:)), numel(EEG.icachansind), []);
+        r = max(abs(corr(act', reshape(double(ecg), size(ecg,1), [])')), [], 2);
+        heartComp = find(r >= thr);
+        fprintf('%g component(s) correlated with the ECG (|r| >= %.2f): %s. \n', numel(heartComp), thr, mat2str(heartComp(:)'))
+        badComp = union(badComp(:), heartComp(:))';
+        [rmax, imax] = max(r);
+        fprintf('Largest |r| with the ECG: %.2f (component %d). \n', rmax, imax)
+        EEG.brainbeats.preprocessings.heart_ics = struct('method','ica_ecg', ...
+            'components',heartComp(:)','ecg_corr',r(:)','threshold',thr);
+        params = rmfield(params, 'ecg_epochs');
+    end
+
+    % HEP, heart_removal 'ica_caracas': cardiac components found by CARACAS
+    % (Champetier et al., 2025; SASICA plugin): R waves detected in each
+    % component's time course, then 5 features (no ECG needed)
+    if contains(params.analysis,'hep') && isfield(params,'heart_removal') && strcmpi(params.heart_removal,'ica_caracas')
+        if ~exist('eeg_SASICA','file') || ~exist(fullfile(fileparts(which('eeg_SASICA')),'CARACAS','heart_functions','heart_peak_detect.m'),'file')
+            error('BrainBeats:input', ['''heart_removal'',''ica_caracas'' needs the SASICA plugin with CARACAS ' ...
+                '(git clone --recurse-submodules https://github.com/dnacombo/SASICA into eeglab/plugins).'])
+        end
+        cfgS = SASICA('getdefs');
+        for m = {'autocorr' 'focalcomp' 'trialfoc' 'SNR' 'resvar' 'EOGcorr' 'chancorr' 'FASTER' 'ADJUST'}
+            if isfield(cfgS, m{1}), cfgS.(m{1}).enable = false; end
+        end
+        cfgS.CARACAS.enable = true;
+        cfgS.opts.noplot = 1; cfgS.opts.noplotselectcomps = 1;
+        % On the continuous data (params.caracas_source, from RUN_HEP) with
+        % this ICA: on epochs, its R-wave detection found almost no beats
+        if ~isfield(params,'caracas_source') || isempty(params.caracas_source)
+            error('BrainBeats:input', "'heart_removal','ica_caracas' needs the continuous EEG (run through brainbeats_process).")
+        end
+        EEGs = params.caracas_source;
+        params = rmfield(params, 'caracas_source');
+        % Large artifacts removed first (GFP above median + 6 robust SD, +-0.5
+        % s): its peak detector otherwise locks onto them (its filter does not
+        % take NaN gaps)
+        g = std(double(EEGs.data) - mean(double(EEGs.data),1), 0, 1);
+        bad = conv(double(g > median(g) + 6*1.4826*mad(g,1)), ones(1,round(EEGs.srate)), 'same') > 0;
+        segs = reshape(find(diff([false bad false])), 2, [])';
+        if ~isempty(segs)
+            segs(:,2) = segs(:,2) - 1;
+            EEGs = pop_select(EEGs, 'nopoint', segs);
+            fprintf('CARACAS: %.1f s of large artifacts left out. \n', sum(bad)/EEGs.srate)
+        end
+        EEGs.icaweights = EEG.icaweights; EEGs.icasphere = EEG.icasphere;
+        EEGs.icawinv = EEG.icawinv; EEGs.icachansind = EEG.icachansind; EEGs.icaact = [];
+        EEGs = eeg_checkset(EEGs, 'ica');
+        EEGs = eeg_SASICA(EEGs, cfgS);
+        heartComp = find(EEGs.reject.SASICA.icarejCARACAS);
+        fprintf('%g cardiac component(s) found by CARACAS: %s. \n', numel(heartComp), mat2str(heartComp(:)'))
+        badComp = union(badComp(:), heartComp(:))';
+        % CARACAS measures of each component (NotCardiac: the criteria it fails:
+        % skewness, kurtosis, RR variability, R amplitude variability, bpm)
+        EEG.brainbeats.preprocessings.heart_ics = struct('method','ica_caracas', ...
+            'components',heartComp(:)','caracas',EEGs.reject.SASICA.icaCARACAS);
+        clear EEGs
+    end
 
     % Store in params if users want that information
     params.removed_eeg_components = badComp;

@@ -57,10 +57,13 @@ winlen = '2';
 eegnorm = {'None (uV^2/Hz)' 'Decibels (default)' 'Relative power (share of the total power)'};
 asynorm = {'None' 'Divided by total power'};
 roiDefault = 'F1 F2 F3 F4 Fz FC1 FC2 FC3 FC4 FCz C1 C2 C3 C4 Cz';
-heartRemovals = {'ICA (ICLabel heart components)' 'ECG regression (lags -20 to 20 ms)' 'None'};
-heartRemovalKeys = {'ica' 'ecg_regression' 'none'};
-if ~isECG   % the regression needs the ECG
-    heartRemovals(2) = []; heartRemovalKeys(2) = [];
+% None first (default and recommended, see the README); the last three need the ECG
+heartRemovals = {'None (recommended, see the README)' 'ICA: ICLabel heart components' ...
+    'ICA: cardiac components found by CARACAS (SASICA)' 'ICA: components correlated with the ECG' ...
+    'ECG regression (lags -20 to 20 ms)' 'SSP of the heartbeat-locked topographies'};
+heartRemovalKeys = {'none' 'ica' 'ica_caracas' 'ica_ecg' 'ecg_regression' 'ssp'};
+if ~isECG
+    heartRemovals(4:6) = []; heartRemovalKeys(4:6) = [];
 end
 
 % Callbacks: enable the options of a checked box (userdata = its tag)

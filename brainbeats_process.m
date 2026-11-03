@@ -116,11 +116,18 @@
 %   'gpu'            - use GPU computing (default false)
 %
 % Heart components:
-%   'heart_removal'  - ('hep' with 'clean_eeg') 'ica' (default): the heart
-%                      components found by ICLabel are removed with the other
-%                      artifact components; 'ecg_regression': the ECG, shifted
-%                      by -20 to +20 ms, is regressed out of each EEG channel
-%                      (ECG only; see REMOVE_HEART_REGRESSION); or 'none'
+%   'heart_removal'  - ('hep' with 'clean_eeg') 'none' (default and
+%                      recommended: see the README), 'ica' (heart components
+%                      found by ICLabel, 'conf_thresh'), 'ica_ecg' (components
+%                      whose time course correlates with the ECG, |r| >=
+%                      'ecg_corr', default .6), 'ica_caracas' (cardiac
+%                      components found by CARACAS, Champetier et al., in the
+%                      SASICA plugin; no ECG needed), 'ecg_regression' (ECG shifted
+%                      by -20 to +20 ms regressed out of each channel, see
+%                      REMOVE_HEART_REGRESSION) or 'ssp' (signal-space
+%                      projection of the 'ssp_n' first topographies of the
+%                      heartbeat-locked average, default 2, see
+%                      REMOVE_HEART_SSP). The last three need an ECG.
 %   'conf_thresh'    - minimum ICLabel heart probability to remove a component
 %                      (default 0.75)
 %
@@ -574,6 +581,10 @@ if params.clean_eeg
         else
             warning('ECG regression needs an ECG channel: the heart artifact is not removed.')
         end
+    end
+    % HEP: cardiac field artifact projected out (SSP of the heartbeat-locked average)
+    if strcmp(params.analysis,'hep') && isfield(params,'heart_removal') && strcmp(params.heart_removal,'ssp')
+        [EEG, EEG.brainbeats.preprocessings.heart_ssp] = remove_heart_ssp(EEG, Rpeaks, params);
     end
 end
 

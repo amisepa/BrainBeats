@@ -152,6 +152,9 @@ T(end+1) = struct('name','hep_gedai','fn', @() hep_gedai(L));
 T(end+1) = struct('name','hep_ecg_regression','fn', @() hep_ecgreg(L));
 T(end+1) = struct('name','input_errors','fn', @() input_errors(L));
 T(end+1) = struct('name','feat_relative_power','fn', @() feat_relative(L));
+T(end+1) = struct('name','hep_ica_ecg','fn', @() hep_removal(L, 'ica_ecg'));
+T(end+1) = struct('name','hep_ssp','fn', @() hep_removal(L, 'ssp'));
+T(end+1) = struct('name','hep_ica_caracas','fn', @() hep_removal(L, 'ica_caracas'));
 end
 
 function EEG = bbp(EEG, varargin)
@@ -291,6 +294,17 @@ assert(r.cfa_after < 0.5*r.cfa_before && r.variance_removed < 5, ...
     'ECG regression: %.2f -> %.2f uV, %.1f%% of the variance removed', r.cfa_before, r.cfa_after, r.variance_removed)
 fprintf('ECG regression: %.2f -> %.2f uV (%.0f%% reduction), %.1f%% of the variance removed\n', ...
     r.cfa_before, r.cfa_after, 100*(1 - r.cfa_after/r.cfa_before), r.variance_removed);
+end
+
+function EEG = hep_removal(L, method)
+% Heart artifact removal options: they run and report the heart-locked
+% amplitude before and after
+EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1,'heart_removal',method,'save',0);
+pre = EEG.brainbeats.preprocessings;
+if strcmp(method,'ssp'), r = pre.heart_ssp; else, r = pre; end
+assert(isfinite(r.cfa_before) && isfinite(r.cfa_after) && isfinite(r.cfa_late_after), 'Heart-locked amplitude missing')
+fprintf('%s: %.2f -> %.2f uV (-50 to 100 ms)\n', method, r.cfa_before, r.cfa_after);
 end
 
 function EEG = hep_gedai(L)

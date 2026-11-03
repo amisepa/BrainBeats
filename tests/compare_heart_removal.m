@@ -1,11 +1,12 @@
-function T = compare_heart_removal(files, outfile, synthetic)
+function T = compare_heart_removal(files, outfile, synthetic, methods)
 % COMPARE_HEART_REMOVAL - Heart artifact left in the HEP after each removal
 % method, and how much of a heartbeat-locked brain response each keeps, for
 % several datasets.
 %
 % For each dataset (EEG + an 'ECG' channel, continuous), runs the HEP
-% analysis with the EEG cleaning (Picard ICA) and 'heart_removal' = 'none',
-% 'ica' and 'ecg_regression'. Reports the heart-locked EEG
+% analysis with the EEG cleaning (Picard ICA) and each 'heart_removal' option
+% (methods, default all: 'none' 'ica' 'ica_caracas' 'ica_ecg' 'ecg_regression'
+% 'ssp'). Reports the heart-locked EEG
 % amplitude (CFA_AMPLITUDE: RMS over channels of the heartbeat-locked
 % average, -50 to 100 ms and 200 to 500 ms) before any removal and left
 % after each method, and the number of HEP epochs. With synthetic = true,
@@ -24,6 +25,8 @@ function T = compare_heart_removal(files, outfile, synthetic)
 %   outfile   - optional .csv file for the table ('' for none)
 %   synthetic - also measure the synthetic response kept (default false;
 %               doubles the run time)
+%   methods   - cell array of 'heart_removal' options (default all; 'none'
+%               is always run first, for kept_vs_none)
 %
 % Output:
 %   T - table, one row per dataset and method: file, method, qrs_before,
@@ -54,7 +57,8 @@ files = cellstr(files);
 common = {'heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1, ...
     'vis_cleaning',false,'vis_outputs',false,'save',false,'gong',false};
 roiLabels = {'F1' 'F2' 'F3' 'F4' 'Fz' 'FC1' 'FC2' 'FC3' 'FC4' 'FCz' 'C1' 'C2' 'C3' 'C4' 'Cz'};
-methods = {'none' 'ica' 'ecg_regression'};
+if nargin < 4 || isempty(methods), methods = {'none' 'ica' 'ica_caracas' 'ica_ecg' 'ecg_regression' 'ssp'}; end
+methods = [{'none'} setdiff(methods, {'none'}, 'stable')];
 rows = {};
 for k = 1:numel(files)
     [fp, fn, ext] = fileparts(files{k});
@@ -87,6 +91,8 @@ for k = 1:numel(files)
         pre = R.brainbeats.preprocessings;
         if strcmp(m{1},'ecg_regression')   % amplitudes before the regression
             qb = pre.heart_regression.cfa_before; lb = pre.heart_regression.cfa_late_before;
+        elseif strcmp(m{1},'ssp')          % before the projection
+            qb = pre.heart_ssp.cfa_before; lb = pre.heart_ssp.cfa_late_before;
         else
             qb = pre.cfa_before; lb = pre.cfa_late_before;
         end

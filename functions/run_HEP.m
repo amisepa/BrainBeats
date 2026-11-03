@@ -200,6 +200,12 @@ end
 
 % Remove bad epochs, run ICA, and remove bad components
 rawWide = HEPwide;   % to apply the same cleaning to the continuous data below
+if params.clean_eeg && isfield(params,'heart_removal') && strcmpi(params.heart_removal,'ica_ecg')
+    params.ecg_epochs = heart_epochs(CARDIO, HEPwide, Rpeaks, params);
+end
+if params.clean_eeg && isfield(params,'heart_removal') && strcmpi(params.heart_removal,'ica_caracas')
+    params.caracas_source = EEG;   % CARACAS detects R waves on continuous IC time courses
+end
 if params.clean_eeg
     [HEPwide, params] = clean_eeg(HEPwide,params);
     HEPwide.brainbeats.preprocessings.removed_eeg_trials = params.removed_eeg_trials;
@@ -217,7 +223,9 @@ elseif doICs && ~hasICA
     clear src
 end
 if ~isfield(params,'removed_eeg_trials'), params.removed_eeg_trials = []; end
-if isfield(params,'ica_source'), params = rmfield(params,'ica_source'); end
+for f = {'ica_source' 'ecg_epochs' 'caracas_source'}
+    if isfield(params,f{1}), params = rmfield(params,f{1}); end
+end
 
 % HEP epochs: the padded epochs cropped to the analysis window
 iWin = find(HEPwide.times >= epochWin(1) & HEPwide.times < epochWin(2));
@@ -457,6 +465,25 @@ end
 
 
 %% Subfunctions
+
+function H = heart_epochs(CARDIO, HEPwide, Rpeaks, params)
+% Heart channel(s) filtered like the EEG and epoched like HEPwide (same
+% heartbeats and latencies), for the ICs correlated with the ECG
+if isempty(CARDIO)
+    error('BrainBeats:input', "'heart_removal','ica_ecg' needs an ECG channel.")
+end
+causal = isfield(params,'filttype') && strcmpi(params.filttype,'causal');
+C = pop_eegfiltnew(CARDIO,'locutoff',params.highpass,'hicutoff',params.lowpass,'minphase',causal);
+lags = round(HEPwide.times/1000*HEPwide.srate);
+H = zeros(C.nbchan, HEPwide.pnts, HEPwide.trials);
+for e = 1:HEPwide.trials
+    ev = HEPwide.epoch(e).event; lat = HEPwide.epoch(e).eventlatency; ty = HEPwide.epoch(e).eventtype;
+    if ~iscell(lat), lat = {lat}; ty = {ty}; end
+    isR = strcmp(ty, 'R-peak'); lat = cell2mat(lat);
+    lat(~isR) = Inf; [~, i0] = min(abs(lat));
+    H(:,:,e) = C.data(:, Rpeaks(HEPwide.event(ev(i0)).beat) + lags);
+end
+
 
 function out = hep_all_ics(HEPwide, Xc, hepBeats, epochWin, fs, opts, removed)
 % HEP, HRSP, HRPC and surrogate control of the ICs left after the cleaning,

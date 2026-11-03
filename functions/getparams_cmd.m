@@ -126,23 +126,28 @@ if params.heart
     if ~isempty(idx)
         params.conf_thresh = varargin{idx+1};
     end
-    % Heart artifact removal in the HEP cleaning: 'ica' (default),
-    % 'ecg_regression' (ECG only) or 'none'
+    % Heart artifact removal in the HEP cleaning: 'none' (default),
+    % 'ica' (ICLabel heart components), 'ica_ecg' (components correlated
+    % with the ECG), 'ica_caracas' (CARACAS, SASICA plugin), 'ecg_regression'
+    % or 'ssp' (ECG only). Not recommended:
+    % each removed little of the artifact or part of a synthetic
+    % heartbeat-locked response on 6 ds003838 subjects (see the README)
     idx = find(strcmpi(keys,'heart_removal'));
     if ~isempty(idx)
         params.heart_removal = lower(varargin{idx+1});
-        if ~any(strcmp(params.heart_removal, {'ica','ecg_regression','none'}))
-            error("'heart_removal' must be 'ica', 'ecg_regression' or 'none'.")
+        if ~any(strcmp(params.heart_removal, {'none','ica','ica_ecg','ica_caracas','ecg_regression','ssp'}))
+            error("'heart_removal' must be 'none', 'ica', 'ica_ecg', 'ica_caracas', 'ecg_regression' or 'ssp'.")
         end
-        if strcmp(params.heart_removal,'ecg_regression') && ~strcmpi(params.heart_signal,'ecg')
-            error("'heart_removal','ecg_regression' needs an ECG ('heart_signal','ecg').")
+        if any(strcmp(params.heart_removal, {'ica_ecg','ecg_regression','ssp'})) && ~strcmpi(params.heart_signal,'ecg')
+            error("'heart_removal','%s' needs an ECG ('heart_signal','ecg').", params.heart_removal)
         end
     else
-        % Default: ICA. The ECG regression removed 29% of the heart-locked
-        % EEG amplitude on 6 ds003838 subjects (3-70%), but also 20% of a
-        % synthetic heartbeat-locked response (0-46%)
-        params.heart_removal = 'ica';
+        params.heart_removal = 'none';
     end
+    idx = find(strcmpi(keys,'ecg_corr'));
+    if ~isempty(idx), params.ecg_corr = varargin{idx+1}; end
+    idx = find(strcmpi(keys,'ssp_n'));
+    if ~isempty(idx), params.ssp_n = varargin{idx+1}; end
     % PPG fiducial: detect pulse-wave valleys (default) or peaks (get_RR.m)
     idx = find(strcmpi(keys,'ppg_detect_mode'));
     if ~isempty(idx)
@@ -386,7 +391,7 @@ if params.eeg
     % Cleaning options have no effect without 'clean_eeg'
     if ~params.clean_eeg
         ignored = {'lowpass' 'flatline' 'corrThresh' 'maxBad' 'asr_cutoff' 'asr_mem' ...
-            'ref' 'clean_method' 'linenoise' 'detectMethod' 'heart_removal'};
+            'ref' 'clean_method' 'linenoise' 'detectMethod' 'heart_removal' 'ecg_corr' 'ssp_n'};
         if ~isfield(params,'hep_level') || strcmp(params.hep_level,'channels')
             ignored = [ignored {'highpass' 'filttype'}];    % else used by the ICA of the IC measures
         end
@@ -562,7 +567,7 @@ function k = known_keys()
 k = {'heart_signal' 'heart_channels' 'beat_latencies' 'analysis' 'keep_heart' ...
     'ecg_searchback' 'ecg_bandpass' 'ecg_peakthresh' 'ecg_refperiod' 'ecg_polarity' ...
     'ecg_adaptive_pol' 'ppg_bandpass' 'ppg_height_method' 'ppg_detect_mode' 'ppg_transit' ...
-    'conf_thresh' 'heart_removal' 'hep_baseline' 'hep_baseline_win' 'hep_window' ...
+    'conf_thresh' 'heart_removal' 'ecg_corr' 'ssp_n' 'hep_baseline' 'hep_baseline_win' 'hep_window' ...
     'hep_tf_freqs' 'hep_surrogates' 'hep_surrogate_mode' 'hep_level' 'hep_roi' ...
     'hrv_features' 'hrv_norm' 'hrv_spec' 'hrv_overlap' 'eeg' 'clean_eeg' 'highpass' 'lowpass' ...
     'flatline' 'corrThresh' 'maxBad' 'asr_cutoff' 'asr_mem' 'ref' 'clean_method' 'linenoise' ...

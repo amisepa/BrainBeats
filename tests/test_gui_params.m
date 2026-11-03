@@ -44,7 +44,7 @@ for c = 1:numel(cases)
     assert(strcmp(P.ref,'average') && strcmp(P.clean_method,'asr_ica') && P.linenoise == 50 && strcmp(P.filttype,'noncausal'))
     if strcmp(P.analysis,'hep')
         assert(P.highpass == 0.5 && P.lowpass == 30 && isequal(P.hep_window,[-300 600]) && strcmp(P.hep_baseline,'none'))
-        assert(P.hep_surrogates == 100 && strcmp(P.detectMethod,'grubbs') && strcmp(P.heart_removal,'ica') && abs(P.conf_thresh - .75) < 1e-9)
+        assert(P.hep_surrogates == 100 && strcmp(P.detectMethod,'grubbs') && strcmp(P.heart_removal,'none') && abs(P.conf_thresh - .75) < 1e-9)
         assert(strcmp(P.hep_level, cases{c}{4}) && isfield(P,'hep_roi') ~= strcmp(P.hep_level,'ics'))
         if strcmp(P.heart_signal,'ppg'), assert(strcmp(P.ppg_transit,'auto') && strcmp(P.ppg_detect_mode,'valleys')); end
     else
@@ -60,13 +60,16 @@ setappdata(0,'inputgui_override',struct('clean_method',2,'ref',3,'hep_baseline',
 P = run_gui(EEG, base, {'hep','ppg','PPG','channels'});
 assert(strcmp(P.clean_method,'gedai') && strcmp(P.ref,'csd') && strcmp(P.hep_baseline,'regression') && isequal(P.hep_baseline_win,[-150 -50]))
 assert(P.ppg_transit == 300 && strcmp(P.hep_window,'adaptive') && P.linenoise == 60 && strcmp(P.filttype,'causal'))
-assert(strcmp(P.detectMethod,'quartiles') && strcmp(P.ppg_detect_mode,'peaks') && strcmp(P.heart_removal,'none'))   % PPG: ICA or none
+assert(strcmp(P.detectMethod,'quartiles') && strcmp(P.ppg_detect_mode,'peaks') && strcmp(P.heart_removal,'ica'))   % PPG: none or ICA
 setappdata(0,'inputgui_override',struct('clean_eeg',0));
 P = run_gui(EEG, base, {'hep','ecg','ECG','channels'});
 assert(~P.clean_eeg && ~isfield(P,'ref') && ~isfield(P,'highpass') && ~isfield(P,'heart_removal'))
-setappdata(0,'inputgui_override',struct('heart_removal',2));
-P = run_gui(EEG, base, {'hep','ecg','ECG','channels'});
-assert(strcmp(P.heart_removal,'ecg_regression'))
+removalKeys = {'none' 'ica' 'ica_caracas' 'ica_ecg' 'ecg_regression' 'ssp'};
+for k = 2:6
+    setappdata(0,'inputgui_override',struct('heart_removal',k));
+    P = run_gui(EEG, base, {'hep','ecg','ECG','channels'});
+    assert(strcmp(P.heart_removal, removalKeys{k}), 'GUI heart removal %d gave %s', k, P.heart_removal)
+end
 fprintf('OK: non-default choices, cleaning off\n');
 
 % 3. PPG without ECG: the pulse arrival time must be entered
