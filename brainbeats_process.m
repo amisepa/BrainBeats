@@ -8,8 +8,9 @@
 % Main inputs:
 %   'analysis'       - 'hep'       heartbeat-evoked potentials and oscillations
 %                      'features'  EEG and HRV features
-%                      'coherence' brain-heart coherence (experimental, not
-%                                  for interpretation: see the README)
+%                      'coupling'  brain-heart coupling between EEG band power
+%                                  and heart rate variability ('coherence' is
+%                                  accepted as an alias; see COMPUTE_COUPLING)
 %   'heart_signal'   - 'ecg', 'ppg', 'rr' (beat times detected elsewhere), or
 %                      'off' (EEG features only)
 %   'heart_channels' - cell array of heart channel labels, e.g. {'ECG'}. With
@@ -119,6 +120,38 @@
 %   'parpool'        - use parallel computing (default false)
 %   'gpu'            - use GPU computing (default false)
 %
+% Brain-heart coupling options ('coupling'; ECG, PPG or beat times):
+%   One sample per heartbeat: the NN interval, the mean power of each EEG
+%   band (per region) and of respiration over that interval. EEG bands and
+%   heart are modelled together with respiration as an exogenous input
+%   (VARX, lag orders by BIC per equation). Reported per region, band and
+%   direction: conditional and pairwise Granger causality (time domain, LF
+%   and HF), Gaussian-copula transfer entropy, time-reversed GC, coherence,
+%   partial coherence, directed coherence and GPDC, and respiration -> heart
+%   and -> band (EEG.brainbeats.coupling, with a table). See
+%   COMPUTE_COUPLING and GET_COUPLING_SERIES.
+%   'coupling_resp'    - respiration: the label of a respiration channel,
+%                        'ecg' (ECG-derived, from the QRS amplitude), 'none',
+%                        or 'auto' (default: a channel labelled resp/rsp/
+%                        breath if any, else 'ecg' with an ECG, else 'none').
+%                        Without respiration, HF coupling may be the
+%                        respiratory drive of both heart and EEG.
+%   'coupling_regions' - 'auto' (default: frontal, central, temporal,
+%                        posterior), 'all', 'channels', or {name, {labels}; ...}
+%   'coupling_bands'   - band limits in Hz (default [1 4; 4 8; 8 13; 13 30])
+%   'coupling_cfa'     - cardiac field artifact, removed before the band power
+%                        so that power does not follow the number of beats:
+%                        'evoked' (default: the heartbeat-locked average EEG,
+%                        i.e. cardiac field and HEP, subtracted), 'ssp' (its
+%                        first 2 topographies projected out), 'both', 'none'
+%   'coupling_grid'    - 'beat' (default: one sample per heartbeat) or
+%                        'uniform' (a grid at 'coupling_fs' Hz, default 2; the
+%                        NN series is then interpolated)
+%   'coupling_window'  - analysis window in s (default 300)
+%   'coupling_maxlag'  - longest lag for the model order in s (default 5)
+%   'coupling_nboot'   - bootstrap samples of the conditional GC tests
+%                        (default 200; 0 = F-tests only)
+%
 % Heart components:
 %   'heart_removal'  - ('hep' with 'clean_eeg') 'none' (default and
 %                      recommended: see the README), 'ica' (heart components
@@ -139,7 +172,7 @@
 %   EEG - processed dataset. EEG.brainbeats holds the parameters used
 %         (.parameters), the preprocessing outputs (.preprocessings, e.g. NN
 %         intervals, SQI, removed channels, beats, components, PPG transit),
-%         and the features (.features), coherence (.coherence), or for HEP the
+%         and the features (.features), coupling (.coupling), or for HEP the
 %         ROI and IC results (.roi / .ics), HRSP/HRPC of all channels (.hrsp)
 %         and surrogate control (.surrogate).
 %   com - command line reproducing the call (EEGLAB history)
@@ -149,6 +182,8 @@
 %       'heart_channels',{'ECG'}, 'clean_eeg',true, 'hep_surrogates',100);
 %   EEG = brainbeats_process(EEG, 'analysis','hep', 'heart_signal','ppg', ...
 %       'heart_channels',{'PPG'}, 'clean_eeg',true, 'hep_level','both');
+%   EEG = brainbeats_process(EEG, 'analysis','coupling', 'heart_signal','ecg', ...
+%       'heart_channels',{'ECG'}, 'clean_eeg',true, 'coupling_resp','RESP');
 %
 % See brainbeats_tutorial.m for more examples.
 %
@@ -231,6 +266,37 @@ if isfield(params,'ppg_transit') && (ischar(params.ppg_transit) || isstring(para
         ECGREF = pop_select(EEG,'channel',ecgLabel(1));
         EEG = pop_select(EEG,'nochannel',ecgLabel);
     end
+end
+
+% Respiration channel of the coupling analysis ('coupling_resp')
+RESP = [];
+if strcmp(params.analysis,'coupling')
+    labels = {EEG.chanlocs.labels};
+    rc = params.coupling_resp;
+    if strcmpi(rc, 'auto')
+        hit = labels(contains(lower(labels), {'resp' 'rsp' 'breath'}));
+        if ~isempty(hit)
+            rc = hit{1};
+        elseif strcmpi(params.heart_signal, 'ecg')
+            rc = 'ecg';
+        else
+            rc = 'none';
+        end
+    end
+    if strcmpi(rc, 'ecg') && ~strcmpi(params.heart_signal, 'ecg')
+        error("'coupling_resp','ecg' needs an ECG ('heart_signal','ecg'): give a respiration channel or 'none'.")
+    end
+    if ~any(strcmpi(rc, {'ecg' 'none'}))
+        idx = find(strcmpi(labels, rc));
+        if isempty(idx)
+            error("Respiration channel '%s' ('coupling_resp') not found.", rc)
+        end
+        fprintf('Respiration channel: %s \n', labels{idx(1)});
+        RESP = pop_select(EEG, 'channel', idx(1));
+        EEG = pop_select(EEG, 'nochannel', idx(1));
+        rc = 'channel';
+    end
+    params.coupling_resp_source = lower(rc);   % 'channel', 'ecg' or 'none'
 end
 
 % Other auxiliary channels would bias EEG preprocessing and features
@@ -618,51 +684,17 @@ elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params
     [features_eeg, params] = get_eeg_features(EEG.data, params);
     Features.EEG = features_eeg;
 
-%%%%% MODE 3: Brain-heart coherence %%%%%
-elseif strcmpi(params.analysis,'coherence')
+%%%%% MODE 3: Brain-heart coupling %%%%%
+elseif strcmp(params.analysis,'coupling')
     disp("Computing brain-heart coupling...")
-    warning(['Brain-heart coherence is experimental: it relates the EEG at 0-40 Hz to the NN series, whose ' ...
-        'variations (HRV) are below 0.5 Hz and are high-passed at 0.5 Hz here. Do not interpret these values.'])
-
-    if length(params.heart_channels)>1
-        error("Sorry, this method only supports one hear channel at the moment. Please select only one of your heart channels and try again.")
+    if strcmp(params.coupling_grid,'uniform') && abs(EEG.srate/params.coupling_fs - round(EEG.srate/params.coupling_fs)) > 1e-9
+        error("The sampling rate (%g Hz) must be a multiple of 'coupling_fs' (%g Hz): resample the data first.", EEG.srate, params.coupling_fs)
     end
-
-    % Coherence is computed with the NN series (not the raw ECG/PPG), which
-    % is unevenly sampled: interpolate it at the EEG sampling rate
-    [NN_resamp, t_resamp] = resample_NN(NN_t,NN,EEG.srate,'cub');
-    t_resamp = t_resamp*1000; % ms
-    CARDIO = eeg_emptyset();
-    CARDIO.chanlocs.labels = 'HRV';
-    CARDIO.data = NN_resamp;
-    CARDIO.times = t_resamp;
-    CARDIO.srate = EEG.srate;
-    CARDIO.pnts = size(CARDIO.data,2);
-    CARDIO.xmax = CARDIO.times(end)/1000;
-    CARDIO = eeg_checkset(CARDIO);
-    CARDIO.data = bsxfun(@minus, CARDIO.data, trimmean(CARDIO.data,20,2)); % demean to remove offset
-    if params.vis_cleaning
-        pop_eegplot(CARDIO,1,1,1);
-        finish_figure(gcf)
-    end
-
-    % Keep the time range covered by the NN series
-    idx = EEG.times >= t_resamp(1) & EEG.times <= t_resamp(end);
-    EEG.times = EEG.times(idx);
-    EEG.data = EEG.data(:,idx);
-    EEG.pnts = size(EEG.data,2);
-    EEG.xmax = EEG.times(end)/1000;
-    EEG = eeg_checkset(EEG);
+    nPts0 = EEG.pnts;
 
     % EEG preprocessing, step 1: bad segments (ASR) and bad components (ICLabel)
     if params.clean_eeg
         [EEG, params] = clean_eeg(EEG, params);
-
-        % Remove the same segments from the NN series
-        if isfield(params,'removed_eeg_segments')
-            CARDIO = pop_select(CARDIO,'nopoint', params.removed_eeg_segments);
-        end
-
         if isfield(params,'removed_eeg_segments')
             EEG.brainbeats.preprocessings.removed_eeg_segments = params.removed_eeg_segments;
         end
@@ -674,30 +706,58 @@ elseif strcmpi(params.analysis,'coherence')
         end
     end
 
-    params.chanlocs = EEG.chanlocs;   % after clean_eeg, which interpolates removed channels
-
-    % Filter the NN series and rescale it to the EEG amplitude range
-    CARDIO = pop_eegfiltnew(CARDIO,'locutoff',0.5,'hicutoff',40);
-    disp("Rescaling heart signal to match EEG scale...")
-    for iChan = 1:CARDIO.nbchan
-        CARDIO.data(iChan,:) = rescale( CARDIO.data(iChan,:), quantile(mean(EEG.data,1),.01)*2, quantile(mean(EEG.data,1),.99)*2 );
-    end
-
-    % Append the NN series to the EEG as an extra channel
-    if EEG.pnts == CARDIO.pnts
-        EEG.data(end+1:end+CARDIO.nbchan,:) = CARDIO.data;
-        EEG.nbchan = EEG.nbchan + CARDIO.nbchan;
-        for iChan = 1:CARDIO.nbchan
-            EEG.chanlocs(end+1).labels = params.heart_channels{iChan};
+    % Back on the original time line (the beats' time line): the segments
+    % removed by ASR become gaps, which no filter or model crosses
+    keep = true(1, nPts0);
+    if isfield(params,'removed_eeg_segments')
+        for k = 1:size(params.removed_eeg_segments,1)
+            keep(params.removed_eeg_segments(k,1):params.removed_eeg_segments(k,2)) = false;
         end
-        EEG = eeg_checkset(EEG);
-    else
-        error('Trying to merge EEG and Cardiovascular signals back together, but they have different lengths')
+    end
+    if sum(keep) ~= EEG.pnts
+        error('BrainBeats:coupling', 'The cleaned EEG (%d samples) does not match the samples kept (%d).', EEG.pnts, sum(keep))
+    end
+    X = nan(EEG.nbchan, nPts0);
+    X(:, keep) = EEG.data;
+
+    % Respiration
+    switch params.coupling_resp_source
+        case 'channel'
+            resp = struct('source','channel', 'signal', double(RESP.data(1,:)));
+        case 'ecg'      % ECG-derived respiration: R-S amplitude of each QRS
+            w = round(0.06*EEG.srate);
+            amp = arrayfun(@(b) sig(b) - min(sig(b:min(b+w, numel(sig)))), Rpeaks);
+            resp = struct('source','ecg', 't', (Rpeaks-1)/EEG.srate, 'amp', amp);
+        otherwise
+            resp = struct('source','none');
     end
 
-    EEG.brainbeats.coherence = compute_brainheart_coherence(EEG,params);
-    disp("Brain-heart coherence outputs can be found in: EEG.brainbeats.coherence")
+    % Series (band power per region, NN, respiration) and coupling
+    if strcmpi(params.heart_signal,'ppg')
+        cfaWin = [-0.6 0.6];   % pulse beats follow the QRS by 0.1-0.4 s
+    else
+        cfaWin = [-0.3 0.7];
+    end
+    sopt = struct('grid', params.coupling_grid, 'fs_out', params.coupling_fs, 'bands', params.coupling_bands, ...
+        'band_names', {band_labels(params.coupling_bands)}, 'regions', {params.coupling_regions}, ...
+        'cfa', params.coupling_cfa, 'cfa_window', cfaWin);
+    S = get_coupling_series(X, EEG.srate, EEG.chanlocs, Rpeaks, NN_t, NN, resp, sopt);
+    copt = struct('window', params.coupling_window, 'maxlag', params.coupling_maxlag, ...
+        'nboot', params.coupling_nboot);
+    coupling = compute_coupling(S, copt);
+    coupling.series = S;
+    EEG.brainbeats.coupling = coupling;
+    disp("Brain-heart coupling outputs can be found in: EEG.brainbeats.coupling (see .table)")
 
+    if params.vis_outputs
+        plot_coupling(coupling, S)
+    end
+    if params.save
+        [name, folder] = output_file(EEG, '_coupling.mat');
+        outputPath = fullfile(folder, name);
+        fprintf("Exporting the coupling results in a .mat file at this location: %s \n", outputPath);
+        save(outputPath, 'coupling', 'params');
+    end
 end
 
 % Store parameters in EEG structure for reporting
@@ -763,9 +823,11 @@ switch params.analysis
             'eeg_winlen' 'eeg_winoverlap' 'eeg_freqbounds' 'eeg_norm' 'asy_norm'});
         com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''features'',%s%s%s,''hrv_features'',%s,''eeg_features'',%s%s,''parpool'',%g,''gpu'',%g%s);', ...
             heartArgs, heartOpts, cleanOpts, hrv_features, eeg_features, featOpts, params.parpool, params.gpu, common);
-    otherwise   % 'coherence'
-        com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''%s'',%s%s%s%s%s);', ...
-            params.analysis, heartArgs, heartOpts, cleanOpts, argstr(params, {'conf_thresh' 'keep_heart'}), common);
+    otherwise   % 'coupling'
+        coupArgs = argstr(params, {'coupling_resp' 'coupling_regions' 'coupling_bands' 'coupling_cfa' ...
+            'coupling_grid' 'coupling_fs' 'coupling_window' 'coupling_maxlag' 'coupling_nboot'});
+        com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''coupling'',%s%s%s%s%s);', ...
+            heartArgs, heartOpts, cleanOpts, coupArgs, common);
 end
 
 % Final message with ref to cite
@@ -798,4 +860,18 @@ for i = 1:numel(names)
         continue
     end
     out = [out sprintf(',''%s'',%s', names{i}, txt)]; %#ok<AGROW>
+end
+
+
+function names = band_labels(bands)
+% Names of the EEG bands of the coupling analysis
+std5 = {[1 4] 'delta'; [4 8] 'theta'; [8 13] 'alpha'; [13 30] 'beta'; [30 40] 'gamma'};
+names = cell(1, size(bands,1));
+for b = 1:size(bands,1)
+    hit = find(cellfun(@(x) isequal(x, bands(b,:)), std5(:,1)), 1);
+    if isempty(hit)
+        names{b} = sprintf('%g-%gHz', bands(b,1), bands(b,2));
+    else
+        names{b} = std5{hit,2};
+    end
 end

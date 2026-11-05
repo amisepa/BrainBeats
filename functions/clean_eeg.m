@@ -25,7 +25,7 @@
 %     'infinity' is then applied after GEDAI (which re-references to average).
 % Stage 1 (params.clean_eeg_step == 1): remove artifacts, interpolate, ICA
 %   - 'hep': remove bad epochs with find_badTrials (params.detectMethod,
-%     default 'grubbs'). 'features', 'coherence': remove bad
+%     default 'grubbs'). 'features', 'coupling': remove bad
 %     segments with ASR (params.asr_cutoff, default 30 SD; params.asr_mem,
 %     default .85 of available RAM).
 %   - Interpolate removed channels back to params.orichanlocs (> 10 channels).
@@ -294,7 +294,7 @@ elseif params.clean_eeg_step == 1
         params.removed_eeg_segments = [];
 
     % ASR on continuous data
-    elseif contains(params.analysis, {'features' 'coherence'})
+    elseif contains(params.analysis, {'features' 'coupling'})
         
         % Identify artifacts using ASR
         oriEEG = EEG;

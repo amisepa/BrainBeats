@@ -122,13 +122,12 @@ T(end+1) = struct('name','eeg_only','fn', @() bbp(pop_select(L(),'nochannel',{'P
     'analysis','features','heart_signal','off', ...
     'eeg_features',{'time' 'frequency','nonlinear'},'clean_eeg',1,'linenoise',50, ...
     'ref','infinity','ica_method',1,'parpool',1,'save',1));
-T(end+1) = struct('name','coh_ecg','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
-    'analysis','coherence','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',0,'parpool',0));
-T(end+1) = struct('name','coh_ppg','fn', @() bbp(pop_select(L(),'nochannel',{'ECG'}), ...
-    'analysis','coherence','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
-    'ref','infinity','ica_method',1,'parpool',false));
+T(end+1) = struct('name','coupling_ecg','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
+    'analysis','coupling','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'coupling_resp','ecg','clean_eeg',true,'linenoise',50,'parpool',false));
+T(end+1) = struct('name','coupling_ppg','fn', @() bbp(pop_select(L(),'nochannel',{'ECG'}), ...
+    'analysis','coupling','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'coupling_resp','none','clean_eeg',true,'linenoise',50,'parpool',false));
 % Extras not in the tutorial
 T(end+1) = struct('name','hep_rr_mode','fn', @() hep_rr(L));
 T(end+1) = struct('name','rr_features','fn', @() rr_feat(L));
@@ -363,7 +362,7 @@ end
 % -------------------------------------------------------------------------
 function s = summarize(EEG)
 % Text summary of the output: data size, preprocessing and HRV scalars,
-% mean EEG band power and coherence range
+% mean EEG band power and coupling summary
 s = sprintf('    data %s, trials %d, events %d\n', mat2str(size(EEG.data)), EEG.trials, numel(EEG.event));
 if ~isfield(EEG,'brainbeats'), return; end
 bb = EEG.brainbeats;
@@ -377,9 +376,12 @@ if isfield(bb,'features') && isstruct(bb.features) && isfield(bb.features,'EEG')
         if isfield(fq,b{1}), s = [s sprintf('    EEG.%s mean %.3g\n', b{1}, mean(fq.(b{1})(:),'omitnan'))]; end %#ok<AGROW>
     end
 end
-if isfield(bb,'coherence')
-    c = bb.coherence.coh(:);
-    s = [s sprintf('    coherence: range [%.3g %.3g], NaN %d\n', min(c), max(c), sum(isnan(c)))];
+if isfield(bb,'coupling')
+    t = bb.coupling.table;
+    g = strcmp(t.measure,'GC') & strcmp(t.model,'conditional') & strcmp(t.freq,'all');
+    s = [s sprintf('    coupling: %d rows, conditional GC range [%.3g %.3g], %d with p < .05, orders %s, resp %s\n', ...
+        height(t), min(t.value(g)), max(t.value(g)), sum(t.p(g) < .05), mat2str([bb.coupling.models.order]), ...
+        bb.coupling.series.resp_source)];
 end
 end
 

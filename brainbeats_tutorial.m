@@ -233,23 +233,27 @@ EEG.brainbeats.preprocessings
 EEG.brainbeats.features.EEG
 
 
-%% METHOD 3: Brain-heart coherence (experimental; command line only)
-% Do not interpret these values: the heart signal here is the NN series,
-% high-passed at 0.5 Hz, so it holds almost no heart rate variability in the
-% 0-40 Hz bands analyzed. Kept for development only.
+%% METHOD 3: Brain-heart coupling (command line only)
+% Coupling between the slow fluctuations of EEG band power (per region) and
+% heart rate variability, with respiration as a conditioning variable:
+% Granger causality in both directions (conditional and pairwise), transfer
+% entropy, coherence and partial coherence, directed coherence and GPDC.
+% See COMPUTE_COUPLING. Results: EEG.brainbeats.coupling.table.
 
-% ECG
+% ECG, respiration derived from the ECG (no respiration channel here)
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG'});  % remove PPG channel to avoid warning
-EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',0,'parpool',0,'vis_outputs',1);
+EEG = brainbeats_process(EEG,'analysis','coupling','heart_signal','ECG', ...
+    'heart_channels',{'ECG'},'coupling_resp','ecg','clean_eeg',true,'linenoise',50, ...
+    'parpool',false,'vis_outputs',true);
+EEG.brainbeats.coupling.table
 
-% PPG
+% PPG (no ECG-derived respiration: HF coupling may be the respiratory drive)
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
-EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','PPG', ...
-    'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
-    'ref','infinity','ica_method',1,'parpool',false,'vis_outputs',true);
+EEG = brainbeats_process(EEG,'analysis','coupling','heart_signal','PPG', ...
+    'heart_channels',{'PPG'},'coupling_resp','none','clean_eeg',true,'linenoise',50, ...
+    'parpool',false,'vis_outputs',true);
 
 
 %% To launch the BrainBeats window via command line (or EEGLAB menu 'BrainBeats')

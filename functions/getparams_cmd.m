@@ -77,21 +77,65 @@ if ~isempty(idx)
     params.analysis = lower(varargin{idx+1});
     fprintf('Selected mode to run: %s \n', params.analysis);
 else
-    error("Analysis type not defined. Must be set to either 'hep', 'features', or 'coherence'. ")
+    error("Analysis type not defined. Must be set to either 'hep', 'features', or 'coupling'. ")
+end
+if strcmp(params.analysis, 'coherence')
+    disp("'coherence' is now the 'coupling' analysis (brain-heart coupling at heart rate variability time scales).")
+    params.analysis = 'coupling';
 end
 if strcmp(params.analysis, 'rm_heart')
     error('BrainBeats:input', ['The ''rm_heart'' analysis was removed in v1.6: ICA with the ECG channel ' ...
         'removed most of a synthetic heartbeat-locked brain response on 5 of 6 test subjects. Use ' ...
         '''analysis'',''hep'' with ''heart_removal'' (''ica'' or ''ecg_regression'').'])
 end
-if ~any(strcmp(params.analysis, {'hep' 'features' 'coherence'}))
-    error("Analysis '%s' not recognized. Must be 'hep', 'features', or 'coherence'.", params.analysis)
+if ~any(strcmp(params.analysis, {'hep' 'features' 'coupling'}))
+    error("Analysis '%s' not recognized. Must be 'hep', 'features', or 'coupling'.", params.analysis)
 end
-if ~params.heart && any(strcmp(params.analysis, {'hep' 'coherence'}))
+if ~params.heart && any(strcmp(params.analysis, {'hep' 'coupling'}))
     error("The '%s' analysis needs a heart signal: 'heart_signal' cannot be 'off'.", params.analysis)
 end
-if strcmp(params.heart_signal,'rr') && strcmp(params.analysis, 'coherence')
-    error("The '%s' analysis needs the ECG/PPG signal itself: 'heart_signal' cannot be 'rr'.", params.analysis)
+
+%% Brain-heart coupling
+
+if strcmp(params.analysis, 'coupling')
+    defaults = {'coupling_resp' 'auto'; 'coupling_regions' 'auto'; 'coupling_bands' [1 4; 4 8; 8 13; 13 30]; ...
+        'coupling_cfa' 'evoked'; 'coupling_grid' 'beat'; 'coupling_fs' 2; 'coupling_window' 300; ...
+        'coupling_maxlag' 5; 'coupling_nboot' 200};
+    for k = 1:size(defaults,1)
+        idx = find(strcmpi(keys, defaults{k,1}));
+        if ~isempty(idx), params.(defaults{k,1}) = varargin{idx+1}; else, params.(defaults{k,1}) = defaults{k,2}; end
+    end
+    if ~(ischar(params.coupling_resp) || isstring(params.coupling_resp))
+        error("'coupling_resp' must be a channel label, 'ecg', 'none' or 'auto'.")
+    end
+    params.coupling_resp = char(params.coupling_resp);
+    if ~isnumeric(params.coupling_bands) || size(params.coupling_bands,2) ~= 2 || any(diff(params.coupling_bands,1,2) <= 0)
+        error("'coupling_bands' must be an n x 2 matrix of band limits in Hz.")
+    end
+    params.coupling_grid = lower(char(params.coupling_grid));
+    if ~any(strcmp(params.coupling_grid, {'beat' 'uniform'}))
+        error("'coupling_grid' must be 'beat' or 'uniform'.")
+    end
+    params.coupling_cfa = lower(char(params.coupling_cfa));
+    if ~any(strcmp(params.coupling_cfa, {'evoked' 'ssp' 'both' 'none'}))
+        error("'coupling_cfa' must be 'evoked', 'ssp', 'both' or 'none'.")
+    end
+    if ischar(params.coupling_regions) || isstring(params.coupling_regions)
+        params.coupling_regions = lower(char(params.coupling_regions));
+        if ~any(strcmp(params.coupling_regions, {'auto' 'all' 'channels'}))
+            error("'coupling_regions' must be 'auto', 'all', 'channels' or {name, {labels}; ...}.")
+        end
+    elseif ~iscell(params.coupling_regions) || size(params.coupling_regions,2) ~= 2
+        error("'coupling_regions' must be 'auto', 'all', 'channels' or {name, {labels}; ...}.")
+    end
+    for f = {'coupling_fs' 'coupling_window' 'coupling_maxlag'}
+        if ~isscalar(params.(f{1})) || params.(f{1}) <= 0
+            error("'%s' must be a positive number.", f{1})
+        end
+    end
+    if ~isscalar(params.coupling_nboot) || params.coupling_nboot < 0
+        error("'coupling_nboot' must be the number of bootstrap samples (0 for F-tests only).")
+    end
 end
 
 %% Cardiovascular signal preprocessing
@@ -573,6 +617,8 @@ k = {'heart_signal' 'heart_channels' 'beat_latencies' 'analysis' 'keep_heart' ..
     'ecg_adaptive_pol' 'ppg_bandpass' 'ppg_height_method' 'ppg_polarity' 'ppg_detect_mode' 'ppg_transit' ...
     'conf_thresh' 'heart_removal' 'ecg_corr' 'ssp_n' 'hep_baseline' 'hep_baseline_win' 'hep_window' ...
     'hep_tf_freqs' 'hep_surrogates' 'hep_surrogate_mode' 'hep_level' 'hep_roi' ...
+    'coupling_resp' 'coupling_regions' 'coupling_bands' 'coupling_cfa' 'coupling_grid' 'coupling_fs' ...
+    'coupling_window' 'coupling_maxlag' 'coupling_nboot' ...
     'hrv_features' 'hrv_norm' 'hrv_spec' 'hrv_overlap' 'prsa_thresh' 'eeg' 'clean_eeg' 'highpass' 'lowpass' ...
     'flatline' 'corrThresh' 'maxBad' 'asr_cutoff' 'asr_mem' 'ref' 'clean_method' 'linenoise' ...
     'filttype' 'detectMethod' 'icamethod' 'ica_method' 'eeg_features' 'eeg_frange' ...

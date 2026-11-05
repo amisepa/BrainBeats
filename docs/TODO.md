@@ -53,9 +53,21 @@
 
 ## From the code review of v1.6 (fixed ones are in the README version history)
 Scientific, may change results:
-- Brain-heart coherence (experimental, out of the GUI): redesign at HRV time scales (NN series
-  not high-passed at 0.5 Hz, MVAR at a matching rate); fit at the data rank with QR, not
-  `(Y*Z')/(Z*Z')` and inv() in fdMVAR_5order, since cleaned EEG is rank-deficient.
+- [x] Brain-heart coherence redesigned as 'coupling' (branch brain-heart, docs/brain-heart-plan.md):
+  beat-to-beat series, VARX with respiration exogenous, state-space GC, tested on simulations.
+  Still open before merging:
+  - [ ] Real data beyond one subject: ds003838 (EEG, ECG, PPG; no respiration: ECG-derived),
+        MIT-BIH Polysomnographic and CAP sleep (respiration channels). theta -> heart was
+        significant (p .01-.02) in 3 of 4 regions of sub-047: check across subjects and
+        against the cardiac field options ('ssp', 'both') before reading anything into it.
+  - [ ] ECG-derived respiration vs a belt on a dataset with both (MIT-BIH Polysomnographic):
+        its coherence with NN, and whether conditioning on it removes the respiratory drive.
+  - [ ] Cardiac field options ('evoked' vs 'ssp' vs 'both') on real data: residual
+        heart-locked power and its effect on heart -> EEG GC.
+  - [ ] Larger calibration for the paper (>= 200 recordings per scenario, fresh seeds per
+        scenario; seeds 1-60 were shared across scenarios, which made one chance excess,
+        heart -> beta 10-13%, recur everywhere).
+  - [ ] GUI entry, README figures, Python port (MNE-Connectivity gc/gc_tr, Tigramite PCMCI+).
 - HRSP and the QRS (checked 2026-11-03): a heartbeat-locked broadband transient 5 x the noise SD
   makes every point at 350-600 ms a significant power decrease (-1.7 dB) against the 'random'
   surrogates (none at 2 x); normalizing by the continuous data gives the same (-1.9 dB), since it
