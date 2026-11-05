@@ -131,11 +131,20 @@
 %   and -> band (EEG.brainbeats.coupling, with a table). See
 %   COMPUTE_COUPLING and GET_COUPLING_SERIES.
 %   'coupling_resp'    - respiration: the label of a respiration channel,
-%                        'ecg' (ECG-derived, from the QRS amplitude), 'none',
-%                        or 'auto' (default: a channel labelled resp/rsp/
-%                        breath if any, else 'ecg' with an ECG, else 'none').
-%                        Without respiration, HF coupling may be the
-%                        respiratory drive of both heart and EEG.
+%                        'ecg' (ECG-derived, from the R-S amplitude of each
+%                        QRS), 'ppg' (PPG-derived, from the pulse foot and
+%                        amplitude), 'none', several of these in a cell
+%                        array (all enter the model), or 'auto' (default: a
+%                        channel labelled resp/rsp/breath if any, else 'ecg'
+%                        with an ECG, else 'ppg' with a PPG). Without
+%                        respiration, HF coupling may be the respiratory
+%                        drive of both heart and EEG.
+%   'coupling_vascular' - PPG series modelled with the heart period: 'pat'
+%                        (pulse arrival time from the R-peak; ECG + PPG),
+%                        'pamp' (pulse amplitude), {'pat' 'pamp'}, or {}
+%                        (default)
+%   'coupling_ppg'     - label of the PPG channel used next to an ECG for
+%                        'ppg' respiration or vascular series (default 'auto')
 %   'coupling_regions' - 'auto' (default: frontal, central, temporal,
 %                        posterior), 'all', 'channels', or {name, {labels}; ...}
 %   'coupling_bands'   - band limits in Hz (default [1 4; 4 8; 8 13; 13 30])
@@ -268,35 +277,63 @@ if isfield(params,'ppg_transit') && (ischar(params.ppg_transit) || isstring(para
     end
 end
 
-% Respiration channel of the coupling analysis ('coupling_resp')
-RESP = [];
+% Respiration channel and PPG of the coupling analysis ('coupling_resp',
+% 'coupling_vascular', 'coupling_ppg')
+RESP = []; PPGCH = [];
 if strcmp(params.analysis,'coupling')
     labels = {EEG.chanlocs.labels};
-    rc = params.coupling_resp;
-    if strcmpi(rc, 'auto')
+    rc = cellstr(params.coupling_resp);
+    if isequal(lower(rc), {'auto'})
         hit = labels(contains(lower(labels), {'resp' 'rsp' 'breath'}));
         if ~isempty(hit)
-            rc = hit{1};
+            rc = hit(1);
         elseif strcmpi(params.heart_signal, 'ecg')
-            rc = 'ecg';
+            rc = {'ecg'};
+        elseif strcmpi(params.heart_signal, 'ppg')
+            rc = {'ppg'};
         else
-            rc = 'none';
+            rc = {'none'};
         end
     end
-    if strcmpi(rc, 'ecg') && ~strcmpi(params.heart_signal, 'ecg')
-        error("'coupling_resp','ecg' needs an ECG ('heart_signal','ecg'): give a respiration channel or 'none'.")
+    if any(strcmpi(rc, 'ecg')) && ~strcmpi(params.heart_signal, 'ecg')
+        error("'coupling_resp','ecg' needs an ECG ('heart_signal','ecg'): give a respiration channel, 'ppg' or 'none'.")
     end
-    if ~any(strcmpi(rc, {'ecg' 'none'}))
-        idx = find(strcmpi(labels, rc));
+    src = {};
+    for k = 1:numel(rc)
+        if any(strcmpi(rc{k}, {'ecg' 'ppg' 'none'}))
+            src{end+1} = lower(rc{k}); %#ok<AGROW>
+            continue
+        end
+        idx = find(strcmpi(labels, rc{k}));
         if isempty(idx)
-            error("Respiration channel '%s' ('coupling_resp') not found.", rc)
+            error("Respiration channel '%s' ('coupling_resp') not found.", rc{k})
         end
         fprintf('Respiration channel: %s \n', labels{idx(1)});
         RESP = pop_select(EEG, 'channel', idx(1));
         EEG = pop_select(EEG, 'nochannel', idx(1));
-        rc = 'channel';
+        labels = {EEG.chanlocs.labels};
+        src{end+1} = 'channel'; %#ok<AGROW>
     end
-    params.coupling_resp_source = lower(rc);   % 'channel', 'ecg' or 'none'
+    params.coupling_resp_source = src;   % 'channel', 'ecg', 'ppg', 'none'
+
+    % PPG for PPG-derived respiration or vascular series, with an ECG
+    needPPG = any(strcmp(src, 'ppg')) || ~isempty(params.coupling_vascular);
+    if needPPG && strcmpi(params.heart_signal, 'ecg')
+        if strcmpi(params.coupling_ppg, 'auto')
+            idx = find(contains(lower(labels), {'ppg' 'pleth'}), 1);
+        else
+            idx = find(strcmpi(labels, params.coupling_ppg), 1);
+        end
+        if isempty(idx)
+            error("No PPG channel found for 'coupling_resp','ppg' or 'coupling_vascular': set 'coupling_ppg' to its label.")
+        end
+        fprintf('PPG channel for the coupling analysis: %s \n', labels{idx});
+        PPGCH = pop_select(EEG, 'channel', idx);
+        EEG = pop_select(EEG, 'nochannel', idx);
+    end
+    if any(strcmp(params.coupling_vascular, 'pat')) && ~strcmpi(params.heart_signal, 'ecg')
+        error("'coupling_vascular','pat' (pulse arrival time) needs an ECG ('heart_signal','ecg') and a PPG.")
+    end
 end
 
 % Other auxiliary channels would bias EEG preprocessing and features
@@ -720,17 +757,31 @@ elseif strcmp(params.analysis,'coupling')
     X = nan(EEG.nbchan, nPts0);
     X(:, keep) = EEG.data;
 
-    % Respiration
-    switch params.coupling_resp_source
-        case 'channel'
-            resp = struct('source','channel', 'signal', double(RESP.data(1,:)));
-        case 'ecg'      % ECG-derived respiration: R-S amplitude of each QRS
-            w = round(0.06*EEG.srate);
-            amp = arrayfun(@(b) sig(b) - min(sig(b:min(b+w, numel(sig)))), Rpeaks);
-            resp = struct('source','ecg', 't', (Rpeaks-1)/EEG.srate, 'amp', amp);
-        otherwise
-            resp = struct('source','none');
+    % PPG pulses: a PPG channel next to the ECG, or the heart signal itself
+    ppg = [];
+    if ~isempty(PPGCH)
+        [~, ~, pOn, psig] = get_RR(double(PPGCH.data(1,:)), PPGCH.times, struct('fs', EEG.srate, 'heart_signal', 'ppg'));
+        ppg = struct('onsets', pOn(:)', 'raw', double(PPGCH.data(1,:)), 'sig', psig(:)', 'window', [0.04 0.5]);
+    elseif strcmpi(params.heart_signal,'ppg') && ~isempty(CARDIO)
+        ppg = struct('onsets', Rpeaks(:)', 'raw', double(CARDIO.data(best_elec,:)), 'sig', sig(:)', 'window', [-0.02 0.05]);
     end
+
+    % Respiration: one or several proxies, all exogenous inputs
+    resp = struct('source', {}, 'signal', {}, 't', {}, 'amp', {});
+    for k = 1:numel(params.coupling_resp_source)
+        switch params.coupling_resp_source{k}
+            case 'channel'
+                resp(end+1) = struct('source','channel', 'signal', double(RESP.data(1,:)), 't', [], 'amp', []); %#ok<AGROW>
+            case 'ecg'      % ECG-derived respiration: R-S amplitude of each QRS
+                w = round(0.06*EEG.srate);
+                amp = arrayfun(@(b) sig(b) - min(sig(b:min(b+w, numel(sig)))), Rpeaks);
+                resp(end+1) = struct('source','ecg', 'signal', [], 't', (Rpeaks-1)/EEG.srate, 'amp', amp); %#ok<AGROW>
+            case 'ppg'      % PPG-derived respiration: pulse foot (intensity) and amplitude
+                resp(end+1) = struct('source','ppg_riiv', 'signal', [], 't', [], 'amp', []); %#ok<AGROW>
+                resp(end+1) = struct('source','ppg_riav', 'signal', [], 't', [], 'amp', []); %#ok<AGROW>
+        end
+    end
+    if isempty(resp), resp = struct('source','none', 'signal', [], 't', [], 'amp', []); end
 
     % Series (band power per region, NN, respiration) and coupling
     if strcmpi(params.heart_signal,'ppg')
@@ -740,7 +791,7 @@ elseif strcmp(params.analysis,'coupling')
     end
     sopt = struct('grid', params.coupling_grid, 'fs_out', params.coupling_fs, 'bands', params.coupling_bands, ...
         'band_names', {band_labels(params.coupling_bands)}, 'regions', {params.coupling_regions}, ...
-        'cfa', params.coupling_cfa, 'cfa_window', cfaWin);
+        'cfa', params.coupling_cfa, 'cfa_window', cfaWin, 'ppg', ppg, 'vascular', {params.coupling_vascular});
     S = get_coupling_series(X, EEG.srate, EEG.chanlocs, Rpeaks, NN_t, NN, resp, sopt);
     copt = struct('window', params.coupling_window, 'maxlag', params.coupling_maxlag, ...
         'nboot', params.coupling_nboot);
@@ -825,7 +876,8 @@ switch params.analysis
             heartArgs, heartOpts, cleanOpts, hrv_features, eeg_features, featOpts, params.parpool, params.gpu, common);
     otherwise   % 'coupling'
         coupArgs = argstr(params, {'coupling_resp' 'coupling_regions' 'coupling_bands' 'coupling_cfa' ...
-            'coupling_grid' 'coupling_fs' 'coupling_window' 'coupling_maxlag' 'coupling_nboot'});
+            'coupling_grid' 'coupling_fs' 'coupling_window' 'coupling_maxlag' 'coupling_nboot' ...
+            'coupling_vascular' 'coupling_ppg'});
         com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''coupling'',%s%s%s%s%s);', ...
             heartArgs, heartOpts, cleanOpts, coupArgs, common);
 end

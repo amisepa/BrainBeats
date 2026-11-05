@@ -87,6 +87,7 @@ opt = set_default(opt, 'regions', 'auto');
 opt = set_default(opt, 'cfa', 'evoked');
 opt = set_default(opt, 'cfa_window', [-0.3 0.7]);
 opt = set_default(opt, 'ssp_n', 2);
+opt = set_default(opt, 'vascular', {});
 opt = set_default(opt, 'min_seg', 30);
 opt = set_default(opt, 'decim', 'bin');
 opt = set_default(opt, 'win', 1/opt.fs_out);
@@ -227,34 +228,76 @@ else
     end
 end
 
-% 5. Respiration
-S.resp = [];
-S.resp_source = 'none';
-if isstruct(resp) && isfield(resp,'source')
-    switch lower(resp.source)
-        case 'channel'
-            S.resp = nan(1,T);
-            flp = lowpass_fir(fs, 1);
-            for k = 1:size(seg,1)
-                idx = seg(k,1):seg(k,2);
-                rs = filtfilt(flp, 1, double(resp.signal(idx))');
-                if isBeat                         % mean over each RR interval
-                    inRun = find(bStart >= seg(k,1) + edgeS & bEnd <= seg(k,2) - edgeS);
-                    cs = [0; cumsum(rs)];
-                    lo = bStart(inRun)' - seg(k,1) + 1; hi = bEnd(inRun)' - seg(k,1) + 1;
-                    S.resp(inRun) = (cs(hi+1) - cs(lo)) ./ (hi - lo + 1);
-                    continue
-                end
-                g = (seg(k,1)-1)/step + 1;
-                z = to_grid(rs, step, Lwin, opt.decim);
-                z([1:edge end-edge+1:end]) = NaN;
-                S.resp(g:g+numel(z)-1) = z;
-            end
-            S.resp_source = 'channel';
-        case 'ecg'
-            S.resp = interp1(resp.t, resp.amp, S.t, 'pchip', NaN);   % 'beat': the QRS amplitudes themselves
-            S.resp_source = 'ecg';
+% 5. PPG pulse of each interval: the first pulse onset .ppg.window (s) after
+% the beat that opens the interval (ECG beats: [0.04 0.5]; PPG beats: the
+% onset itself). Per interval: pulse arrival time from that beat (ms; with
+% ECG beats), pulse amplitude (foot to peak) and foot value (baseline
+% intensity), from the PPG low-passed at 8 Hz (no high-pass, which would
+% remove the respiratory baseline variation)
+ppgF = [];
+if isfield(opt,'ppg') && isstruct(opt.ppg) && isfield(opt.ppg,'onsets') && ~isempty(opt.ppg.onsets)
+    ppgF = ppg_features(opt.ppg, fs, NN_t - NN);
+    if ~isBeat
+        for f = {'pat' 'amp' 'foot'}
+            ppgF.(f{1}) = interp1(NN_t, ppgF.(f{1}), S.t, 'pchip', NaN);
+        end
     end
+end
+
+% 6. Respiration: one or several proxies (struct array), all exogenous
+% inputs of the model. 'channel': a respiration belt or airflow; 'ecg':
+% the R-S amplitude of each QRS; 'ppg_riiv' / 'ppg_riav': the PPG pulse
+% foot (intensity) / amplitude variation
+S.resp = []; names = {};
+if isstruct(resp) && isfield(resp,'source')
+    for ir = 1:numel(resp)
+        z = [];
+        switch lower(resp(ir).source)
+            case 'channel'
+                z = nan(1,T);
+                flp = lowpass_fir(fs, 1);
+                for k = 1:size(seg,1)
+                    idx = seg(k,1):seg(k,2);
+                    rs = filtfilt(flp, 1, double(resp(ir).signal(idx))');
+                    if isBeat                     % mean over each RR interval
+                        inRun = find(bStart >= seg(k,1) + edgeS & bEnd <= seg(k,2) - edgeS);
+                        cs = [0; cumsum(rs)];
+                        lo = bStart(inRun)' - seg(k,1) + 1; hi = bEnd(inRun)' - seg(k,1) + 1;
+                        z(inRun) = (cs(hi+1) - cs(lo)) ./ (hi - lo + 1);
+                        continue
+                    end
+                    g = (seg(k,1)-1)/step + 1;
+                    zz = to_grid(rs, step, Lwin, opt.decim);
+                    zz([1:edge end-edge+1:end]) = NaN;
+                    z(g:g+numel(zz)-1) = zz;
+                end
+            case 'ecg'
+                z = interp1(resp(ir).t, resp(ir).amp, S.t, 'pchip', NaN);   % 'beat': the QRS amplitudes themselves
+            case 'ppg_riiv'
+                if ~isempty(ppgF), z = ppgF.foot; else, warning('No PPG: respiration ''ppg_riiv'' ignored.'); end
+            case 'ppg_riav'
+                if ~isempty(ppgF), z = ppgF.amp; else, warning('No PPG: respiration ''ppg_riav'' ignored.'); end
+        end
+        if ~isempty(z)
+            S.resp(end+1,:) = z;
+            names{end+1} = lower(resp(ir).source); %#ok<AGROW>
+        end
+    end
+end
+if isempty(names), S.resp_source = 'none'; else, S.resp_source = strjoin(names, '+'); end
+
+% 7. Vascular series from the PPG, modelled like the heart period (not as
+% inputs): pulse arrival time ('pat', ECG + PPG) and pulse amplitude ('pamp')
+S.vasc = []; S.vasc_names = {};
+for v = cellstr(opt.vascular)
+    if isempty(v{1}), continue; end
+    if isempty(ppgF), warning('No PPG: vascular series ignored.'); break; end
+    switch lower(v{1})
+        case 'pat',  S.vasc(end+1,:) = ppgF.pat;
+        case 'pamp', S.vasc(end+1,:) = ppgF.amp;
+        otherwise, error('Unknown vascular series ''%s'' (''pat'' or ''pamp'').', v{1})
+    end
+    S.vasc_names{end+1} = lower(v{1});
 end
 
 S.regions = regions;
@@ -267,6 +310,34 @@ else
     S.fs_out = fso;
 end
 S.cfa_method = opt.cfa;
+
+
+function F = ppg_features(ppg, fs, tStart)
+% Pulse of each interval (first onset in tStart + ppg.window), its arrival
+% time (ms), amplitude and foot value, from the PPG low-passed at 8 Hz
+% (sign set to match ppg.sig, the polarity-corrected signal of GET_RR)
+if ~isfield(ppg,'window') || isempty(ppg.window), ppg.window = [0.04 0.5]; end
+raw = double(ppg.raw(:)');
+ok = isfinite(raw);
+x = raw; x(~ok) = 0;
+x = filtfilt(lowpass_fir(fs, 8), 1, x); x(~ok) = NaN;
+if isfield(ppg,'sig') && ~isempty(ppg.sig)
+    r = corr(x(ok)' - mean(x(ok)), double(ppg.sig(ok))' - mean(ppg.sig(ok)));
+    if r < 0, x = -x; end
+end
+to = (double(ppg.onsets(:)') - 1)/fs;               % onset times (s)
+K = numel(tStart);
+[F.pat, F.amp, F.foot] = deal(nan(1,K));
+w = round(0.45*fs);
+for k = 1:K
+    j = find(to >= tStart(k) + ppg.window(1), 1);
+    if isempty(j) || to(j) > tStart(k) + ppg.window(2), continue; end
+    o = ppg.onsets(j);
+    if o + w > numel(x) || any(isnan(x(o:o+w))), continue; end
+    F.pat(k) = (to(j) - tStart(k))*1000;
+    F.foot(k) = x(o);
+    F.amp(k) = max(x(o:o+w)) - x(o);
+end
 
 
 function z = to_grid(x, step, L, method)

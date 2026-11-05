@@ -125,8 +125,12 @@ else
 end
 nw = size(win,1);
 
-vnames = [S.band_names(:)' {'heart'}];
-nv = nb + 1; ih = nv; nu = double(hasResp);
+vasc = []; vascN = {};
+if isfield(S,'vasc') && ~isempty(S.vasc), vasc = S.vasc; vascN = S.vasc_names; end
+nvs = numel(vascN);
+vnames = [S.band_names(:)' {'heart'} vascN];
+nv = nb + 1 + nvs; ih = nb + 1; iv = ih + (1:nvs); nu = size(S.resp, 1);
+respN = 'resp';
 
 rows = {}; tabcols = {'region','band','source','target','measure','model','freq','value','p','null_median','p_F'};
 sz = [nr nb opt.nfreq+1];
@@ -139,7 +143,7 @@ rng(opt.seed);
 
 for r = 1:nr
     rname = S.regions(r).name;
-    X = [reshape(S.eeg(r,:,:), nb, []); S.heart];
+    X = [reshape(S.eeg(r,:,:), nb, []); S.heart; vasc];
     if hasResp, X = [X; S.resp]; end %#ok<AGROW>
 
     % Detrend and standardize each window; windows separated by NaN
@@ -168,7 +172,8 @@ for r = 1:nr
     P = crit.P; qx = crit.qx; pm = max(P(:));
     [A, V, info] = var_fit(Xw, P, [], Uw, qx);
     [lbmin, lbp] = ljungbox(info.E, info.rows, max(10, 2*pm), max(P,[],2));
-    mdl = struct('name', rname, 'variables', {vnames}, 'exogenous', {repmat({'resp'},1,nu)}, ...
+    exoN = {}; if nu > 0, exoN = strsplit(S.resp_source, '+'); end
+    mdl = struct('name', rname, 'variables', {vnames}, 'exogenous', {exoN}, ...
         'order_own', diag(P)', 'order_cross', qx', 'P', P, 'nObs', info.nObs, ...
         'samples_per_coef', info.nObs/max(info.ncoef), 'rho', info.rho, ...
         'ljungbox_minp', lbmin, 'ljungbox_p', lbp', 'zerolag_pcorr', partial_corr(V));
@@ -284,19 +289,47 @@ for r = 1:nr
     % own past already predicts a regular respiratory oscillation.
     if hasResp
         [g, pr] = exog_gc(Xw, Uw, info.rows, P, qx, ih);
-        rows(end+1,:) = {rname, '', 'resp', 'heart', 'GC', 'exogenous', 'all', g, pr, NaN, pr}; %#ok<AGROW>
-        if r == 1
-            Xr = [Xw(ih,:); Uw];
-            [~, ~, c3] = var_order(Xr, pmax, [], pown, floor(sum(all(isfinite(Xr),1))/10));
-            [A3, V3] = var_fit(Xr, c3.P);
-            sp3 = var_spectral(A3, V3, opt.nfreq);
-            cohR = max(sp3.coh(1,2,iHF));
+        rows(end+1,:) = {rname, '', respN, 'heart', 'GC', 'exogenous', 'all', g, pr, NaN, pr}; %#ok<AGROW>
+        if r == 1                                     % each proxy on its own
+            cohR = nan(1, nu);
+            for u = 1:nu
+                Xr = [Xw(ih,:); Uw(u,:)];
+                [~, ~, c3] = var_order(Xr, pmax, [], pown, floor(sum(all(isfinite(Xr),1))/10));
+                [A3, V3] = var_fit(Xr, c3.P);
+                sp3 = var_spectral(A3, V3, opt.nfreq);
+                cohR(u) = max(sp3.coh(1,2,iHF));
+            end
             out.resp_heart_coh = cohR;
-            if cohR < 0.2
+            if max(cohR) < 0.2
                 out.warnings{end+1} = sprintf(['Respiration (%s) shares little with the heart period in HF ' ...
                     '(peak coherence %.2f): it may not track breathing, and conditioning on it may not remove ' ...
-                    'the respiratory drive.'], S.resp_source, cohR);
+                    'the respiratory drive.'], S.resp_source, max(cohR));
             end
+        end
+    end
+
+    % Vascular series (PPG): conditional GC with each band and with the
+    % heart period (F-tests; e.g. pulse arrival time -> heart period is
+    % baroreflex-like, EEG -> pulse amplitude a vasomotor path)
+    for vi = 1:nvs
+        k = iv(vi);
+        pairs = [num2cell(1:nb) {ih}];
+        for jj = 1:numel(pairs)
+            j = pairs{jj};
+            for dir = 1:2
+                if dir == 1, src = j; tgt = k; else, src = k; tgt = j; end
+                oth = setdiff(1:nv, [src tgt]);
+                [Fv, fv] = var_ssgc(A, V, tgt, src, oth, opt.nfreq);
+                pF = ftest(Xw, Uw, info.rows, P, qx, tgt, src);
+                bnd = ''; if j <= nb, bnd = vnames{j}; end
+                rows(end+1,:) = {rname, bnd, vnames{src}, vnames{tgt}, 'GC', 'conditional', 'all', Fv, pF, NaN, pF}; %#ok<AGROW>
+                rows(end+1,:) = {rname, bnd, vnames{src}, vnames{tgt}, 'GC', 'conditional', 'LF', mean(fv(iLF)), NaN, NaN, NaN}; %#ok<AGROW>
+                rows(end+1,:) = {rname, bnd, vnames{src}, vnames{tgt}, 'GC', 'conditional', 'HF', mean(fv(iHF)), NaN, NaN, NaN}; %#ok<AGROW>
+            end
+        end
+        if hasResp
+            [g, pr] = exog_gc(Xw, Uw, info.rows, P, qx, k);
+            rows(end+1,:) = {rname, '', respN, vnames{k}, 'GC', 'exogenous', 'all', g, pr, NaN, pr}; %#ok<AGROW>
         end
     end
     out.models(r) = mdl;

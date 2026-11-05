@@ -100,15 +100,20 @@ end
 if strcmp(params.analysis, 'coupling')
     defaults = {'coupling_resp' 'auto'; 'coupling_regions' 'auto'; 'coupling_bands' [1 4; 4 8; 8 13; 13 30]; ...
         'coupling_cfa' 'evoked'; 'coupling_grid' 'beat'; 'coupling_fs' 2; 'coupling_window' 300; ...
-        'coupling_maxlag' 5; 'coupling_nboot' 200};
+        'coupling_maxlag' 5; 'coupling_nboot' 200; 'coupling_vascular' {}; 'coupling_ppg' 'auto'};
     for k = 1:size(defaults,1)
         idx = find(strcmpi(keys, defaults{k,1}));
         if ~isempty(idx), params.(defaults{k,1}) = varargin{idx+1}; else, params.(defaults{k,1}) = defaults{k,2}; end
     end
-    if ~(ischar(params.coupling_resp) || isstring(params.coupling_resp))
-        error("'coupling_resp' must be a channel label, 'ecg', 'none' or 'auto'.")
+    if ~(ischar(params.coupling_resp) || isstring(params.coupling_resp) || iscellstr(params.coupling_resp))
+        error("'coupling_resp' must be a channel label, 'ecg', 'ppg', 'none', 'auto', or a cell array of several.")
     end
-    params.coupling_resp = char(params.coupling_resp);
+    if ~iscell(params.coupling_resp), params.coupling_resp = char(params.coupling_resp); end
+    params.coupling_vascular = lower(cellstr(params.coupling_vascular));
+    if ~all(ismember(params.coupling_vascular, {'pat' 'pamp'}))
+        error("'coupling_vascular' must be {}, 'pat' (pulse arrival time, ECG + PPG), 'pamp' (pulse amplitude) or {'pat' 'pamp'}.")
+    end
+    params.coupling_ppg = char(params.coupling_ppg);
     if ~isnumeric(params.coupling_bands) || size(params.coupling_bands,2) ~= 2 || any(diff(params.coupling_bands,1,2) <= 0)
         error("'coupling_bands' must be an n x 2 matrix of band limits in Hz.")
     end
@@ -618,7 +623,7 @@ k = {'heart_signal' 'heart_channels' 'beat_latencies' 'analysis' 'keep_heart' ..
     'conf_thresh' 'heart_removal' 'ecg_corr' 'ssp_n' 'hep_baseline' 'hep_baseline_win' 'hep_window' ...
     'hep_tf_freqs' 'hep_surrogates' 'hep_surrogate_mode' 'hep_level' 'hep_roi' ...
     'coupling_resp' 'coupling_regions' 'coupling_bands' 'coupling_cfa' 'coupling_grid' 'coupling_fs' ...
-    'coupling_window' 'coupling_maxlag' 'coupling_nboot' ...
+    'coupling_window' 'coupling_maxlag' 'coupling_nboot' 'coupling_vascular' 'coupling_ppg' ...
     'hrv_features' 'hrv_norm' 'hrv_spec' 'hrv_overlap' 'prsa_thresh' 'eeg' 'clean_eeg' 'highpass' 'lowpass' ...
     'flatline' 'corrThresh' 'maxBad' 'asr_cutoff' 'asr_mem' 'ref' 'clean_method' 'linenoise' ...
     'filttype' 'detectMethod' 'icamethod' 'ica_method' 'eeg_features' 'eeg_frange' ...
