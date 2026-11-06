@@ -797,11 +797,17 @@ elseif strcmp(params.analysis,'coupling')
         'nboot', params.coupling_nboot);
     coupling = compute_coupling(S, copt);
     coupling.series = S;
+    coupling.report = report_coupling(coupling, S, params.vis_outputs);   % text (printed) and one-page figure
     EEG.brainbeats.coupling = coupling;
-    disp("Brain-heart coupling outputs can be found in: EEG.brainbeats.coupling (see .table)")
+    disp("Brain-heart coupling outputs can be found in: EEG.brainbeats.coupling (see .table and .report)")
 
     if params.vis_outputs
-        plot_coupling(coupling, S)
+        if params.save
+            [name, folder] = output_file(EEG, '_coupling_report.png');
+            hr = findobj(groot, 'Type','figure', 'Name','Brain-heart coupling report');
+            exportgraphics(hr(1), fullfile(folder, name), 'Resolution', 150);   % the newest
+        end
+        plot_coupling(coupling, S)                    % detailed maps, spectra and series
     end
     if params.save
         [name, folder] = output_file(EEG, '_coupling.mat');

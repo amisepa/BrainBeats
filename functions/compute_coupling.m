@@ -57,7 +57,9 @@
 %             'exogenous'), freq ('all', 'LF', 'HF'), value, p (bootstrap
 %             for conditional GC, F-test for pairwise and exogenous GC,
 %             circular shifts for TE; NaN where no test), null_median (bias
-%             reference: GC under the null model), p_F (F-test)
+%             reference: GC under the null model), p_F (F-test), q (FDR,
+%             Benjamini-Hochberg, across the out.n_tests conditional
+%             EEG <-> heart GC tests of the recording)
 %   freqs   - frequency axis of the spectra (Hz)
 %   spectra - nRegions x nBands x nFreqs arrays: gc_eh / gc_he (conditional,
 %             EEG -> heart / heart -> EEG), gc_eh_pair / gc_he_pair, coh,
@@ -174,7 +176,7 @@ for r = 1:nr
     [lbmin, lbp] = ljungbox(info.E, info.rows, max(10, 2*pm), max(P,[],2));
     exoN = {}; if nu > 0, exoN = strsplit(S.resp_source, '+'); end
     mdl = struct('name', rname, 'variables', {vnames}, 'exogenous', {exoN}, ...
-        'order_own', diag(P)', 'order_cross', qx', 'P', P, 'nObs', info.nObs, ...
+        'order_own', diag(P)', 'order_cross', max(P - diag(diag(P)), [], 2)', 'order_resp', qx', 'P', P, 'nObs', info.nObs, ...
         'samples_per_coef', info.nObs/max(info.ncoef), 'rho', info.rho, ...
         'ljungbox_minp', lbmin, 'ljungbox_p', lbp', 'zerolag_pcorr', partial_corr(V));
     if any(info.ncoef >= maxcoef - nv)
@@ -336,6 +338,17 @@ for r = 1:nr
 end
 
 out.table = cell2table(rows, 'VariableNames', tabcols);
+% FDR (Benjamini-Hochberg) across the conditional EEG <-> heart GC tests of
+% the recording (all regions, bands, directions), on the F-test p-values:
+% the bootstrap's resolution, 1/(nboot+1), is too coarse for ~32 tests
+% (the smallest q would need p < .05/32)
+t = out.table;
+sel = strcmp(t.measure,'GC') & strcmp(t.model,'conditional') & strcmp(t.freq,'all') & ...
+    (strcmp(t.source,'heart') | strcmp(t.target,'heart')) & ~ismember(t.source, vascN) & ~ismember(t.target, vascN);
+t.q = nan(height(t), 1);
+t.q(sel) = fdr_bh(t.p_F(sel));
+out.table = t;
+out.n_tests = sum(sel);
 if isfield(S, 'grid'), out.grid = S.grid; else, out.grid = 'uniform'; end
 out.fs = fso;
 out.freqs = freqs;
@@ -502,6 +515,15 @@ P = V \ eye(size(V));
 d = sqrt(diag(P));
 pc = -P ./ (d*d');
 pc(logical(eye(size(V)))) = 1;
+
+
+function q = fdr_bh(p)
+% Benjamini-Hochberg adjusted p-values (q-values)
+p = p(:); m = numel(p);
+[ps, o] = sort(p);
+qs = ps .* m ./ (1:m)';
+qs = min(1, flipud(cummin(flipud(qs))));
+q = nan(m,1); q(o) = qs;
 
 
 function q = prctile_cols(X, pc)

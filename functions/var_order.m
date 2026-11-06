@@ -17,8 +17,9 @@
 %   pBIC, pAIC - orders minimizing each criterion (whole model)
 %   crit       - struct: p (1:pmax), bic, aic (whole model, per order);
 %                P (nVar x nVar, BIC per equation: P(i,i) own lags, P(i,j)
-%                cross lags) and qx (lags of U per equation, = its cross
-%                order). Series with different dynamics (EEG power
+%                cross lags) and qx (lags of U per equation, 0..pmax,
+%                chosen separately: respiration can act with longer lags
+%                than the cross terms). Series with different dynamics (EEG power
 %                envelopes, the interpolated NN series) need different
 %                orders; a smooth series needs long own lags but no long
 %                cross lags (Hsiao, 1981).
@@ -51,24 +52,28 @@ end
 [~, pBIC] = min(bic);
 [~, pAIC] = min(aic);
 
-% per equation: own lags x cross lags
+% per equation: own lags x cross lags x input lags (0..pmax)
 Z = var_design(X, U, rows, pl, pl);
 P = zeros(n); qx = zeros(n,1);
+qlist = 0; if nu > 0, qlist = 0:pmax; end
 for i = 1:n
     y = X(i, rows)';
     best = Inf;
     for po = 1:pown
         for pc = 1:pmax
             Pi = pc*ones(1,n); Pi(i) = po;
-            m = false(1, size(Z,1));
-            for k = 1:pl, m((k-1)*n + find(Pi >= k)) = true; end
-            if nu > 0, m(n*pl + (1:nu*(pc+1))) = true; end
-            kc = sum(m);
-            if kc > maxcoef, continue; end
-            Zi = Z(m,:)';
-            e = y - Zi*(Zi \ y);
-            b = nObs*log(e'*e/nObs) + kc*log(nObs);
-            if b < best, best = b; P(i,:) = Pi; qx(i) = pc; end
+            mx = false(1, size(Z,1));
+            for k = 1:pl, mx((k-1)*n + find(Pi >= k)) = true; end
+            for pq = qlist
+                m = mx;
+                if nu > 0, m(n*pl + (1:nu*(pq+1))) = true; end
+                kc = sum(m);
+                if kc > maxcoef, continue; end
+                Zi = Z(m,:)';
+                e = y - Zi*(Zi \ y);
+                b = nObs*log(e'*e/nObs) + kc*log(nObs);
+                if b < best, best = b; P(i,:) = Pi; qx(i) = pq; end
+            end
         end
     end
 end
