@@ -2,9 +2,9 @@ function make_readme_figures(runs)
 % MAKE_README_FIGURES - Regenerate the README figures from the sample data.
 %
 % Saves the BrainBeats window, then runs HEP (ECG, and PPG with the pulse
-% arrival time corrected; channels and ICs) on sample_data/sub-047_rest.set
-% (a clearer heartbeat-evoked response than the tutorial dataset) and
-% features on sample_data/dataset.set, with the plots on, and saves the
+% arrival time corrected; channels and ICs) and brain-heart coupling on
+% sample_data/sub-047_rest.set (a clearer heartbeat-evoked response than the
+% tutorial dataset) and features on sample_data/dataset.set, with the plots on, and saves the
 % figures shown in README.md into the figures folder (existing files are
 % overwritten). It also serves as the interactive check of the plotting code
 % before a release.
@@ -15,7 +15,7 @@ function make_readme_figures(runs)
 %
 % Input:
 %   runs - any of 'gui', 'hep_ecg', 'hep_ppg', 'ics_ecg', 'ics_ppg' (IC level),
-%          'features' (default: all)
+%          'coupling', 'features' (default: all)
 %
 % Notes:
 % - Works with the desktop or under 'matlab -batch' (figures then drawn
@@ -46,7 +46,7 @@ olddir = cd(tempdir);
 restore = onCleanup(@() cd(olddir));
 
 if nargin < 1 || isempty(runs)
-    runs = {'gui' 'hep_ecg' 'hep_ppg' 'ics_ecg' 'ics_ppg' 'features'};
+    runs = {'gui' 'hep_ecg' 'hep_ppg' 'ics_ecg' 'ics_ppg' 'coupling' 'features'};
 end
 runs = cellstr(runs);
 common = {'save',false,'gong',false};
@@ -63,7 +63,7 @@ end
 for r = 1:numel(runs)
     close all force
     fprintf('\n==================== %s ====================\n', runs{r});
-    if any(strcmp(runs{r}, {'hep_ecg' 'hep_ppg' 'ics_ecg' 'ics_ppg'}))
+    if any(strcmp(runs{r}, {'hep_ecg' 'hep_ppg' 'ics_ecg' 'ics_ppg' 'coupling'}))
         EEG = pop_loadset('filename','sub-047_rest.set','filepath',dpath);
     else
         EEG = pop_loadset('filename','dataset.set','filepath',dpath);
@@ -119,6 +119,14 @@ for r = 1:numel(runs)
             f = sortfigs(findall(groot,'Type','figure','-regexp','Name','^HEP of the independent components'));
             if isempty(f), f = []; else, f = f(1); end
             save_fig(f, outdir, sprintf('hep_%s.png', runs{r}), 'export');
+
+        case 'coupling'
+            % Respiration from the ECG (no respiration channel in the file)
+            EEG = pop_select(EEG,'nochannel',{'PPG'});
+            brainbeats_process(EEG,'analysis','coupling','heart_signal','ECG', ...
+                'heart_channels',{'ECG'},'clean_eeg',true,'coupling_resp','ecg', ...
+                'vis_cleaning',false,'vis_outputs',true,common{:});
+            save_fig(byname('Brain-heart coupling report',1), outdir, 'coupling_report.png', 'export');
 
         case 'features'
             % Both feature figures end up named 'Visualization of features':

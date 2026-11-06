@@ -71,6 +71,20 @@ normalized ratios: not comparable across models with different variable sets. GC
   mean heart period. A uniform grid ('coupling_grid','uniform') is kept as an option.
 - Pairwise = a separate bivariate VAR of the band and the heart (no respiration, no other
   bands); total coherence from that model, partial coherence from the full model.
+- Cardiac field: 'evoked' stays the default. In simulation (13 channels) 'both' (SSP +
+  evoked) calibrated best (3-6% vs heart -> beta 8-9%) but cut power (b2h 92%, h2b 70% vs
+  100%, 98%); in ds003838 (63 channels) the options gave the same rates (heart -> beta 8.6%
+  evoked, 8.2% none, 14.3% both).
+- Detrending per run of complete samples: one detrend over pooled 90-s segments let block
+  offsets look like lagged prediction. The 25% significant tests that remained in the belt
+  dataset survived a segment-swap null (7.7%): real within-segment co-fluctuation.
+- PPG: respiration from the PPG is as good as from the ECG (HF coherence with NN 0.86 /
+  0.73 vs 0.87) and all three together raise resp -> heart from 94% to 98% without
+  changing EEG <-> heart; pulse arrival time and amplitude capture the cardiovascular loop
+  but no EEG link above chance at rest: options, off by default. A PPG series that would
+  cut the usable data by more than half is dropped with a warning.
+- FDR (q) on the F-test p: the bootstrap's resolution, 1/(nboot+1), is too coarse for ~32
+  tests. A model that cannot be fitted in any region is an error (it used to crash later).
 
 Comparators for the paper only, not shipped: MIC at 1 Hz and lag 0, SDG (Catrambone code),
 PCMI (order <= 3, circular-shift null per direction), pairwise GC.

@@ -337,6 +337,9 @@ for r = 1:nr
     out.models(r) = mdl;
 end
 
+if isempty(rows)
+    error('compute_coupling: no region could be modelled: %s', strjoin(out.warnings, ' '));
+end
 out.table = cell2table(rows, 'VariableNames', tabcols);
 % FDR (Benjamini-Hochberg) across the conditional EEG <-> heart GC tests of
 % the recording (all regions, bands, directions), on the F-test p-values:

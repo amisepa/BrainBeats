@@ -116,6 +116,12 @@ end
 if nd == 0 && isempty(M)
     lines{end+1} = 'No EEG <-> heart link stands out in this recording.';
 end
+hiBand = cellfun(@(b) S.bands(strcmp(bands, b), 1) >= 13, {D.band});   % bands starting at 13 Hz or above
+if any(hiBand)
+    lines{end+1} = ['Beta (and faster) power, at temporal and frontal sites above all, often carries scalp muscle ' ...
+        'activity (EMG), which follows arousal and posture along with heart rate: check that the cleaning removed ' ...
+        'muscle components before reading these links as cortical.'];
+end
 
 % Respiration
 if isempty(S.resp)
@@ -147,7 +153,9 @@ if any(bad)
     lines{end+1} = sprintf('Model check: residuals not white in %s (Ljung-Box): those regions'' results are less reliable.', ...
         strjoin(regs(bad), ', '));
 else
-    lines{end+1} = sprintf('Model check: residuals white in every region; %.0f-%.0f samples per coefficient.', min(spc), max(spc));
+    rng_s = sprintf('%.0f-%.0f', min(spc), max(spc));
+    if round(min(spc)) == round(max(spc)), rng_s = sprintf('%.0f', min(spc)); end
+    lines{end+1} = sprintf('Model check: residuals white in every region; %s samples per coefficient.', rng_s);
 end
 if ~isempty(out.warnings)
     lines{end+1} = sprintf('%d warning(s): see out.warnings.', numel(out.warnings));
@@ -241,7 +249,7 @@ title(ax, 'Quality checks', 'FontSize', 9);
 
 % Interpretation
 annotation(f, 'textbox', [0.03 0.01 0.94 0.25], 'String', strcat([char(8226) ' '], lines(2:end)), ...
-    'EdgeColor', [0.85 0.85 0.85], 'FontSize', 9, 'Interpreter','none', 'VerticalAlignment','top');
+    'EdgeColor', 'none', 'FontSize', 9, 'Interpreter','none', 'VerticalAlignment','top');
 finish_figure(f)
 
 

@@ -64,7 +64,9 @@
 %   eeg        - nRegions x nBands x T, log10 band power (uV^2), NaN where
 %                not available
 %   heart      - 1 x T NN interval (ms), cubic interpolation of the beats
-%   resp       - 1 x T respiration (arbitrary units), empty if none
+%   resp       - nProxies x T respiration (arbitrary units), empty if none;
+%                a proxy (or vascular series) that would cut the usable
+%                clean beats by more than half is left out, with a warning
 %   regions    - struct array: name, chans (indices), labels
 %   bands, band_names, fs_out, resp_source
 %   cfa        - struct: evoked template variance as a share of the EEG
@@ -275,6 +277,7 @@ end
 % the R-S amplitude of each QRS; 'ppg_riiv' / 'ppg_riav': the PPG pulse
 % foot (intensity) / amplitude variation
 S.resp = []; names = {};
+base = all(isfinite(reshape(S.eeg, [], T)), 1) & isfinite(S.heart);   % clean EEG and heart period
 if isstruct(resp) && isfield(resp,'source')
     for ir = 1:numel(resp)
         z = [];
@@ -308,6 +311,9 @@ if isstruct(resp) && isfield(resp,'source')
             case 'ppg_riav'
                 if ~isempty(ppgF), z = ppgF.amp; else, warning('No PPG: respiration ''ppg_riav'' ignored.'); end
         end
+        if ~isempty(z) && ~covered(z, base, resp(ir).source)
+            z = [];
+        end
         if ~isempty(z)
             S.resp(end+1,:) = z;
             names{end+1} = lower(resp(ir).source); %#ok<AGROW>
@@ -327,10 +333,12 @@ for v = cellstr(opt.vascular)
     if isempty(v{1}), continue; end
     if isempty(ppgF), warning('No PPG: vascular series ignored.'); break; end
     switch lower(v{1})
-        case 'pat',  S.vasc(end+1,:) = ppgF.pat;
-        case 'pamp', S.vasc(end+1,:) = ppgF.amp;
+        case 'pat',  z = ppgF.pat;
+        case 'pamp', z = ppgF.amp;
         otherwise, error('Unknown vascular series ''%s'' (''pat'' or ''pamp'').', v{1})
     end
+    if ~covered(z, base, v{1}), continue; end
+    S.vasc(end+1,:) = z;
     S.vasc_names{end+1} = lower(v{1});
 end
 
@@ -372,6 +380,25 @@ for k = 1:K
     F.foot(k) = x(o);
     F.amp(k) = max(x(o:o+w)) - x(o);
 end
+
+
+function ok = covered(z, base, name)
+% A respiration proxy or vascular series that would remove more than half
+% of the usable samples from the whole model (a poor PPG: pulses missed at
+% scattered beats break the series into short pieces) is ignored, with a
+% warning. Usable: in runs of >= 20 complete samples, long enough for lags.
+c = usable(base & isfinite(z)) / max(usable(base), 1);
+ok = c >= 0.5;
+if ~ok
+    warning('BrainBeats:coupling', '''%s'' would leave %.0f%% of the clean heartbeats in runs long enough to model (poor signal?): ignored.', ...
+        name, 100*c);
+end
+
+
+function n = usable(m)
+d = diff([0 m(:)' 0]);
+L = find(d == -1) - find(d == 1);
+n = sum(L(L >= 20));
 
 
 function z = to_grid(x, step, L, method)

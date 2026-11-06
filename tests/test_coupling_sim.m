@@ -17,6 +17,7 @@ function R = test_coupling_sim(nSim, nboot, pick, sopt)
 %               cardiac field of constant amplitude (no respiratory
 %               modulation of the QRS)
 %   null_ssp, null_both - the cardiac field removed by SSP, or SSP + evoked
+%   b2h_both, h2b_both  - power with SSP + evoked
 % pick: cell array of scenario names to run (default all)
 % sopt: extra options of GET_COUPLING_SERIES (e.g. struct('resp_phase',true))
 % Prints the rejection rates (p < .05) of the conditional tests (bootstrap
@@ -40,7 +41,9 @@ scen = {
     'null_noCFA', struct('c_ah',0,'c_ha',0,'cfa_uv',0),     'channel', 'evoked'
     'null_qrsK',  struct('c_ah',0,'c_ha',0,'qrs_resp',0),   'channel', 'evoked'
     'null_ssp',   struct('c_ah',0,'c_ha',0),                'channel', 'ssp'
-    'null_both',  struct('c_ah',0,'c_ha',0),                'channel', 'both'};
+    'null_both',  struct('c_ah',0,'c_ha',0),                'channel', 'both'
+    'b2h_both',   struct('c_ah',0.5,'c_ha',0),              'channel', 'both'
+    'h2b_both',   struct('c_ah',0,'c_ha',0.3),              'channel', 'both'};
 if ~strcmp(pick, 'all'), scen = scen(ismember(scen(:,1), pick), :); end
 reg = {'posterior', {'Pz' 'P3' 'P4' 'O1' 'O2'}};
 cols = {'aH_boot','Ha_boot','aH_F','Ha_F','aH_TE','Ha_TE','aH_pair','Ha_pair','bH_F','Hb_F','bH_pair','Hb_pair'};

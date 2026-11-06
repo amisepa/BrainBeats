@@ -53,23 +53,29 @@ for k = 1:numel(cacheFiles)
         try
             S = get_coupling_series(double(C.X), C.fs, C.chanlocs, C.beats, C.NN_t, C.NN, resp, ...
                 struct('cfa', cfas{c}, 'ppg', ppg, 'vascular', {{'pat' 'pamp'}}));
-            % rows of S.resp: 1 ECG, 2 PPG foot, 3 PPG amplitude
+            % respiration proxies by name (a poor PPG proxy is left out of S)
+            ecg = {'ecg'}; ppgR = {'ppg_riiv' 'ppg_riav'};
             if strcmp(cfas{c}, 'evoked')
                 r.S = S;
-                variants = {'default', 1, false; 'resp_none', [], false; 'resp_ppg', [2 3], false; ...
-                    'resp_all', 1:3, false; 'vasc', 1, true};
+                variants = {'default', ecg, false; 'resp_none', {}, false; 'resp_ppg', ppgR, false; ...
+                    'resp_all', [ecg ppgR], false; 'vasc', ecg, true};
             else
-                variants = {cfaName.(cfas{c}), 1, false};
+                variants = {cfaName.(cfas{c}), ecg, false};
             end
-            for v = 1:size(variants,1)
+        catch e
+            fprintf('%s %s: %s\n', C.name, cfas{c}, e.message);
+            continue
+        end
+        for v = 1:size(variants,1)                        % a failing variant leaves the others
+            try
                 Sv = select(S, variants{v,2}, variants{v,3});
                 out = compute_coupling(Sv, copt);
                 r.(variants{v,1}) = struct('table', out.table, 'models', out.models, ...
                     'resp_heart_coh', out.resp_heart_coh, 'warnings', {out.warnings}, 'cfa', S.cfa);
+            catch e
+                fprintf('%s %s: %s\n', C.name, variants{v,1}, e.message);
+                r.(variants{v,1}) = struct('error', e.message);
             end
-        catch e
-            fprintf('%s %s: %s\n', C.name, cfas{c}, e.message);
-            if strcmp(cfas{c}, 'evoked'), r.default = struct('error', e.message); end
         end
     end
     if isempty(R), R = r; else, R(end+1) = r; end %#ok<AGROW>
@@ -79,9 +85,11 @@ end
 warning(w);
 
 
-function Sv = select(S, rr, vasc)
-% Respiration rows rr; vascular series kept or not
+function Sv = select(S, want, vasc)
+% Respiration proxies named in want (those present); vascular series kept or not
 names = strsplit(S.resp_source, '+');
+rr = find(ismember(names, want));
+if ~isempty(want) && isempty(rr), error('respiration %s not available', strjoin(want, '+')); end
 Sv = S;
 Sv.resp = S.resp(rr, :);
 if isempty(rr), Sv.resp_source = 'none'; else, Sv.resp_source = strjoin(names(rr), '+'); end

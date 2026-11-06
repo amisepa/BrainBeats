@@ -55,19 +55,25 @@
 Scientific, may change results:
 - [x] Brain-heart coherence redesigned as 'coupling' (branch brain-heart, docs/brain-heart-plan.md):
   beat-to-beat series, VARX with respiration exogenous, state-space GC, tested on simulations.
-  Still open before merging:
-  - [ ] Real data beyond one subject: ds003838 (EEG, ECG, PPG; no respiration: ECG-derived),
-        MIT-BIH Polysomnographic and CAP sleep (respiration channels). theta -> heart was
-        significant (p .01-.02) in 3 of 4 regions of sub-047: check across subjects and
-        against the cardiac field options ('ssp', 'both') before reading anything into it.
-  - [ ] ECG-derived respiration vs a belt on a dataset with both (MIT-BIH Polysomnographic):
-        its coherence with NN, and whether conditioning on it removes the respiratory drive.
-  - [ ] Cardiac field options ('evoked' vs 'ssp' vs 'both') on real data: residual
-        heart-locked power and its effect on heart -> EEG GC.
-  - [ ] Larger calibration for the paper (>= 200 recordings per scenario, fresh seeds per
-        scenario; seeds 1-60 were shared across scenarios, which made one chance excess,
-        heart -> beta 10-13%, recur everywhere).
-  - [ ] GUI entry, README figures, Python port (MNE-Connectivity gc/gc_tr, Tigramite PCMCI+).
+  Done: ds003838 cohort (61 usable of 64, all variants), ECG-derived respiration vs a belt
+  (38 participants), cardiac field options on real data ('evoked' kept), calibration at 200
+  recordings per scenario with fresh seeds, segment-swap null on real data, report figure.
+  Numbers in README section 3. Still open before merging:
+  - [ ] The F-tests run ~8% at nominal 5% (simulation and real-data null): a small-sample
+        correction (e.g., the bootstrap as the default p, or an F with effective df) before
+        the paper; q (FDR) uses the F-test p.
+  - [ ] Respiratory phase inputs ('resp_phase' in get_coupling_series): helped EEG -> heart
+        calibration in simulation only; test on the belt dataset before exposing it.
+  - [ ] Heart-period equation fails Ljung-Box in ~1/3 of real recordings (5-9% for the EEG
+        equations): longer own lags or a different heart series (log NN, HR).
+  - [ ] Interpolate single missed PPG pulses: scattered misses break the PPG series into
+        pieces < 20 beats, and the PPG proxies are then left out (3 of 61 in ds003838).
+  - [ ] A dataset with a belt and long recordings for the paper (MIT-BIH Polysomnographic,
+        CAP sleep); a paced-breathing recording.
+  - [ ] Two runs of the README coupling figure (sub-047, same settings) differed at the
+        margin (frontal theta -> heart mediated in one, uncorrected only in the other; CFA
+        max 4.5% vs 4.4%): the cleaning is not deterministic. Find which step, and seed it.
+  - [ ] GUI entry, Python port (MNE-Connectivity gc/gc_tr, Tigramite PCMCI+).
 - HRSP and the QRS (checked 2026-11-03): a heartbeat-locked broadband transient 5 x the noise SD
   makes every point at 350-600 ms a significant power decrease (-1.7 dB) against the 'random'
   surrogates (none at 2 x); normalizing by the continuous data gives the same (-1.9 dB), since it
