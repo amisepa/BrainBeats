@@ -127,8 +127,12 @@ Scientific, may change results:
   2026-11-05 (user asked for it; tests/compare_ectopic_rules.m, 40 recordings): 92-96% vs 13-15%
   of injected premature beats at 0.80 x, RMSSD error 1-7 vs 13-23 ms; replaced 1 sinus and 2
   unclear beats in 12,800 (20% rule: none). 'ectopic_rule','ratio' keeps the v1.6 rule.
-- [ ] An annotated arrhythmia database (e.g. MIT-BIH, PhysioNet) would settle the false-positive
-  rate of the ectopic rule: needs the user's OK to download.
+- [x] Ectopic rule on the MIT-BIH Arrhythmia Database (2026-11-06, tests/validate_ectopic_mitbih.m):
+  0.66 false replacements per 1000 sinus beats; 76% of sparse premature beats replaced, 5-10%
+  where over 15% of beats are abnormal. New warning when the cleaned series still alternates
+  (RR_ALTERNATION > 10%): 14/44 records (all with AF/flutter or frequent ectopy), 0/65 healthy.
+  Not caught: 207 (ventricular flutter, 153 false detections, RMSSD -162 ms), 232 (frequent
+  atrial premature beats with long pauses).
 - PAT: show the method in the HEP figure titles; check the censoring of the pairing in 'peaks'
   mode. (The 250 ms fallback is gone: without an ECG, 'ppg_transit' must be given or 'eeg'.)
 - Validation: every number in the README comes from one subject. Run other ds003838 subjects,
@@ -186,9 +190,17 @@ v1.6: 'heart_removal'; the 'rm_heart' analysis was removed).
    hrsp, surrogate} returned as a second output and saved as <filename>_HEP.set.
 5. Tests: one headless test per step, plus the GUI stub checks for the new windows.
 
-Decisions needed: tabs vs successive windows; second output for the HEP dataset; whether
-heart-component removal keeps the heart channel in the ICA (as 'rm_heart' did) or
-reuses the cleaning ICA (faster, one decomposition).
+Decided (user, 2026-11-06), for v2.0 after the v1.7 release, on its own branch:
+- GUI: successive windows (main window: data and heart signal; then preprocessing; then
+  measures with Options buttons), with Back.
+- Outputs: [EEG, com, HEP]: the continuous cleaned dataset and the HEP epochs; in EEGLAB the
+  HEP becomes a new dataset. Legacy 'analysis','hep' keeps returning the epochs first.
+- Heart-component removal reuses the cleaning ICA; off by default for every measure ('ica':
+  ICLabel heart >= .75; the features path's fixed .99 rule goes).
+- One shared cleaning for all measures (one ICA on the continuous 1-Hz copy), then a second
+  pass by data type: bad epochs for the HEP; ASR in reconstruct mode after the ICA for the
+  continuous data (cutoff to validate: 10/15/20/30 SD, user suggested 15).
+- A measure's results must not depend on which other measures are selected.
 
 ## Next (other)
 - Heart artifact removal ('heart_removal'): default 'none' (user, 2026-11-02: "add all of them and
@@ -217,7 +229,7 @@ reuses the cleaning ICA (faster, one decomposition).
 - Python port (../BrainBeats-py): carry over the 2026-11-03 changes (PPG polarity, ectopic rule,
   Lomb-Scargle ms^2 default and grid, half-open EEG bands, asymmetry sign, qeeg paf, no 'mode')
   and the v1.7 changes (HRV LF/HF from the same 120-s windows, bad-epoch metric, relative
-  thresholds, surrogate exclusions, max statistic default).
+  thresholds, surrogate exclusions, max statistic default, RR_ALTERNATION warning).
 - EEG aperiodic activity (user, 2026-11-03): add the aperiodic exponent and offset, and the
   spectrum and band power after removing the aperiodic component compared with before, as in
   ASCENT (github.com/amisepa/Ascent, specparam; offer to install the plugin on the fly when

@@ -30,6 +30,18 @@ for rule = {'adaptive' 'ratio'}
     assert(abs(r/r0 - 1) < 0.1, '%s: RMSSD %.1f ms after cleaning vs %.1f ms without ectopic beats', rule{1}, r, r0)
     fprintf('clean_rr ectopic OK (%s): RMSSD %.1f ms (sinus), %.1f with 6 ectopic beats, %.1f after cleaning\n', rule{1}, r0, rE, r);
 end
+
+% RR_ALTERNATION: none on sinus series (strong respiratory sinus arrhythmia
+% included) or once occasional ectopic beats are replaced; above the 10%
+% warning of BRAINBEATS_PROCESS in bigeminy, which the cleaning only partly
+% corrects
+nnR = 0.8 + 0.15*sin(2*pi*(1:300)'*0.8/4);       % +/-19%, 4-s breaths
+bg = repmat([0.6; 1.0], 150, 1) + 0.01*randn(300, 1);   % bigeminy: premature beat, pause
+[nnB, ~, ~, ~, iiB] = run(cumsum([0; bg]), fs, 'adaptive');
+a = [rr_alternation(nn0) rr_alternation(nn) rr_alternation(nnR) rr_alternation(nnB)];
+assert(all(a(1:3) == 0), 'rr_alternation on sinus series: %s', mat2str(a(1:3)))
+assert(a(4) > 0.1, 'rr_alternation in bigeminy: %.2f (%d beats replaced)', a(4), sum(iiB))
+fprintf('rr_alternation OK: 0 on sinus and cleaned series, %.2f in bigeminy\n', a(4));
 end
 
 function [nn, nn_t, pk, bad, interp] = run(bt, fs, rule)

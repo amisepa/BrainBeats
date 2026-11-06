@@ -462,6 +462,19 @@ if ~strcmpi(params.heart_signal,'off')
         if flaggedRatio > maxThresh
             warning("%g%% of the RR series on your best electrode was flagged as artifact and corrected. Maximum recommendation is 20%%. You may want to check for abnormal sections (e.g. electrode disconnections for long periods of time) in your cardiovascular signal and try BrainBeats again. ", round(flaggedRatio,2));
         end
+        % Frequent ectopic beats or atrial fibrillation: RR cleaning corrects
+        % only occasional ectopic beats and leaves a short-long alternation
+        % (RR_ALTERNATION; tests/validate_ectopic_mitbih.m)
+        altRatio = 100 * rr_alternation(NN);
+        EEG.brainbeats.preprocessings.rr_alternation = altRatio;
+        if altRatio > 10
+            msg = sprintf(['%.1f%% of the heartbeats alternate between short and long intervals after RR cleaning: ' ...
+                'frequent ectopic beats, or an arrhythmia such as atrial fibrillation. RR cleaning corrects only ' ...
+                'occasional ectopic beats, so HRV measures are unreliable, and HEP epochs include ectopic beats. ' ...
+                'Check the RR series (vis_cleaning).'], altRatio);
+            warning('BrainBeats:irregularRR', '%s', msg)
+            bb_warndlg(msg, 'Irregular heart rhythm')
+        end
 
         % Print average SQI
         fprintf("Overall signal quality index (SQI): %g. Note: SQI > 0.9 is considered good.\n", SQI_mu)

@@ -82,6 +82,14 @@ function [nn_intervals, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(rr_t, rr_i
 %   the ECG; 'ratio' replaced 1 (a false detection, replaced by 'adaptive'
 %   too). With 'ectopic_min_shift' 0 (the published rule), 'adaptive' also
 %   replaced 8 sinus beats, each by less than 10% of its interval.
+%   MIT-BIH Arrhythmia Database, annotated beats (44 records;
+%   tests/validate_ectopic_mitbih.m, 2026-11-06): normal sinus beats
+%   replaced 0.66 per 1000 ('ratio' 0.28; min shift 0: 6.5); premature beats
+%   replaced 76% where under 5% of the surrounding 91 beats are abnormal
+%   ('ratio' 49%), 55% at 5-15% (53%), 10% at 15-30% (54%), 5% above (22%):
+%   the thresholds scale with the variability, so frequent ectopic beats
+%   raise them. RR_ALTERNATION measures what is left (BRAINBEATS_PROCESS
+%   warns above 10%).
 %
 % Reference:
 %   Lipponen, J. A., & Tarvainen, M. P. (2019). A robust algorithm for heart
