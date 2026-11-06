@@ -1,7 +1,8 @@
 % PLOT_HEP_ICS - HEP of the independent components (IC level of RUN_HEP,
 % 'hep_level' 'ics' or 'both'): for each IC, its scalp map and its HEP
 % against the surrogate heartbeat trains (gray: 95% of the surrogates, red:
-% FDR p < .05), with its ICLabel class. All ICs left after the cleaning are
+% p < .05 with the statistic chosen in RUN_HEP, max statistic by default), with its
+% ICLabel class. All ICs left after the cleaning are
 % shown, in the order of the decomposition: no IC is selected (whether a
 % heartbeat-locked brain response can be separated from the cardiac field
 % artifact is not established; see RUN_HEP). A heartbeat-locked IC can be the
@@ -29,6 +30,16 @@ if isempty(I) || isempty(I.ic), return; end
 nIC = numel(I.ic);
 t = I.hep_times;
 hasS = isfield(I,'surrogate') && ~isempty(I.surrogate);
+if hasS
+    % statistic of the red areas (max statistic by default; family-wise over all ICs
+    % and latencies), as chosen in RUN_HEP
+    stat = 'fdr';
+    if isfield(I.surrogate,'stat') && isfield(I.surrogate.hep, ['p_' I.surrogate.stat]), stat = I.surrogate.stat; end
+    sigAll = I.surrogate.hep.(['p_' stat]) < .05;
+    statNames = struct('tfce','TFCE p < .05, family-wise over all ICs', 'tmax','max-statistic p < .05, family-wise over all ICs', 'fdr','FDR p < .05');
+    nNull = I.surrogate.nSurr;
+    if isfield(I.surrogate,'nSurrHep'), nNull = I.surrogate.nSurrHep; end
+end
 nCol = 4;                                   % ICs per row (map + HEP each)
 for first = 1:perFig:nIC
     idx = first:min(first+perFig-1, nIC);
@@ -48,7 +59,7 @@ for first = 1:perFig:nIC
             S = I.surrogate.hep;
             yl = [min([S.null_lo(k,:) y]) max([S.null_hi(k,:) y])];
             yl = yl + [-1 1]*0.08*diff(yl);
-            d = diff([false S.p_fdr(k,:) < .05 false]);
+            d = diff([false sigAll(k,:) false]);
             on = find(d == 1); off = find(d == -1) - 1;
             for j = 1:numel(on)
                 patch(ax, [t(on(j)) t(off(j)) t(off(j)) t(on(j))], yl([1 1 2 2]), [1 .8 .8], 'EdgeColor','none');
@@ -75,7 +86,7 @@ for first = 1:perFig:nIC
     end
     if hasS
         title(tl, sprintf(['HEP of the independent components (scalp map, ICLabel class): gray = 95%% of %d ' ...
-            'surrogate heartbeat trains (%s), red = FDR p < .05'], I.surrogate.nSurr, I.surrogate.mode), ...
+            'surrogate heartbeat trains, red = %s'], nNull, statNames.(stat)), ...
             'FontSize', 11, 'FontWeight', 'bold');
     else
         title(tl, 'HEP of the independent components (scalp map, ICLabel class)', 'FontSize', 11, 'FontWeight', 'bold');

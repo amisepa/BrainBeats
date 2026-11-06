@@ -47,7 +47,6 @@ badEpochs = {'Aggressive (quartiles)' 'Moderate (Grubbs, default)' 'Lax (mean)'}
 ppgModes = {'Pulse onsets (valleys, default)' 'Systolic peaks'};
 patModes = {'Automatic (recommended)' 'Fixed delay (ms):' 'None' 'From the EEG cardiac field (check its figure)'};
 hepWins = {'Fixed (default)' 'Adaptive to the heart rate (within-subject only)'};
-hepBls = {'None (recommended)' 'Regression (Alday, 2019)'};
 spectypes = {'Lomb-Scargle periodogram (ms^2, default)' 'Normalized Lomb-Scargle periodogram (unitless)' 'Welch (requires resampling)' 'FFT (requires resampling)'};
 hrvnorm = {'Yes' 'No (default)'};
 freqrange = '[1 40]';
@@ -134,16 +133,17 @@ G = [G {row3 1}];
 if isHEP
     L = [L {{'style' 'text' 'string' 'HEP' 'fontweight' 'bold'}} ...
         {{} {'style' 'text' 'string' 'Epoch window (ms):'} {'style' 'popupmenu' 'string' hepWins 'tag' 'hep_window_mode'} {'style' 'edit' 'string' '[-300 600]' 'tag' 'hep_window'}} ...
-        {{} {'style' 'text' 'string' 'Baseline correction (window in ms):'} {'style' 'popupmenu' 'string' hepBls 'tag' 'hep_baseline'} {'style' 'edit' 'string' '[-150 -50]' 'tag' 'hep_baseline_win'}}];
-    G = [G {1 row4 row4}];
+        {{} {'style' 'text' 'string' 'Baseline window of the exported pre-R values (ms; no correction):'} {'style' 'edit' 'string' '[-150 -50]' 'tag' 'hep_baseline_win'}}];
+    G = [G {1 row4 row3}];
     if ~isfield(params,'hep_level') || ~strcmp(params.hep_level,'ics')
         L = [L {{} {'style' 'text' 'string' 'ROI channels (plots):'} {'style' 'edit' 'string' roiDefault 'tag' 'hep_roi'} {'style' 'pushbutton' 'string' '...' 'callback' cbROI}}];
         G = [G {row4}];
     end
     L = [L {{} {'style' 'text' 'string' 'HRSP and HRPC frequency range (Hz):'} {'style' 'edit' 'string' '[4 30]' 'tag' 'hep_tf_freqs'}} ...
         {{} {'style' 'text' 'string' 'Surrogate heartbeat control (number of surrogates, 0 = none):'} {'style' 'edit' 'string' '100' 'tag' 'hep_surrogates'}} ...
-        {{} {'style' 'checkbox' 'string' 'Keep the heart channel in the output (its own units)' 'tag' 'keep_heart' 'value' 0}}];
-    G = [G {row3 row3 [.02 .8]}];
+        {{} {'style' 'checkbox' 'string' 'Keep the heart channel in the output (its own units)' 'tag' 'keep_heart' 'value' 0}} ...
+        {{} {'style' 'checkbox' 'string' 'QRS map of the cardiac field artifact and its stability over the recording' 'tag' 'hep_cfa' 'value' 1}}];
+    G = [G {row3 row3 [.02 .8] [.02 .8]}];
 end
 
 % Features
@@ -176,7 +176,7 @@ f = fieldnames(p2);
 for i = 1:numel(f), params.(f{i}) = p2.(f{i}); end
 
 num = @(v) str2num(v); %#ok<ST2NM>
-logicals = {'clean_eeg' 'keep_heart' 'hrv_features' 'hrv_time' 'hrv_frequency' 'hrv_nonlinear' ...
+logicals = {'clean_eeg' 'keep_heart' 'hep_cfa' 'hrv_features' 'hrv_time' 'hrv_frequency' 'hrv_nonlinear' ...
     'eeg_features' 'eeg_time' 'eeg_frequency' 'eeg_nonlinear' 'parpool' 'gpu'};
 for i = 1:numel(logicals)
     if isfield(params, logicals{i}), params.(logicals{i}) = logical(params.(logicals{i})); end
@@ -232,13 +232,10 @@ if isfield(params,'hep_window_mode')
     end
     params = rmfield(params,'hep_window_mode');
 end
-if isfield(params,'hep_baseline')
-    if params.hep_baseline == 2
-        params.hep_baseline = 'regression';
-        params.hep_baseline_win = num(params.hep_baseline_win);
-    else
-        params.hep_baseline = 'none';
-        params = rmfield(params,'hep_baseline_win');
+if isfield(params,'hep_baseline_win')
+    params.hep_baseline_win = num(params.hep_baseline_win);
+    if numel(params.hep_baseline_win) ~= 2 || params.hep_baseline_win(1) >= params.hep_baseline_win(2) || params.hep_baseline_win(2) > 0
+        error('The baseline window must be [start end] in ms, before the R-peak (e.g. [-150 -50]).')
     end
 end
 if isfield(params,'hep_roi')

@@ -79,9 +79,11 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % and heartbeats followed by the next one within 650 ms are rejected so no
 % epoch contains the next QRS. For within-subject analyses, 'hep_window',
 % 'adaptive' sets the epoch end from the subject's heart rate instead.
-% No baseline correction by default; 'hep_baseline','regression' applies a
-% regression-based baseline correction (Alday, 2019; window [-150 -50] ms).
-% The HEP (time domain), HRSP (time-frequency power) and HRPC (phase:
+% No baseline correction; each heartbeat's baseline voltage ([-150 -50] ms)
+% and pre-R band power are exported (EEG.brainbeats.prestim) for group-level
+% covariates. The QRS map of the cardiac field artifact and whether it
+% changed during the recording are in EEG.brainbeats.cfa ('hep_cfa').
+% The HEP (time domain), HRSP (time-frequency power, HEP subtracted) and HRPC (phase:
 % pairwise phase consistency across heartbeats), with the surrogate
 % control, are computed on all channels (EEG.brainbeats.hrsp, .surrogate),
 % and plotted for the average of the frontocentral channels ('hep_roi').

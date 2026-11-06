@@ -12,7 +12,8 @@
 %                             'LombScargle_norm', 'welch' or 'fft' (the last
 %                             two on NN resampled at 7 Hz, mean removed)
 %              .hrv_norm    - divide band powers by total power (default false)
-%              .hrv_overlap - sliding-window overlap, fraction (default 0.25)
+%              .hrv_overlap - minimum overlap of the sliding windows,
+%                             fraction from 0 to < 1 (default 0.25; see Notes)
 %              .prsa_thresh - PRSA anchors: NN changes larger than this
 %                             (%) are left out (default 20; Bauer et al.,
 %                             2006: 5)
@@ -24,29 +25,47 @@
 %                  the band) averaged over windows. Units: ms^2 for
 %                  'LombScargle', 'welch' and 'fft' (PSD of NN in s^2/Hz,
 %                  x1e6); unitless for 'LombScargle_norm' (periodogram
-%                  divided by twice the variance of each window: LF and HF
-%                  come from windows of different lengths, each with its
-%                  own variance, and the values grow with the number of
-%                  beats per window, i.e. the heart rate: same modulation
-%                  in ms, LF +41% at 90 vs 60 bpm, ms^2 -3%); fraction of
-%                  ttlpwr if hrv_norm. Bands the recording is too short for
-%                  are absent; all four are NaN if none can be estimated
-%                  (< 34 s). Also lfhf, ttlpwr (hrv_norm only), pwr/pwr_freqs
-%                  (spectrum of the last window of each band, concatenated;
-%                  ms^2/Hz, or unitless), bands (Hz)
+%                  divided by twice the variance of each window). LF and HF
+%                  come from the same windows, so the normalized LF/HF is
+%                  close to the ms^2 one, but normalized values grow with the
+%                  number of beats per window, i.e. the heart rate: same
+%                  modulation in ms, LF +41% at 90 vs 60 bpm, ms^2 -3%. With
+%                  hrv_norm, fraction of ttlpwr. Bands the recording is too
+%                  short for are absent; all four are NaN if none can be
+%                  estimated (< 60 s). Also lfhf, ttlpwr (hrv_norm only),
+%                  pwr/pwr_freqs (spectrum of the last window of each window
+%                  length over its bands, concatenated: ULF, VLF, then LF and
+%                  HF; ms^2/Hz, or unitless), bands (Hz)
 %     .nonlinear - Poincare SD1, SD2 (ms) and SD1SD2, FE (fuzzy entropy),
 %                  FD (fractal volatility), PRSA_AC, PRSA_DC (ms)
 %   params - input params plus the settings used, for export (hrv_spec,
 %            hrv_norm, hrv_overlap, hrv_band_freqs, hrv_band_names, ...)
 %
 % Notes:
-%   Bands: ULF 0-0.003, VLF 0.003-0.04, LF 0.04-0.15, HF 0.15-0.40 Hz. Each
-%   band is estimated in sliding windows of 5 cycles of its lowest
-%   frequency (Task Force, 1996): 24 h (ULF), ~28 min (VLF), 125 s (LF),
-%   34 s (HF). A band is skipped, with a warning, if the recording is
-%   shorter. Lomb-Scargle is the default because it handles the uneven
-%   sampling and gaps of NN series without resampling. Time and nonlinear
-%   features use the whole series.
+%   Bands: ULF 0-0.003, VLF 0.003-0.04, LF 0.04-0.15, HF 0.15-0.40 Hz. LF
+%   and HF come from the same sliding windows of 120 s (Task Force, 1996:
+%   about 1 min is needed for HF and 2 min for LF), one spectrum per window.
+%   VLF uses windows of 5 cycles of its lowest frequency (~28 min), ULF 24 h.
+%   The windows are spread evenly from the first to the last beat, as many
+%   as needed for an overlap of at least 'hrv_overlap', so that the whole
+%   recording is used (a fixed 90-s step left out 3-35% of 6 recordings of
+%   3-5 min). A band is skipped, with a warning, if the recording is shorter
+%   than its window, except HF, which is taken from the whole recording when
+%   it lasts 60-120 s (LF is then skipped).
+%   Window length (tests/compare_hrv_windows.m, synthetic series with a
+%   1/f-like spectrum): shorter windows let VLF power into LF (Lomb-Scargle
+%   LF +24%, +13%, +10% with 60, 90 and 120 s; welch +28%, +7%, +2%);
+%   180 s did little better (+8%, 0%) but needs 3 min for LF and leaves one
+%   window on 3-min recordings. Until v1.6, LF (125-s windows) and HF (34-s
+%   windows, 0.03-Hz resolution) came from different windows: LF power
+%   leaked into HF (Lomb-Scargle HF +14% on the same series, +5% now; on 6
+%   recordings the old HF was 2-24% higher), and normalized LF and HF had
+%   different variances (normalized LF/HF 1.02 vs 1.67 in ms^2 on the same
+%   series; now 1.79 vs 1.80).
+%   Lomb-Scargle is the default because it handles the uneven sampling and
+%   gaps of NN series without resampling. It has no taper: VLF power adds
+%   to LF (+7% with a 0.025-Hz, 50-ms component; welch -1%). Time and
+%   nonlinear features use the whole series.
 %
 % Copyright (C) - Cedric Cannard, 2023
 
@@ -94,7 +113,10 @@ if params.hrv_frequency
     if isfield(params,'hrv_overlap') && ~isempty(params.hrv_overlap)
         overlap = params.hrv_overlap;
     else
-        overlap = .25;  % window overlap (default = 25 %)
+        overlap = .25;  % minimum window overlap (default = 25 %)
+    end
+    if ~isscalar(overlap) || ~isnumeric(overlap) || overlap < 0 || overlap >= 1
+        error('get_hrv_features: hrv_overlap must be a fraction from 0 to less than 1 (e.g. 0.25 for 25%%), not %s.', mat2str(overlap))
     end
     params.hrv_spec = hrv_spec;      % for exportation for users
     params.hrv_norm = norm;
@@ -113,114 +135,96 @@ if params.hrv_frequency
     % HRV frequency bands (ULF; VLF; LF; HF)
     bands = [ 0 .003; 0.003 .04; .04 .15; 0.15 0.40 ];
     bandNames = {'ULF' 'VLF' 'LF' 'HF'};
+    bandFields = lower(bandNames);
     params.hrv_band_freqs = bands;  % for exportation for users
     params.hrv_band_names = bandNames;  % for exportation for users
 
-    % Minimum data length (s) for each band, also used as window length:
-    % 24 h for ULF, then 5 cycles of the lowest frequency of VLF, LF and HF
-    minLength = ceil([ 86400  5/0.003 5/0.04 5/0.15 ]);
+    % Window length (s) of each band: 24 h for ULF, 5 cycles of the lowest
+    % VLF frequency, and the same 120-s windows for LF and HF (one spectrum
+    % per window gives both). minLength: shortest recording for each band
+    % (HF: 60 s, then from the whole recording)
+    lfhfWin = 120;
+    winLength = [ 86400 ceil(5/0.003) lfhfWin lfhfWin ];
+    minLength = [ 86400 ceil(5/0.003) lfhfWin 60 ];
 
-    for iBand = 1:size(bands,1)
+    % Recording span covered by the NN intervals: from the R-peak that
+    % starts the first interval to the last R-peak
+    NN = NN(:); NN_times = NN_times(:);
+    t0 = NN_times(1) - NN(1);
+    span = NN_times(end) - t0;
+    canDo = span >= minLength;
+    shortHF = canDo & span < winLength;
+    winLength(shortHF) = span;
+    for iBand = find(~canDo)
+        warning('File length is too short for estimating %s power reliably. At least %1.1f minutes are required. Cannot export this variable.', bandNames{iBand},minLength(iBand)/60)
+    end
+    if any(shortHF)
+        fprintf('HF power from the whole recording (%1.1f s, shorter than the %g-s windows). \n', span, lfhfWin)
+    end
 
-        if NN_times(end) < minLength(iBand)
-            warning('File length is too short for estimating %s power reliably. At least %1.1f minutes are required. Cannot export this variable.', bandNames{iBand},minLength(iBand)/60)
+    % Bands with the same window length are estimated from the same windows
+    winLengths = unique(winLength(canDo), 'stable');
+    for iLen = 1:numel(winLengths)
+
+        winLen = winLengths(iLen);  % in s
+        iBands = find(canDo & winLength == winLen);
+        fRange = [ bands(iBands(1),1) bands(iBands(end),2) ];
+        fprintf('HRV frequency band(s): %s (%g-s windows) \n', strjoin(bandNames(iBands),', '), round(winLen,1))
+
+        % Sliding windows spread evenly from the first to the last beat: as
+        % many as needed for an overlap of at least 'hrv_overlap'
+        nWindows = ceil((span - winLen) / (winLen*(1 - overlap)) - 1e-9) + 1;
+        if nWindows > 1
+            winStart = t0 + (0:nWindows-1) * (span - winLen) / (nWindows - 1);
+        else
+            winStart = t0;
         end
-
-        % Sliding windows (none if the recording is shorter than winLength)
-        winLength = minLength(iBand);  % in sec
-        stepSize = floor(winLength * (1 - overlap));
-        nWindows = floor((NN_times(end) - winLength) / stepSize) + 1;
-
-        fprintf('HRV frequency band: %s \n', bandNames{iBand})
 
         % Compute PSD on each sliding window
         for iWin = 1:nWindows
             fprintf(' - window %g \n', iWin)
 
-            % window bounds in s
-            start_idx = (iWin - 1) * stepSize + 1;
-            end_idx = start_idx + winLength - 1;
-            win_idx = NN_times>=start_idx & NN_times<=end_idx;
+            % NN intervals ending in the window
+            win_idx = NN_times > winStart(iWin) & NN_times <= winStart(iWin) + winLen;
 
             % warn if the NN intervals in this window cover less than 85% of it
             % (a gap left by the cleaning of RR artifacts by clean_rr)
-            if sum(NN(win_idx)) < .85*winLength
-                warning("This window contains a gap greater than 15% of the minimum window required for this band (likely from cleaning of RR artifacts by clean_rr).")
+            if sum(NN(win_idx)) < .85*winLen
+                warning("This window contains a gap greater than 15% of its length (likely from cleaning of RR artifacts by clean_rr).")
             end
 
-            % Frequency vector for Lomb-Scargle: at least 4 points per
-            % resolution step (1/window length), and at most 1/512 Hz apart, so
-            % that the band integral and the plotted spectrum follow the peaks
-            % (a step of 1/(number of beats) gave ~2 points per HF peak)
-            df = min(1/512, 1/(4*winLength));
-            fvec = bands(iBand,1):df:bands(iBand,2);
-
-            % Lomb-Scargle periodogram (no resampling required)
-            if strcmp(hrv_spec, 'LombScargle_norm')
-                [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'normalized');
-                fprintf('Computing normalized Lomb-Scargle periodogram on the NN series... \n')
-            elseif strcmp(hrv_spec, 'LombScargle')
-                [pwr,freqs] = plomb(NN(win_idx),NN_times(win_idx),fvec,'psd');
-                fprintf('Computing standard Lomb-Scargle periodogram on the NN series... \n')
-
-            % Welch or FFT (require resampling)
-            else
-                % Resample at 7 Hz (cubic spline) and remove the mean, whose
-                % leakage would otherwise inflate the band powers
-                resamp_freq = 7;
-                NN_resamp = resample_NN(NN_times(win_idx),NN(win_idx),resamp_freq,'cub');
-                NN_resamp = NN_resamp(:) - mean(NN_resamp);
-
-                % Pwelch (one segment spanning the window), one-sided PSD in s^2/Hz
-                if strcmp(hrv_spec, 'welch')
-                    welchWin = min(length(NN_resamp), round(minLength(iBand)*resamp_freq));  % window in samples, not s
-                    [pwr,freqs] = pwelch(NN_resamp,welchWin,[],[],resamp_freq);
-                    fprintf('Computing pwelch on the NN series... \n')
-
-                % FFT (periodogram), one-sided PSD in s^2/Hz
-                elseif strcmp(hrv_spec, 'fft')
-                    nSamp = length(NN_resamp);
-                    nHalf = floor(nSamp/2) + 1;             % 0 Hz to Nyquist
-                    pwr = abs(fft(NN_resamp)).^2 / (resamp_freq*nSamp);
-                    pwr = pwr(1:nHalf);
-                    pwr(2:end-1+mod(nSamp,2)) = 2*pwr(2:end-1+mod(nSamp,2));  % fold negative frequencies (not 0 Hz or Nyquist)
-                    freqs = (0:nHalf-1)' * resamp_freq / nSamp;
-                    fprintf('Computing FFT on the NN series... \n')
-                end
-            end
-
-            % Freq index
-            freq_idx = bands(iBand,1) <= freqs & freqs <= bands(iBand,2);
-            freq_res = freqs(2)-freqs(1); % resolution
+            % One spectrum per window (s^2/Hz, or unitless)
+            [pwr, freqs, freq_res] = nn_spectrum(NN(win_idx), NN_times(win_idx), winLen, fRange, hrv_spec);
 
             % Band power: integral of the PSD over the band (ms^2, or
-            % unitless for the normalized Lomb-Scargle)
-            bandPwr = sum(pwr(freq_idx)*freq_res) * pwrScale;
-            if iBand == 1
-                HRV.frequency.ulf(iWin,:) = bandPwr;      % ULF
-            elseif iBand == 2
-                HRV.frequency.vlf(iWin,:) = bandPwr;      % VLF
-            elseif iBand == 3
-                HRV.frequency.lf(iWin,:) = bandPwr;       % LF
-            elseif iBand == 4
-                HRV.frequency.hf(iWin,:) = bandPwr;       % HF
+            % unitless for the normalized Lomb-Scargle). Bands sharing the
+            % spectrum are half-open, so that a frequency at the border is
+            % counted once; the highest one includes its upper limit
+            for iBand = iBands
+                if iBand == iBands(end)
+                    freq_idx = bands(iBand,1) <= freqs & freqs <= bands(iBand,2);
+                else
+                    freq_idx = bands(iBand,1) <= freqs & freqs < bands(iBand,2);
+                end
+                HRV.frequency.(bandFields{iBand})(iWin,1) = sum(pwr(freq_idx)*freq_res) * pwrScale;
             end
-
-            % Spectrum for export (overwritten each window: the last one is
-            % kept), in ms^2/Hz or unitless
-            PWR{iBand,1} = pwr * pwrScale;
-            PWR_freqs{iBand,1} = freqs;
-
         end
+
+        % Spectrum for export: last window, over the bands of this window
+        % length, in ms^2/Hz or unitless
+        keep = fRange(1) <= freqs & freqs <= fRange(2);
+        PWR{end+1,1} = pwr(keep) * pwrScale; %#ok<AGROW>
+        PWR_freqs{end+1,1} = freqs(keep); %#ok<AGROW>
     end
 
-    % Recording shorter than the HF window: no band could be estimated
+    % Recording shorter than the shortest HF window: no band could be estimated
     if ~any(isfield(HRV.frequency, {'ulf' 'vlf' 'lf' 'hf'}))
-        warning('Recording too short (%1.1f s) for HRV frequency features (at least %g s are needed for HF). Band powers set to NaN.', NN_times(end), minLength(end))
+        warning('Recording too short (%1.1f s) for HRV frequency features (at least %g s are needed for HF). Band powers set to NaN.', span, minLength(end))
         [HRV.frequency.ulf, HRV.frequency.vlf, HRV.frequency.lf, HRV.frequency.hf] = deal(NaN);
     end
 
-    % LF/HF ratio (of the power averaged across windows)
+    % LF/HF ratio (of the power averaged across windows; the same windows
+    % for both)
     if isfield(HRV.frequency,'lf') && isfield(HRV.frequency,'hf')
         HRV.frequency.lfhf = round(mean(HRV.frequency.lf) / mean(HRV.frequency.hf) * 100)/100;
     end
@@ -248,7 +252,7 @@ if params.hrv_frequency
                 end
             end
         end
-        
+
         % Relative power: contribution of each band to the total
         if isfield(HRV.frequency,'ttlpwr')
             disp('Normalizing HRV power to overall power')
@@ -268,11 +272,7 @@ if params.hrv_frequency
         end
     end
 
-    % remove empty cells (bands without any window)
-    PWR(cellfun(@isempty,PWR)) = [];
-    PWR_freqs(cellfun(@isempty,PWR_freqs)) = [];
-
-    % Merge spectra from each band and export
+    % Merge spectra from each window length and export
     HRV.frequency.pwr_freqs = [cat(1, PWR_freqs{:})];
     HRV.frequency.pwr = [cat(1, PWR{:})];
     HRV.frequency.bands = bands;
@@ -354,7 +354,53 @@ if params.hrv_nonlinear
 
 end
 
-%% Subfunction
+%% Subfunctions
+function [pwr, freqs, freq_res] = nn_spectrum(NN, NN_times, winLen, fRange, hrv_spec)
+% One-sided PSD of the NN intervals of one window (s^2/Hz, or unitless for
+% the normalized Lomb-Scargle), its frequencies (Hz) and their step (Hz)
+
+% Lomb-Scargle periodogram (no resampling required). Frequency vector: at
+% least 4 points per resolution step (1/window length), and at most 1/512 Hz
+% apart, so that the band integral and the plotted spectrum follow the peaks
+% (a step of 1/(number of beats) gave ~2 points per HF peak)
+if strcmp(hrv_spec, 'LombScargle_norm') || strcmp(hrv_spec, 'LombScargle')
+    df = min(1/512, 1/(4*winLen));
+    fvec = fRange(1):df:fRange(2);
+    if strcmp(hrv_spec, 'LombScargle_norm')
+        [pwr,freqs] = plomb(NN,NN_times,fvec,'normalized');
+        fprintf('Computing normalized Lomb-Scargle periodogram on the NN series... \n')
+    else
+        [pwr,freqs] = plomb(NN,NN_times,fvec,'psd');
+        fprintf('Computing standard Lomb-Scargle periodogram on the NN series... \n')
+    end
+
+% Welch or FFT (require resampling)
+else
+    % Resample at 7 Hz (cubic spline) and remove the mean, whose
+    % leakage would otherwise inflate the band powers
+    resamp_freq = 7;
+    NN_resamp = resample_NN(NN_times,NN,resamp_freq,'cub');
+    NN_resamp = NN_resamp(:) - mean(NN_resamp);
+
+    % Pwelch (one Hamming-tapered segment spanning the window; the
+    % averaging is across the sliding windows), one-sided PSD in s^2/Hz
+    if strcmp(hrv_spec, 'welch')
+        [pwr,freqs] = pwelch(NN_resamp,length(NN_resamp),[],[],resamp_freq);
+        fprintf('Computing pwelch on the NN series... \n')
+
+    % FFT (periodogram), one-sided PSD in s^2/Hz
+    else
+        nSamp = length(NN_resamp);
+        nHalf = floor(nSamp/2) + 1;             % 0 Hz to Nyquist
+        pwr = abs(fft(NN_resamp)).^2 / (resamp_freq*nSamp);
+        pwr = pwr(1:nHalf);
+        pwr(2:end-1+mod(nSamp,2)) = 2*pwr(2:end-1+mod(nSamp,2));  % fold negative frequencies (not 0 Hz or Nyquist)
+        freqs = (0:nHalf-1)' * resamp_freq / nSamp;
+        fprintf('Computing FFT on the NN series... \n')
+    end
+end
+freq_res = freqs(2) - freqs(1);
+
 function cap = prsa_capacity(NN, anchors)
 % Acceleration/deceleration capacity (ms) from phase-rectified signal
 % averaging; anchors without two beats before and one after are dropped

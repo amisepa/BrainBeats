@@ -9,7 +9,8 @@
 %     FIR filters (pop_eegfiltnew). Zero-phase by default; minimum-phase
 %     (causal) if params.filttype = 'causal'.
 %   - Re-reference (params.ref: 'average' (default, full-rank CAR via apply_car),
-%     'infinity' (REST), 'csd' or 'off'). Skipped with < 30 channels. With
+%     'infinity' (REST), 'csd' or 'off'). Skipped with < 30 channels, with a
+%     warning (the data keep their recording reference). With
 %     'csd', the data are average-referenced here and the surface Laplacian
 %     is applied after artifact removal by the caller (ICLabel needs
 %     average-referenced data; see CSD_TRANSFORM). If 'infinity' fails, CAR
@@ -25,16 +26,26 @@
 %     'infinity' is then applied after GEDAI (which re-references to average).
 % Stage 1 (params.clean_eeg_step == 1): remove artifacts, interpolate, ICA
 %   - 'hep': remove bad epochs with find_badTrials (params.detectMethod,
-%     default 'grubbs'). 'features', 'coherence': remove bad
+%     default 'grubbs'): amplitude and high-frequency noise over the
+%     analysis window (params.hep_window), the latter on the epochs of the
+%     broadband copy (params.hf_source, from RUN_HEP) since the data are
+%     low-passed at 30 Hz. 'features', 'coherence': remove bad
 %     segments with ASR (params.asr_cutoff, default 30 SD; params.asr_mem,
 %     default .85 of available RAM).
 %   - Interpolate removed channels back to params.orichanlocs (> 10 channels).
 %   - ICA at the effective data rank to avoid ghost ICs (Kim et al. 2023).
-%     With a high-pass below 1 Hz, ICA is fitted on a 1-Hz high-passed copy
-%     (params.ica_source for epoched data, prepared by RUN_HEP) and the
-%     weights are applied to the data: slow drifts degrade ICA and ICLabel
-%     (Winkler et al., 2015). With 'gedai', ICA runs only for the IC-level
-%     HEP measures (params.hep_level 'ics' or 'both'), and no component is removed.
+%     'hep': ICA is fitted on a continuous copy of the data (made in stage
+%     0, params.ica_source), with the same reference and channels,
+%     high-passed at 1 Hz (slow drifts degrade ICA and ICLabel; Winkler et
+%     al., 2015), not low-passed (params.ica_lowpass, default 0 = none; the
+%     line noise and its harmonics are notched) and cleaned by RUN_HEP with
+%     a lax ASR (params.ica_asr, default 80 SD; 0 = off) that keeps the eye
+%     activity. The weights are applied to the data, and ICLabel classifies
+%     the components on the copy. params.ica_epochs = true epochs the copy
+%     like the HEP data; params.ica_srate resamples it. Otherwise, with a
+%     high-pass below 1 Hz, ICA is fitted on a 1-Hz high-passed copy. With
+%     'gedai', ICA runs only for the IC-level HEP measures
+%     (params.hep_level 'ics' or 'both'), and no component is removed.
 %     params.icamethod: 1 = Picard, 2 = extended Infomax (default),
 %     3 = extended Infomax with lrate 1e-5 and maxsteps 2000 (slower, more
 %     replicable).
@@ -155,7 +166,18 @@ end
 
 % Filter, re-reference, and remove bad channels
 if params.clean_eeg_step == 0
-    
+
+    % HEP: keep the input to make the copy the ICA is fitted on (below).
+    % On 6 recordings (tests/ica_compare.m), the broadband copy with ASR 80
+    % gave as many or more dipolar ICs than a 30-Hz copy on each recording
+    % (Picard and Infomax), and lets ICLabel see muscle
+    useCopy = strcmp(params.analysis,'hep') && ~useGEDAI;
+    if useCopy
+        if ~isfield(params,'ica_lowpass'), params.ica_lowpass = 0; end
+        if ~isfield(params,'ica_asr'), params.ica_asr = 80; end
+        EEGin = EEG;
+    end
+
     % High-pass filter (removes slow drifts)
     EEG = pop_eegfiltnew(EEG,'locutoff',highpass,'minphase',causalfilt);
 
@@ -168,8 +190,13 @@ if params.clean_eeg_step == 0
     % methodology to user guidelines. Journal of Neuroscience Methods.
     if ~strcmp(reref,'off')
         if EEG.nbchan < 30
-            bb_warndlg('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
-            warning('Cannot reference these EEG data to infinity or average or Surface Laplacian, not validated with less than 30 channels.')
+            msg = sprintf(['Fewer than 30 EEG channels (%d): the data are not re-referenced (average, infinity and ' ...
+                'surface Laplacian need a dense, even coverage of the head) and keep the reference they were recorded ' ...
+                'with. Choose a reference yourself before BrainBeats if needed (e.g. linked mastoids with ' ...
+                'pop_reref). ICLabel was trained on average-referenced data with more channels: its ' ...
+                'classifications are less reliable here.'], EEG.nbchan);
+            bb_warndlg(msg)
+            warning('BrainBeats:fewChannels', '%s', msg)
         else
             if strcmp(reref,'infinity') && useGEDAI
                 fprintf('Re-referencing to infinity after GEDAI. \n')
@@ -243,9 +270,50 @@ if params.clean_eeg_step == 0
     end
     
     % Band-stop (notch) filter only if line noise is below the low-pass cutoff
-    if isfield(params,'linenoise') && params.linenoise<lowpass
+    % (order 2 x the sampling rate: the same +/-3 Hz band at any rate)
+    if isfield(params,'linenoise') && params.linenoise<lowpass && params.linenoise+3 < EEG.srate/2
         EEG = pop_eegfiltnew(EEG, 'locutoff',params.linenoise-3, ...
-            'hicutoff',params.linenoise+3,'revfilt',1,'filtorder',500);
+            'hicutoff',params.linenoise+3,'revfilt',1,'filtorder',2*round(EEG.srate));
+    end
+
+    % HEP: continuous copy of the data for the ICA fit, with the same
+    % reference and channels, high-passed at 1 Hz and low-passed at
+    % params.ica_lowpass (0 = none, with the line noise and its harmonics
+    % notched). RUN_HEP adds ASR (and the epoching or resampling if asked);
+    % the weights are applied to the data.
+    if useCopy
+        icaLow = params.ica_lowpass;
+        C = pop_eegfiltnew(EEGin,'locutoff',max(1,highpass),'minphase',causalfilt);
+        if icaLow > 0 && icaLow < C.srate/2
+            C = pop_eegfiltnew(C,'hicutoff',icaLow,'minphase',causalfilt);
+        end
+        if ~strcmp(reref,'off') && C.nbchan >= 30
+            if strcmp(reref,'infinity') && isfield(params,'ref_applied') && strcmp(params.ref_applied,'rest')
+                C = rest_ref(C);
+            else
+                C = apply_car(C);
+            end
+        end
+        C = pop_select(C,'nochannel',badChan);
+        % line frequency: 'linenoise', else detected on the copy (50 or 60 Hz)
+        lineF = [];
+        if isfield(params,'linenoise') && ~isempty(params.linenoise)
+            lineF = params.linenoise;
+        elseif icaLow == 0 || icaLow > 50
+            lineF = detect_line_noise(C);
+        end
+        if ~isempty(lineF)
+            % harmonics whose notch (+/-3 Hz) stays below Nyquist and the
+            % low-pass; order 2 x the sampling rate (the same band at any rate)
+            top = C.srate/2 - 3.5;
+            if icaLow > 0, top = min(top, icaLow); end
+            for f = lineF:lineF:top
+                C = pop_eegfiltnew(C,'locutoff',f-3,'hicutoff',f+3,'revfilt',1,'filtorder',2*round(C.srate));
+            end
+            params.ica_linenoise = lineF;
+        end
+        params.ica_cont = C;
+        clear EEGin C
     end
 
     % GEDAI on the continuous data (replaces ASR/ICA of stage 1)
@@ -279,10 +347,16 @@ elseif params.clean_eeg_step == 1
     % HEP (remove bad epochs)
     if strcmp(params.analysis, 'hep')
         
-        % Detect and remove bad epochs (and from the copy used for ICA)
-        badTrials = find_badTrials(EEG, detectMethod, params.vis_cleaning);
+        % Detect and remove bad epochs (and from the copy used for ICA), on
+        % the analysis window; high-frequency noise on the broadband copy
+        % when RUN_HEP made its epochs (params.hf_source)
+        bt = struct('lowpass', lowpass);
+        if isfield(params,'hep_window') && isnumeric(params.hep_window), bt.win = params.hep_window; end
+        if isfield(params,'hf_source') && ~isempty(params.hf_source), bt.hf = params.hf_source; end
+        badTrials = find_badTrials(EEG, detectMethod, params.vis_cleaning, bt);
+        params = rmfield_if(params, 'hf_source');
         EEG = pop_rejepoch(EEG, badTrials, 0);
-        if isfield(params,'ica_source') && ~isempty(params.ica_source) && ~isempty(badTrials)
+        if isfield(params,'ica_source') && ~isempty(params.ica_source) && params.ica_source.trials > 1 && ~isempty(badTrials)
             params.ica_source = pop_rejepoch(params.ica_source, badTrials, 0);
         end
 
@@ -369,7 +443,17 @@ elseif params.clean_eeg_step == 1
     % Data the ICA is fitted on: with a high-pass below 1 Hz, a 1-Hz
     % high-passed copy (slow drifts degrade ICA and ICLabel)
     EEGica = EEG;
-    if highpass < 1
+    contCopy = isfield(params,'ica_source') && ~isempty(params.ica_source) && params.ica_source.trials == 1 && EEG.trials > 1;
+    if contCopy
+        % HEP: continuous copy from stage 0 and RUN_HEP
+        EEGica = params.ica_source;
+        if size(EEGica.data,1) ~= size(EEG.data,1)
+            warning('The ICA copy does not match the data: ICA is fitted on the data themselves.')
+            EEGica = EEG; contCopy = false;
+        else
+            fprintf('ICA fitted on a continuous 1-Hz high-passed copy of the data (%d samples at %g Hz). \n', EEGica.pnts, EEGica.srate)
+        end
+    elseif highpass < 1 || (isfield(params,'ica_source') && ~isempty(params.ica_source))
         if isfield(params,'ica_source') && ~isempty(params.ica_source)
             EEGica = params.ica_source;          % epoched copy from RUN_HEP
         elseif EEG.trials == 1
@@ -380,12 +464,14 @@ elseif params.clean_eeg_step == 1
             EEGica = EEG;
         else
             fprintf('ICA fitted on a 1-Hz high-passed copy of the data. \n')
+            contCopy = isfield(params,'ica_lowpass');   % HEP copy from stage 0, epoched ('ica_epochs')
         end
     end
 
     % Run ICA at the effective data rank to avoid ghost ICs (Kim et al. 2023).
     % Method 3 uses lrate = 1e-5 and maxsteps = 2000 for reproducible results.
-    dataRank = sum(eig(cov(double(EEGica.data(:,:)'))) > 1E-7);
+    dataRank = data_rank(EEGica.data);
+    tICA = tic;
     if icamethod == 1
         EEGica = pop_runica(EEGica,'icatype','picard','maxiter',400,'mode','standard', 'pca',dataRank);
     elseif icamethod == 2
@@ -394,6 +480,13 @@ elseif params.clean_eeg_step == 1
         EEGica = pop_runica(EEGica,'icatype','runica','extended',1, ...
             'pca',dataRank,'lrate',1e-5,'maxsteps',2000);
     end
+    % Picard can diverge on data with large artifacts (loss -Inf, then NaN
+    % weights, which ICLabel cannot use): extended Infomax instead
+    if icamethod == 1 && ~all(isfinite([EEGica.icaweights(:); EEGica.icasphere(:)]))
+        warning('Picard did not converge (non-finite weights): ICA rerun with extended Infomax.')
+        EEGica = pop_runica(EEGica,'icatype','runica','extended',1,'pca',dataRank);
+        icamethod = 2;
+    end
     EEG.icaweights = EEGica.icaweights;
     EEG.icasphere = EEGica.icasphere;
     EEG.icawinv = EEGica.icawinv;
@@ -401,6 +494,10 @@ elseif params.clean_eeg_step == 1
     EEG.icaact = [];
     EEG = eeg_checkset(EEG);
     params = rmfield_if(params, 'ica_source');
+    icaReport = struct('method', icamethod, 'rank', dataRank, 'samples', EEGica.pnts*EEGica.trials, ...
+        'srate', EEGica.srate, 'seconds', toc(tICA), 'copy_options', contCopy, 'epoched', EEGica.trials > 1, ...
+        'line_noise_notched', []);
+    if isfield(params,'ica_linenoise'), icaReport.line_noise_notched = params.ica_linenoise; end
 
     % With GEDAI (IC measures): classify the components, remove none
     if useGEDAI
@@ -411,8 +508,19 @@ elseif params.clean_eeg_step == 1
     end
 
     % Classify and flag bad components with ICLabel. pop_icflag rows:
-    % brain, muscle, eye, heart, line noise, channel noise, other
-    EEG = pop_iclabel(EEG,'default');
+    % brain, muscle, eye, heart, line noise, channel noise, other.
+    % HEP: ICLabel classifies the components on the ICA copy, whose
+    % spectrum is not cut at the low-pass of the data (muscle is visible)
+    if contCopy && isfield(params,'ica_lowpass')
+        EEGica = pop_iclabel(EEGica,'default');
+        EEG.etc.ic_classification = EEGica.etc.ic_classification;
+        fprintf('ICLabel run on the ICA copy (low-pass: %s). \n', fastif(params.ica_lowpass > 0, sprintf('%g Hz', params.ica_lowpass), 'none'))
+    else
+        EEG = pop_iclabel(EEG,'default');
+    end
+    clear EEGica
+    icaReport.iclabel = EEG.etc.ic_classification.ICLabel.classifications;
+    icaReport.winv = EEG.icawinv;
     if contains(params.analysis, 'hep')
         % HEP: heart (cardiac field artifact) components are removed too
         % only with params.heart_removal = 'ica'; params.conf_thresh:
@@ -502,6 +610,7 @@ elseif params.clean_eeg_step == 1
 
     % Store in params if users want that information
     params.removed_eeg_components = badComp;
+    params.ica_report = icaReport;    % ICA method, rank, samples, time, ICLabel classes and maps of all ICs
 
     % Plot the first 24 independent components (flagged ones marked)
     if params.vis_cleaning
@@ -537,6 +646,33 @@ end
 function s = rmfield_if(s, f)
 % Remove field f from struct s if present
 if isfield(s, f), s = rmfield(s, f); end
+
+
+function f0 = detect_line_noise(C)
+% Power line frequency (50 or 60 Hz) of continuous data: the one whose
+% spectral peak (largest power within +/-1 Hz, mean spectrum over channels,
+% first 60 s) is at least 3 times the median power 3 to 8 Hz away; the
+% larger ratio if both. Empty if neither.
+f0 = [];
+n = min(C.pnts, round(60*C.srate));
+nfft = round(4*C.srate);                                   % 0.25-Hz bins
+if n < nfft, return, end
+[P, f] = pwelch(double(C.data(:,1:n))', hann(nfft), round(nfft/2), nfft, C.srate);
+P = mean(P, 2);
+ratio = zeros(1,2);
+cand = [50 60];
+for k = 1:2
+    if cand(k) + 8 >= C.srate/2, continue, end
+    d = abs(f - cand(k));
+    ratio(k) = max(P(d <= 1)) / median(P(d >= 3 & d <= 8));
+end
+[r, k] = max(ratio);
+if r >= 3
+    f0 = cand(k);
+    fprintf('Line noise detected at %g Hz (peak %.0f times its neighborhood): notched in the ICA copy. \n', f0, r);
+else
+    fprintf('No line noise detected (50/60 Hz peaks %.1f/%.1f times their neighborhood): no notch in the ICA copy. \n', ratio);
+end
 
 
 function EEG = rest_ref(EEG)

@@ -239,10 +239,13 @@ function [annot, sqimatrix, template, valid] = PPG_SQI_buf(wave,anntime,template
             end
             sqimatrix(currentb,3)=int8(c3(j)*100);
                 
-            % SQI4: Clipping detection   
+            % SQI4: Clipping detection: share of samples whose slope is above
+            % 5% of the beat's range per second (flat, clipped samples are
+            % below). Relative to the beat, so that it works in any unit
+            % (was an absolute 0.5 per sample, for ADC units)
             d2=wave(beatbegin:beatend-1);
             y=diff(d2);
-            clipthreshold=0.5;
+            clipthreshold=0.05*(max(d2)-min(d2))/Fs;
             c4(j)=int8(length(find(abs(y)>clipthreshold))/length(y)*100);
             sqimatrix(currentb,4)=c4(j);
 

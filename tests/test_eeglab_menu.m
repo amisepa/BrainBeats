@@ -40,7 +40,7 @@ src = fullfile(dpath,'dataset.set');
 copyfile(fullfile(bb,'sample_data','dataset.set'), dpath);
 before = dir(src);
 EEG = pop_loadset('filename','dataset.set','filepath',dpath);
-EEG = pop_select(EEG,'nochannel',{'PPG'});
+EEG = highpass_eeg(pop_select(EEG,'nochannel',{'PPG'}));   % HEP without cleaning needs filtered EEG
 store(EEG);
 check(m, 'continuous dataset');
 

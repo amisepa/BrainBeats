@@ -99,7 +99,7 @@ end
 if params.heart
     idx = find(strcmpi(keys,'keep_heart'));
     if ~isempty(idx)
-        params.keep_heart = varargin{idx+1};
+        params.keep_heart = onoff(varargin{idx+1}, 'keep_heart');
     else
         params.keep_heart = false;
     end
@@ -117,6 +117,16 @@ if params.heart
         idx = find(strcmpi(keys,getRRopts{iOpt}));
         if ~isempty(idx)
             params.(getRRopts{iOpt}) = varargin{idx+1};
+        end
+    end
+
+    % Ectopic beats in the RR cleaning (CLEAN_RR): 'adaptive' (default;
+    % Lipponen & Tarvainen, 2019), 'ratio' (fixed 20% rule of v1.6) or 'none'
+    idx = find(strcmpi(keys,'ectopic_rule'));
+    if ~isempty(idx)
+        params.ectopic_rule = lower(char(varargin{idx+1}));
+        if ~any(strcmp(params.ectopic_rule, {'adaptive','ratio','none'}))
+            error("'ectopic_rule' must be 'adaptive', 'ratio' or 'none'.")
         end
     end
 
@@ -157,17 +167,24 @@ if params.heart
         end
     end
 
-    % HEP baseline: 'none' (default) or 'regression' (Alday, 2019)
+    % HEP baseline: no correction (v1.7: the regression option was removed;
+    % each heartbeat's baseline is exported in EEG.brainbeats.prestim).
+    % 'hep_baseline' is still accepted, with a warning unless 'none'.
     idx = find(strcmpi(keys,'hep_baseline'));
-    if ~isempty(idx)
-        params.hep_baseline = lower(varargin{idx+1});
-        if ~any(strcmp(params.hep_baseline, {'none','regression'}))
-            error("'hep_baseline' must be 'none' or 'regression'.")
-        end
+    if ~isempty(idx) && ~strcmpi(varargin{idx+1}, 'none')
+        warning('BrainBeats:removed', ['''hep_baseline'' was removed in BrainBeats 1.7: the HEP is not baseline-corrected. ' ...
+            'Each heartbeat''s baseline (''hep_baseline_win'') is exported in EEG.brainbeats.prestim.baseline, ' ...
+            'for a regression-based correction in the group-level model (Alday, 2019), or use BASELINE_REGRESSION ' ...
+            'on epochs that pool conditions.'])
     end
+    % Window of each heartbeat's exported baseline voltage (ms)
     idx = find(strcmpi(keys,'hep_baseline_win'));
     if ~isempty(idx)
         params.hep_baseline_win = varargin{idx+1};
+        if ~isnumeric(params.hep_baseline_win) || numel(params.hep_baseline_win) ~= 2 || ...
+                params.hep_baseline_win(1) >= params.hep_baseline_win(2) || params.hep_baseline_win(2) > 0
+            error("'hep_baseline_win' must be [start end] in ms, before the R-peak (e.g. [-150 -50]).")
+        end
     end
 
     % HEP epoch window: [start end] in ms (default [-300 600]) or 'adaptive'
@@ -201,13 +218,35 @@ if params.heart
         end
     end
 
-    % Surrogate trains: 'random' (default) or 'rigid' (see COMPUTE_HEP_TF)
+    % Surrogate trains: beats at random cardiac phases only (v1.7: 'rigid',
+    % the whole train shifted, was removed: still heartbeat-locked, it tests
+    % contrasts between conditions, not one condition)
     idx = find(strcmpi(keys,'hep_surrogate_mode'));
+    if ~isempty(idx) && ~strcmpi(varargin{idx+1}, 'random')
+        warning('BrainBeats:removed', ['''hep_surrogate_mode'' was removed in BrainBeats 1.7: the surrogate beats ' ...
+            'are drawn at random cardiac phases. Surrogates made by shifting the whole heartbeat train are still ' ...
+            'heartbeat-locked, so they test contrasts between conditions, not one condition.'])
+    end
+    idx = find(strcmpi(keys,'hep_surr_stat'));
     if ~isempty(idx)
-        params.hep_surrogate_mode = lower(varargin{idx+1});
-        if ~any(strcmp(params.hep_surrogate_mode, {'random','rigid'}))
-            error("'hep_surrogate_mode' must be 'random' or 'rigid'.")
+        params.hep_surr_stat = lower(varargin{idx+1});
+        if ~any(strcmp(params.hep_surr_stat, {'tfce','tmax','fdr'}))
+            error("'hep_surr_stat' must be 'tfce', 'tmax' or 'fdr'.")
         end
+    end
+    % HRSP plotted: power with the HEP subtracted from each heartbeat
+    % ('induced', default) or all power ('total'); both are stored
+    idx = find(strcmpi(keys,'hep_tf_power'));
+    if ~isempty(idx)
+        params.hep_tf_power = lower(varargin{idx+1});
+        if ~any(strcmp(params.hep_tf_power, {'induced','total'}))
+            error("'hep_tf_power' must be 'induced' or 'total'.")
+        end
+    end
+    % QRS map of the cardiac field artifact and its stability (default on)
+    idx = find(strcmpi(keys,'hep_cfa'));
+    if ~isempty(idx)
+        params.hep_cfa = onoff(varargin{idx+1}, 'hep_cfa');
     end
 
     % HEP measures on the scalp channels, the independent components, or
@@ -321,7 +360,7 @@ end
 if params.eeg
     idx = find(strcmpi(keys,'clean_eeg'));
     if ~isempty(idx)
-        params.clean_eeg = varargin{idx+1};
+        params.clean_eeg = onoff(varargin{idx+1}, 'clean_eeg');
     else
         warning("'clean_eeg' input not defined. Using default: NO preprocessing (i.e., assuming you have already preprocessed your EEG data. If you wish to preprocess your EEG data with BrainBeats, set 'clean_eeg' to true.")
         params.clean_eeg = false;
@@ -391,17 +430,50 @@ if params.eeg
             error("'icamethod' must be 1 (Picard), 2 (Infomax), or 3 (replicable Infomax).")
         end
     end
+    % Data the HEP ICA is fitted on: a continuous 1-Hz high-passed copy,
+    % with ASR at this cutoff ('ica_asr', default 80, 0 = off), this
+    % low-pass in Hz ('ica_lowpass', default 0 = none) and sampling rate
+    % ('ica_srate', default: that of the data). See CLEAN_EEG.
+    for k = {'ica_asr' 'ica_lowpass' 'ica_srate'}
+        idx = find(strcmpi(keys,k{1}));
+        if ~isempty(idx)
+            v = varargin{idx+1};
+            if ~isnumeric(v) || ~isscalar(v) || v < 0 || (v == 0 && strcmp(k{1},'ica_srate'))
+                error("'%s' must be a positive number ('ica_asr' and 'ica_lowpass' can be 0 for none).", k{1})
+            end
+            params.(k{1}) = v;
+        end
+    end
+    if isfield(params,'ica_lowpass') && params.ica_lowpass > 0 && params.ica_lowpass <= 2
+        error("'ica_lowpass' must be 0 (none) or above the 1-Hz high-pass of the ICA copy (e.g. 30).")
+    end
+    if isfield(params,'ica_srate') && (params.ica_srate < 50 || ...
+            (isfield(params,'ica_lowpass') && params.ica_lowpass > 0 && params.ica_srate < 2*params.ica_lowpass))
+        error("'ica_srate' must be at least 50 Hz and twice 'ica_lowpass'.")
+    end
+    idx = find(strcmpi(keys,'ica_epochs'));   % epoch that copy like the HEP data (bad epochs removed from it)
+    if ~isempty(idx)
+        params.ica_epochs = onoff(varargin{idx+1}, 'ica_epochs');
+    end
 
     % Cleaning options have no effect without 'clean_eeg'
     if ~params.clean_eeg
         ignored = {'lowpass' 'flatline' 'corrThresh' 'maxBad' 'asr_cutoff' 'asr_mem' ...
-            'ref' 'clean_method' 'linenoise' 'detectMethod' 'heart_removal' 'ecg_corr' 'ssp_n'};
+            'ref' 'clean_method' 'linenoise' 'detectMethod' 'heart_removal' 'ecg_corr' 'ssp_n' ...
+            'ica_asr' 'ica_lowpass' 'ica_srate' 'ica_epochs'};
         if ~isfield(params,'hep_level') || strcmp(params.hep_level,'channels')
             ignored = [ignored {'highpass' 'filttype'}];    % else used by the ICA of the IC measures
         end
         ignored = given(ismember(lower(given), lower(ignored)));
         if ~isempty(ignored)
             warning("Input(s) ignored because 'clean_eeg' is false: %s.", strjoin(ignored, ', '))
+        end
+    end
+    % HEP options have no effect on the other analyses
+    if ~strcmp(params.analysis,'hep')
+        ignored = given(startsWith(lower(given), {'ica_' 'hep_'}) | ismember(lower(given), {'keep_heart' 'ppg_transit'}));
+        if ~isempty(ignored)
+            warning("Input(s) ignored for '%s' (HEP only): %s.", params.analysis, strjoin(ignored, ', '))
         end
     end
 end
@@ -494,7 +566,7 @@ end % if params.eeg
 % Visualize preprocessings
 idx = find(strcmpi(keys,'vis_cleaning'));
 if ~isempty(idx)
-    params.vis_cleaning = varargin{idx+1};
+    params.vis_cleaning = onoff(varargin{idx+1}, 'vis_cleaning');
     if params.vis_cleaning
         fprintf('Visualization of data cleaning set to ON. \n')
     else
@@ -508,7 +580,7 @@ end
 % Visualize outputs
 idx = find(strcmpi(keys,'vis_outputs'));
 if ~isempty(idx)
-    params.vis_outputs = varargin{idx+1};
+    params.vis_outputs = onoff(varargin{idx+1}, 'vis_outputs');
     if params.vis_outputs
         fprintf('Visualization of outputs set to ON. \n')
     else
@@ -522,7 +594,7 @@ end
 % Save outputs
 idx = find(strcmpi(keys,'save'));
 if ~isempty(idx)
-    params.save = varargin{idx+1};
+    params.save = onoff(varargin{idx+1}, 'save');
     if params.save
         fprintf('Saving outputs set to ON. \n')
     else
@@ -538,11 +610,7 @@ end
 % Parallel computing
 idx = find(strcmpi(keys,'parpool'));
 if ~isempty(idx)
-    val = varargin{idx+1};
-    if ischar(val) || isstring(val)
-        val = strcmpi(val,'on');   % 'on' / 'off'
-    end
-    params.parpool = logical(val);
+    params.parpool = onoff(varargin{idx+1}, 'parpool');
 else
     params.parpool = false;
     fprintf('Parallel computing not defined: set to OFF by default. \n')
@@ -552,7 +620,7 @@ end
 % GPU computing
 idx = find(strcmpi(keys,'gpu'));
 if ~isempty(idx)
-    params.gpu = logical(varargin{idx+1});
+    params.gpu = onoff(varargin{idx+1}, 'gpu');
     if params.gpu, fprintf('GPU computing: set to ON. \n'); end
 else
     params.gpu = false;
@@ -561,21 +629,35 @@ end
 
 idx = find(strcmpi(keys,'gong'));
 if ~isempty(idx)
-    params.gong = varargin{idx+1};
+    params.gong = onoff(varargin{idx+1}, 'gong');
 else
     params.gong = true;
+end
+
+function v = onoff(v, name)
+% Logical scalar from true/false, 1/0, 'on'/'off', 'true'/'false', 'yes'/'no'
+if ischar(v) || isstring(v)
+    s = lower(char(v));
+    if any(strcmp(s, {'on' 'true' 'yes'})), v = true; return, end
+    if any(strcmp(s, {'off' 'false' 'no'})), v = false; return, end
+end
+if isscalar(v) && (islogical(v) || (isnumeric(v) && ~isnan(v)))
+    v = logical(v);
+else
+    error('BrainBeats:input', "'%s' must be true or false (or 'on'/'off').", name)
 end
 
 function k = known_keys()
 % Inputs of BRAINBEATS_PROCESS
 k = {'heart_signal' 'heart_channels' 'beat_latencies' 'analysis' 'keep_heart' ...
     'ecg_searchback' 'ecg_bandpass' 'ecg_peakthresh' 'ecg_refperiod' 'ecg_polarity' ...
-    'ecg_adaptive_pol' 'ppg_bandpass' 'ppg_height_method' 'ppg_polarity' 'ppg_detect_mode' 'ppg_transit' ...
+    'ecg_adaptive_pol' 'ppg_bandpass' 'ppg_height_method' 'ppg_polarity' 'ppg_detect_mode' 'ppg_transit' 'ectopic_rule' ...
     'conf_thresh' 'heart_removal' 'ecg_corr' 'ssp_n' 'hep_baseline' 'hep_baseline_win' 'hep_window' ...
-    'hep_tf_freqs' 'hep_surrogates' 'hep_surrogate_mode' 'hep_level' 'hep_roi' ...
+    'hep_tf_freqs' 'hep_surrogates' 'hep_surrogate_mode' 'hep_surr_stat' 'hep_tf_power' 'hep_cfa' 'hep_level' 'hep_roi' ...
     'hrv_features' 'hrv_norm' 'hrv_spec' 'hrv_overlap' 'prsa_thresh' 'eeg' 'clean_eeg' 'highpass' 'lowpass' ...
     'flatline' 'corrThresh' 'maxBad' 'asr_cutoff' 'asr_mem' 'ref' 'clean_method' 'linenoise' ...
-    'filttype' 'detectMethod' 'icamethod' 'ica_method' 'eeg_features' 'eeg_frange' ...
+    'filttype' 'detectMethod' 'icamethod' 'ica_method' 'ica_asr' 'ica_lowpass' 'ica_srate' 'ica_epochs' ...
+    'eeg_features' 'eeg_frange' ...
     'eeg_wintype' 'eeg_winoverlap' 'eeg_winlen' 'eeg_freqbounds' 'eeg_norm' 'asy_norm' ...
     'vis_cleaning' 'vis_outputs' 'save' 'parpool' 'gpu' 'gong'};
 k = [k legacy_keys()];

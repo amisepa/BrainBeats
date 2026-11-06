@@ -23,10 +23,16 @@
 %                      interpolate bad channels, remove bad epochs ('hep') or
 %                      segments with ASR, then remove artifactual ICA components
 %                      with ICLabel (or GEDAI instead, see 'clean_method').
+%                      'hep' without it: the EEG must be high-pass filtered
+%                      already (the HEP is not baseline-corrected), else an
+%                      error.
 %   'vis_cleaning'   - plot the preprocessing steps (default true)
 %   'vis_outputs'    - plot the outputs (default true)
 %   'save'           - save the output dataset next to the input file, and the
 %                      features in a .mat file (default true)
+%   Sampling rate: at most 1024 Hz, 512 Hz recommended (higher rates only cost
+%   memory and time). Above 1024 Hz the command line stops with an error
+%   (EEG = pop_resample(EEG, 512) first); above 512 Hz it warns. The GUI asks.
 %
 % Heart options:
 %   'ppg_detect_mode' - 'valleys' (default, pulse-wave onsets) or 'peaks'
@@ -41,7 +47,10 @@
 %                     - see GET_RR
 %   'keep_heart'     - keep the heart channel in the output (default false)
 %   RR artifacts are corrected by CLEAN_RR (implausible beats removed, missing
-%   beats inserted in gaps). For ECG, RPEAK_QA reports beats detected on the
+%   beats inserted in gaps, ectopic beats replaced).
+%   'ectopic_rule'   - 'adaptive' (default: Lipponen & Tarvainen, 2019,
+%                      thresholds scaled to the recording's beat-to-beat
+%                      variability), 'ratio' (fixed 20% rule of v1.6) or 'none' For ECG, RPEAK_QA reports beats detected on the
 %   wrong wave (e.g. T-wave).
 %
 % HEP options ('hep'):
@@ -61,13 +70,12 @@
 %                        2), the label of an ECG channel, or 'off'.
 %                        Or: the label of an ECG channel, 'eeg', a delay in ms,
 %                        or 'off'.
-%   'hep_baseline'     - 'none' (default; recommended by Steinfath et al., 2026:
-%                        report the HEP without baseline correction and test the
-%                        baseline window) or 'regression': regression-based
-%                        baseline correction (Alday, 2019; see BASELINE_REGRESSION).
-%                        The corrected epochs are stored in the output EEG.data.
-%   'hep_baseline_win' - baseline window in ms (default [-150 -50], which ends
-%                        before the QRS onset)
+%   'hep_baseline_win' - window in ms of each heartbeat's exported baseline
+%                        voltage (default [-150 -50], which ends before the QRS
+%                        onset). The HEP is not baseline-corrected (Steinfath et
+%                        al., 2026); the baselines are for a regression-based
+%                        correction in the group-level model (Alday, 2019).
+%                        ('hep_baseline' was removed in v1.7.)
 %   'hep_roi'          - channel labels of the ROI of the time-frequency
 %                        measures and plots (default frontocentral: F1-F4, Fz,
 %                        FC1-FC4, FCz, C1-C4, Cz; those present are used)
@@ -87,10 +95,29 @@
 %                        (default 0 = none; 100 in the GUI). Results in
 %                        EEG.brainbeats.surrogate (HEP, all channels) and
 %                        EEG.brainbeats.roi or .ics (ROI/IC HEP, HRSP, HRPC).
-%   'hep_surrogate_mode' - 'random' (default: one surrogate beat at a random
-%                        position in each inter-beat interval, so at random
-%                        cardiac phases) or 'rigid' (whole train shifted by up
-%                        to +/-500 ms); see COMPUTE_HEP_TF
+%                        One surrogate beat at a random position in each
+%                        inter-beat interval, so at random cardiac phases
+%                        ('hep_surrogate_mode','rigid' was removed in v1.7).
+%   'hep_surr_stat'    - points of the HEP, HRSP and HRPC shown as different
+%                        from the surrogates (p < .05): 'tmax' (default: max
+%                        statistic, family-wise over all points), 'tfce'
+%                        (threshold-free cluster enhancement along time,
+%                        family-wise; slower, computed only when chosen) or
+%                        'fdr' (per point, FDR-corrected). tmax and FDR are
+%                        always stored. The HEP uses at least 1000
+%                        surrogates (HRSP and HRPC: 'hep_surrogates').
+%   'hep_tf_power'     - HRSP plotted: 'induced' (default: the HEP, cardiac field
+%                        artifact included, subtracted from each heartbeat
+%                        before the power is taken; Cohen & Donner, 2013) or
+%                        'total'. Both are stored (.hrsp, .hrsp_induced).
+%   'hep_cfa'          - QRS map of the cardiac field artifact and whether it
+%                        changed during the recording (default true; CFA_MAP):
+%                        EEG.brainbeats.cfa, with notes on how to use it; with
+%                        'save', also <file>_HEP_CFA.png and _HEP_CFA.txt.
+%   Each heartbeat's baseline voltage ('hep_baseline_win') and band power
+%   before the QRS are stored in EEG.brainbeats.prestim (and, with 'save', the
+%   ROI values in <file>_HEP_beats.csv), for group-level covariates or
+%   single-trial models.
 %
 % EEG preprocessing options (with 'clean_eeg'):
 %   'clean_method'   - 'asr_ica' (default: bad epochs ('hep') or ASR, then ICA +
@@ -103,6 +130,11 @@
 %   'highpass' (default 0.5 Hz for 'hep', 1 Hz otherwise; ICA is fitted on a
 %   1-Hz high-passed copy), 'lowpass' (Hz), 'filttype' ('noncausal' default,
 %   or 'causal'), 'linenoise' (50 or 60 Hz),
+%   'ica_asr', 'ica_lowpass' ('hep': the copy the ICA is fitted on is
+%   continuous, cleaned with ASR at 'ica_asr' SD, default 80, 0 = off, and
+%   low-passed at 'ica_lowpass' Hz, default 0 = none, line noise notched;
+%   ICLabel runs on it), 'ica_epochs' (true: epoch that copy like the HEP
+%   data), 'ica_srate' (resample it),
 %   'flatline', 'corrThresh', 'maxBad', 'asr_cutoff', 'asr_mem', 'detectMethod'
 %   (bad epochs: 'grubbs' default, 'median', 'mean'), 'icamethod' (1 = Picard,
 %   fast; 2 = Infomax, default; 3 = Infomax with lrate 1e-5, slow but replicable).
@@ -140,8 +172,9 @@
 %         (.parameters), the preprocessing outputs (.preprocessings, e.g. NN
 %         intervals, SQI, removed channels, beats, components, PPG transit),
 %         and the features (.features), coherence (.coherence), or for HEP the
-%         ROI and IC results (.roi / .ics), HRSP/HRPC of all channels (.hrsp)
-%         and surrogate control (.surrogate).
+%         ROI and IC results (.roi / .ics), HRSP/HRPC of all channels (.hrsp),
+%         surrogate control (.surrogate), QRS map (.cfa) and pre-R-peak
+%         values of each heartbeat (.prestim).
 %   com - command line reproducing the call (EEGLAB history)
 %
 % Examples:
@@ -383,8 +416,10 @@ if ~strcmpi(params.heart_signal,'off')
             % Correct RR artifacts (e.g. ectopic beats, missed or false
             % detections) to obtain the NN series
             disp("Correcting abnormal RR intervals...")
+            rrOpts = {};
+            if isfield(params,'ectopic_rule'), rrOpts = {'ectopic_rule', params.ectopic_rule}; end
             [nn, nn_t, nPeaks, idx_bad.(elec), idx_interp.(elec)] = clean_rr(RR_t.(elec), RR.(elec),  sig(iElec, Rpeaks.(elec)), Rpeaks.(elec), ...
-                'interpolate_missing', true, 'ecg_signal', sig(iElec,:), 'sig_t', sig_t(iElec,:), 'fs', params.fs);
+                'interpolate_missing', true, 'ecg_signal', sig(iElec,:), 'sig_t', sig_t(iElec,:), 'fs', params.fs, rrOpts{:});
             % Abnormal beats = removed + synthetic (inserted) + gaps left unfilled
             nRemoved = numel(RR.(elec)) - (numel(nn) - sum(idx_interp.(elec)));
             nFlagged.(elec) = nRemoved + sum(idx_interp.(elec)) + sum(idx_bad.(elec));
@@ -590,12 +625,25 @@ if params.clean_eeg
     % HEP: cardiac field artifact projected out (SSP of the heartbeat-locked average)
     if strcmp(params.analysis,'hep') && isfield(params,'heart_removal') && strcmp(params.heart_removal,'ssp')
         [EEG, EEG.brainbeats.preprocessings.heart_ssp] = remove_heart_ssp(EEG, Rpeaks, params);
+        % the same projection on the ICA copy: an ICA fitted with the projected
+        % topographies would add them back when its artifact ICs are removed
+        if isfield(params,'ica_cont')
+            U = EEG.brainbeats.preprocessings.heart_ssp.patterns;
+            if size(U,1) == params.ica_cont.nbchan
+                C = double(params.ica_cont.data);
+                params.ica_cont.data = cast(C - U * (U' * C), 'like', params.ica_cont.data);
+                clear C
+            else
+                warning('SSP: the ICA copy has other channels than the data; its projection is skipped.')
+            end
+        end
     end
 end
 
 %%%%% MODE 1: Heartbeat-evoked potentials (HEP) %%%%%
 if strcmp(params.analysis,'hep')
     EEG = run_HEP(EEG, CARDIO, params, Rpeaks); % CARDIO: to add the heart channel back ('keep_heart')
+    if isfield(params,'ica_cont'), params = rmfield(params,'ica_cont'); end   % ICA copy (data), used by RUN_HEP
 
 %%%%% MODE 2: EEG features %%%%%
 elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params.eeg_features~=0
@@ -608,6 +656,10 @@ elseif isfield(params,'eeg_features') && ~isempty(params.eeg_features) && params
         end
         if isfield(params,'removed_eeg_components')
             EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
+        end
+        if isfield(params,'ica_report')
+            EEG.brainbeats.preprocessings.ica = params.ica_report;
+            params = rmfield(params,'ica_report');
         end
         if strcmp(params.ref,'csd')
             EEG = apply_csd(EEG);   % surface Laplacian, after artifact removal
@@ -668,6 +720,10 @@ elseif strcmpi(params.analysis,'coherence')
         end
         if isfield(params,'removed_eeg_components')
             EEG.brainbeats.preprocessings.removed_eeg_components = params.removed_eeg_components;
+        end
+        if isfield(params,'ica_report')
+            EEG.brainbeats.preprocessings.ica = params.ica_report;
+            params = rmfield(params,'ica_report');
         end
         if strcmp(params.ref,'csd')
             EEG = apply_csd(EEG);   % surface Laplacian, after artifact removal
@@ -732,17 +788,21 @@ else
         strjoin(strcat('''', params.heart_channels, ''''), ' '));
 end
 common = sprintf(',''vis_cleaning'',%g,''vis_outputs'',%g,''save'',%g', params.vis_cleaning, params.vis_outputs, params.save);
-heartOpts = argstr(params, {'ecg_peakthresh' 'ecg_refperiod' 'ecg_searchback' 'ppg_detect_mode'});
+heartOpts = argstr(params, {'ecg_peakthresh' 'ecg_refperiod' 'ecg_searchback' 'ecg_bandpass' 'ecg_polarity' ...
+    'ecg_adaptive_pol' 'ppg_bandpass' 'ppg_height_method' 'ppg_polarity' 'ppg_detect_mode' 'ectopic_rule'});
 cleanOpts = sprintf(',''clean_eeg'',%g', params.clean_eeg);
 if params.clean_eeg
     cleanOpts = [cleanOpts argstr(params, {'clean_method' 'ref' 'highpass' 'lowpass' 'linenoise' ...
-        'filttype' 'corrThresh' 'detectMethod' 'asr_cutoff' 'icamethod' 'heart_removal'})];
-    if strcmp(params.analysis,'hep'), cleanOpts = [cleanOpts argstr(params, {'conf_thresh'})]; end
+        'filttype' 'flatline' 'corrThresh' 'maxBad' 'detectMethod' 'asr_cutoff' 'icamethod' 'heart_removal'})];
+    if strcmp(params.analysis,'hep')
+        cleanOpts = [cleanOpts argstr(params, {'conf_thresh' 'ecg_corr' 'ssp_n' 'ica_asr' 'ica_lowpass' 'ica_epochs' 'ica_srate'})];
+    end
 end
 switch params.analysis
     case 'hep'
-        hepArgs = argstr(params, {'hep_level' 'hep_roi' 'hep_window' 'hep_baseline' ...
-            'hep_baseline_win' 'hep_tf_freqs' 'hep_surrogates' 'hep_surrogate_mode' 'ppg_transit' 'keep_heart'});
+        hepArgs = argstr(params, {'hep_level' 'hep_roi' 'hep_window' ...
+            'hep_baseline_win' 'hep_tf_freqs' 'hep_surrogates' 'hep_surr_stat' 'hep_tf_power' ...
+            'hep_cfa' 'ppg_transit' 'keep_heart'});
         com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''hep'',%s%s%s%s%s);', ...
             heartArgs, heartOpts, cleanOpts, hepArgs, common);
     case 'features'
@@ -759,13 +819,18 @@ switch params.analysis
         else
             eeg_features = '''off''';
         end
-        featOpts = argstr(params, {'hrv_spec' 'hrv_norm' 'hrv_overlap' 'eeg_frange' 'eeg_wintype' ...
+        featOpts = argstr(params, {'hrv_spec' 'hrv_norm' 'hrv_overlap' 'prsa_thresh' 'eeg_frange' 'eeg_wintype' ...
             'eeg_winlen' 'eeg_winoverlap' 'eeg_freqbounds' 'eeg_norm' 'asy_norm'});
         com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''features'',%s%s%s,''hrv_features'',%s,''eeg_features'',%s%s,''parpool'',%g,''gpu'',%g%s);', ...
             heartArgs, heartOpts, cleanOpts, hrv_features, eeg_features, featOpts, params.parpool, params.gpu, common);
     otherwise   % 'coherence'
         com = sprintf('EEG = brainbeats_process(EEG,''analysis'',''%s'',%s%s%s%s%s);', ...
             params.analysis, heartArgs, heartOpts, cleanOpts, argstr(params, {'conf_thresh' 'keep_heart'}), common);
+end
+
+% Downsampled in the GUI (RUN_CHECKS): part of the history
+if isfield(params,'resampled')
+    com = sprintf('EEG = pop_resample(EEG, %g); %s', params.resampled(2), com);
 end
 
 % Final message with ref to cite

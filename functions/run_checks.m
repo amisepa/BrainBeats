@@ -37,6 +37,32 @@ if length(size(EEG.data)) ~= 2
     err = true; return
 end
 
+% Sampling rate: at most 1024 Hz, 512 Hz recommended. Higher rates only cost
+% memory and time (surrogate HEPs, ICA, nonlinear features); at 512 Hz the
+% R-peaks are located within 2 ms. Above 1024 Hz: an error on the command
+% line, a choice in the GUI; above 512 Hz: a warning, or a choice in the GUI.
+if EEG.srate > 512
+    [EEG, params, err] = check_srate(EEG, params, isCmd);
+    if err, return; end
+end
+
+% HEP without EEG cleaning: the data must be high-pass filtered. The HEP is
+% not baseline-corrected, so each channel's offset would be in the HEP, its
+% scalp maps and the QRS map. Offset ratio: median |channel mean| / median
+% channel SD within 1 s. On 7 recordings (2026-11-05): raw 105-1080;
+% high-passed at 0.5 Hz below 0.6 (mostly < 0.003); at 0.1 Hz up to 9 (edge
+% transients of large artifacts).
+if isfield(params,'analysis') && strcmp(params.analysis,'hep') && isfield(params,'clean_eeg') && ~params.clean_eeg
+    r = offset_ratio(EEG, params);
+    if r > 1
+        bb_fail(isCmd, sprintf(['The EEG data do not look high-pass filtered: the channels'' offsets are %.3g times ' ...
+            'their variability within 1 s (filtered data: below 1). The HEP is not baseline-corrected, so these ' ...
+            'offsets would be in the HEP, its scalp maps and the QRS map. High-pass filter the EEG first, e.g. ' ...
+            'EEG = pop_eegfiltnew(EEG,''locutoff'',0.5); or set ''clean_eeg'' on (0.5-Hz high-pass for HEP).'], r));
+        err = true; return
+    end
+end
+
 % Check heart signal type
 if ~contains(params.heart_signal, {'ecg' 'ppg' 'rr' 'off'})
     bb_fail(isCmd, 'Heart signal should be either ECG, PPG, RR, or off')
@@ -177,3 +203,56 @@ end
 if ~isfield(params,'gong')
     params.gong = true;
 end
+
+
+function [EEG, params, err] = check_srate(EEG, params, isCmd)
+% Ask to downsample above 512 Hz (GUI), or error above 1024 Hz and warn
+% above 512 Hz (command line). Under 'matlab -batch' the GUI answer is the
+% recommended one (512 Hz above 1024 Hz, else keep).
+err = false;
+fs = EEG.srate;
+msg = sprintf(['The data are sampled at %g Hz. BrainBeats needs at most 1024 Hz, and 512 Hz is recommended: ' ...
+    'higher rates only cost memory and time (at 512 Hz, R-peaks are located within 2 ms).'], fs);
+batch = exist('batchStartupOptionUsed') > 0 && batchStartupOptionUsed; %#ok<EXIST>
+if isCmd
+    if fs > 1024
+        bb_fail(isCmd, sprintf('%s Downsample first, e.g. EEG = pop_resample(EEG, 512);', msg));
+    end
+    warning('BrainBeats:srate', '%s To downsample: EEG = pop_resample(EEG, 512);', msg)
+    return
+end
+rec = '512 Hz (recommended)';
+if batch
+    answer = rec; if fs <= 1024, answer = 'Keep'; end
+    fprintf('%s Answer: %s. \n', msg, answer);
+elseif fs > 1024
+    answer = questdlg([msg ' Downsample to:'], 'Sampling rate', rec, '1024 Hz', 'Cancel', rec);
+else
+    answer = questdlg([msg ' Downsample to 512 Hz?'], 'Sampling rate', rec, sprintf('Keep %g Hz', fs), 'Cancel', rec);
+end
+switch strtok(answer)
+    case {'512' '1024'}
+        target = str2double(strtok(answer));
+        fprintf('Downsampling from %g to %g Hz... \n', fs, target);
+        EEG = pop_resample(EEG, target);
+        params.resampled = [fs target];    % Hz: from, to (EEGLAB history)
+    case 'Keep'
+    otherwise
+        disp('Aborted.'); err = true;
+end
+
+
+function r = offset_ratio(EEG, params)
+% Median over EEG channels of |channel mean|, relative to the median over
+% channels of their median SD within 1-s windows (heart and auxiliary
+% channels excluded)
+lab = {EEG.chanlocs.labels};
+eeg = ~contains(lower(lab), {'ecg' 'ekg' 'ppg' 'aux' 'gsr' 'eda' 'eog' 'emg'});
+if isfield(params,'heart_channels') && ~isempty(params.heart_channels)
+    eeg = eeg & ~ismember(lab, cellstr(params.heart_channels));
+end
+x = double(EEG.data(eeg,:));
+w = max(1, round(EEG.srate)); nW = floor(size(x,2)/w);
+if isempty(x) || nW < 1, r = 0; return; end
+sdw = median(std(reshape(x(:,1:nW*w), size(x,1), w, nW), 0, 2), 3);
+r = median(abs(mean(x,2))) / max(median(sdw), eps);

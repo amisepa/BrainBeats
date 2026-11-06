@@ -18,9 +18,20 @@ function [nn_intervals, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(rr_t, rr_i
 %                           Inf disables)
 %   'win_size'            - local-median window (s, default 15)
 %   'gap_ratio'           - gap if interval > gap_ratio x local median (default 1.5)
-%   'ectopic_ratio'       - ectopic beat if its interval is shorter than
-%                           (1 - ratio) x the local median and the next one
-%                           longer than (1 + ratio) x (default 0.2; Inf disables)
+%   'ectopic_rule'        - 'adaptive' (default since v1.7): ectopic beats of
+%                           the beat classification of Lipponen & Tarvainen
+%                           (2019), thresholds scaled to the beat-to-beat
+%                           variability of the recording (see Notes);
+%                           'ratio': fixed rule ('ectopic_ratio', the v1.6
+%                           default); 'none'
+%   'ectopic_ratio'       - 'ratio' rule: ectopic beat if its interval is
+%                           shorter than (1 - ratio) x the local median and
+%                           the next one longer than (1 + ratio) x (default
+%                           0.2); Inf disables the ectopic step (both rules)
+%   'ectopic_min_shift'   - 'adaptive' rule: a beat is replaced only if that
+%                           moves it by at least this fraction of the mean
+%                           of its two intervals (default 0.1; 0 replaces
+%                           every beat classified ectopic, as published)
 %   'ecg_signal'          - ECG/PPG signal, to place synthetic beats on samples
 %   'fs'                  - its sampling rate (Hz)
 %   'sig_t'               - its time axis in s (default (0:N-1)/fs)
@@ -39,19 +50,44 @@ function [nn_intervals, nn_t, nPeaks, idx_bad, idx_interp] = clean_rr(rr_t, rr_i
 %   2. Beats with outlying amplitude are removed.
 %   3. Intervals shorter than min RR are removed; a removed interval is
 %      added to the next kept one so NN still spans two kept beats.
-%   3b. Ectopic beats (premature beat then compensatory pause: a short-long
-%      pair against the local median) are removed the same way; the merged
-%      interval (~2 beats) is then filled by step 5. Without this, a pair
-%      at 0.75/1.25 x passed steps 3-4.
-%   4. Gaps: intervals > gap_ratio x the median of neighbors within win_size.
+%   3b. Ectopic beats (premature beat then compensatory pause) are removed
+%      the same way. 'ratio': a short-long pair against the local median;
+%      the merged interval (~2 beats) is filled by step 5 when it is a gap.
+%      'adaptive': beats classified ectopic from their interval difference
+%      (dRR) and the neighboring ones, divided by 5.2 x the quartile
+%      deviation of |dRR| over 91 beats (Lipponen & Tarvainen, 2019; as in
+%      NeuroKit2's 'Kubios' method), one at a time, the series classified
+%      again after each; the merged interval always gets one beat in its
+%      middle (step 5). Without this step, a pair at 0.75/1.25 x passed
+%      steps 3-4.
+%   4. Gaps: intervals > gap_ratio x the median of neighbors within win_size,
+%      and the merged intervals of 'adaptive'.
 %   5. Each gap is split into equal intervals by inserting
-%      round(gap / local median) - 1 synthetic beats.
+%      round(gap / local median) - 1 synthetic beats (at least one for the
+%      merged intervals of 'adaptive').
 %
 % Notes:
 %   amp_mad_threshold is deliberately lenient (15 MAD, not isoutlier's 3):
 %   ECG amplitude varies with respiration, posture and electrode contact;
 %   only disconnections or rail artifacts should be caught here. Long
 %   intervals are never removed, only flagged or filled (steps 4-5).
+%
+%   Ectopic rules on 40 ds003838 and sample recordings with premature beats
+%   injected (full compensatory pause; tests/compare_ectopic_rules.m,
+%   2026-11-05): 'ratio' detected 83-89% of them at 0.70 x the interval,
+%   60-65% at 0.75 x and 13-15% at 0.80 x, 'adaptive' 98-99%, 96-97% and
+%   92-96% (RMSSD error 0.6-6.9 vs 5.7-22.7 ms). On the recordings as they
+%   are (12,800 beats), 'adaptive' replaced 5 beats 'ratio' kept: 2 false
+%   detections (an electrode pop, a spike), 1 sinus beat and 2 unclear on
+%   the ECG; 'ratio' replaced 1 (a false detection, replaced by 'adaptive'
+%   too). With 'ectopic_min_shift' 0 (the published rule), 'adaptive' also
+%   replaced 8 sinus beats, each by less than 10% of its interval.
+%
+% Reference:
+%   Lipponen, J. A., & Tarvainen, M. P. (2019). A robust algorithm for heart
+%   rate variability time series artefact correction using novel beat
+%   classification. Journal of Medical Engineering & Technology, 43(3),
+%   173-181.
 %
 % Copyright (C) - Cedric Cannard, 2023
 
@@ -63,7 +99,9 @@ addParameter(p, 'mad_threshold',       10,     @isnumeric);
 addParameter(p, 'amp_mad_threshold',   15,    @isnumeric);
 addParameter(p, 'win_size',            15,    @isnumeric);
 addParameter(p, 'gap_ratio',           1.5,   @isnumeric);
+addParameter(p, 'ectopic_rule',        'adaptive', @(x) any(strcmpi(x, {'ratio','adaptive','none'})));
 addParameter(p, 'ectopic_ratio',       0.2,   @isnumeric);
+addParameter(p, 'ectopic_min_shift',   0.1,   @isnumeric);
 addParameter(p, 'ecg_signal',          [],    @isnumeric);
 addParameter(p, 'fs',                  [],    @isnumeric);
 addParameter(p, 'sig_t',               [],    @isnumeric);
@@ -74,7 +112,10 @@ mad_threshold       = p.Results.mad_threshold;
 amp_mad_threshold   = p.Results.amp_mad_threshold;
 win_size            = p.Results.win_size;
 gap_ratio           = p.Results.gap_ratio;
+ectopic_rule        = lower(p.Results.ectopic_rule);
 ectopic_ratio       = p.Results.ectopic_ratio;
+ectopic_min_shift   = p.Results.ectopic_min_shift;
+if ~isfinite(ectopic_ratio), ectopic_rule = 'none'; end
 ecg_signal          = p.Results.ecg_signal(:);
 fs                  = p.Results.fs;
 sig_t               = p.Results.sig_t(:);
@@ -159,22 +200,41 @@ if isempty(nn_intervals)
     return;
 end
 
-% Step 3b: Ectopic beats: a premature beat (its interval shorter than
-% (1 - ectopic_ratio) x the local median) followed by a compensatory pause
-% (longer than (1 + ectopic_ratio) x). The premature beat is removed and its
-% interval merged with the pause, which Steps 4-5 then fill.
-local_med = local_median(nn_intervals, nn_t, win_size, med_rr);
-ect = find(nn_intervals(1:end-1) < (1-ectopic_ratio)*local_med(1:end-1) & ...
-    nn_intervals(2:end) > (1+ectopic_ratio)*local_med(1:end-1));
+% Step 3b: Ectopic beats. A removed beat's interval is merged with the next
+% one, as in Step 3; to_fill marks the intervals Step 5 must fill.
+to_fill = false(size(nn_intervals));
+switch ectopic_rule
+    case 'ratio'
+        % a premature beat (its interval shorter than (1 - ectopic_ratio) x
+        % the local median) followed by a compensatory pause (longer than
+        % (1 + ectopic_ratio) x): the merged interval is filled if it is a gap
+        local_med = local_median(nn_intervals, nn_t, win_size, med_rr);
+        ect = find(nn_intervals(1:end-1) < (1-ectopic_ratio)*local_med(1:end-1) & ...
+            nn_intervals(2:end) > (1+ectopic_ratio)*local_med(1:end-1));
+        if ~isempty(ect)
+            fprintf('  Removing %d ectopic beats (short-long pair, %.0f%% from the local median)\n', ...
+                numel(ect), 100*ectopic_ratio);
+        end
+    case 'adaptive'
+        % ectopic beats of the classification of Lipponen & Tarvainen
+        % (2019); each is replaced in the middle of its two intervals
+        ect = find(adaptive_ectopic(nn_intervals, ectopic_min_shift));
+        to_fill(ect+1) = true;
+        if ~isempty(ect)
+            fprintf('  Removing %d ectopic beats (Lipponen & Tarvainen, 2019)\n', numel(ect));
+        end
+    otherwise
+        ect = [];
+end
 if ~isempty(ect)
-    fprintf('  Removing %d ectopic beats (short-long pair, %.0f%% from the local median)\n', ...
-        numel(ect), 100*ectopic_ratio);
+    % flagged beats are never adjacent, so each merge is independent
     nn_intervals(ect+1) = nn_intervals(ect+1) + nn_intervals(ect);
     nn_intervals(ect) = [];
     nn_t(ect)         = [];
     nPeaks(ect)       = [];
     idx_bad(ect)      = [];
     idx_interp(ect)   = [];
+    to_fill(ect)      = [];
     n_removed = n_removed + numel(ect);
 end
 
@@ -182,7 +242,7 @@ end
 % (+/- win_size/2 s, excluding the interval itself)
 local_med = local_median(nn_intervals, nn_t, win_size, med_rr);
 
-idx_bad = nn_intervals > gap_ratio * local_med;
+idx_bad = nn_intervals > gap_ratio * local_med | to_fill;
 
 if any(idx_bad)
     fprintf('  Flagging %d gaps (interval > %.1fx local median)\n', sum(idx_bad), gap_ratio);
@@ -204,6 +264,7 @@ if interpolate_missing && any(idx_bad)
         gap       = nn_intervals(i);
         ref_rr_i  = local_med(i);
         n_missing = round(gap / ref_rr_i) - 1;
+        if to_fill(i), n_missing = max(n_missing, 1); end
         if n_missing < 1, continue; end
         if n_missing > max_missing
             fprintf('  Gap at t=%.2f s: %d beats missing, exceeds max_missing=%d - skipping\n', ...
@@ -259,6 +320,122 @@ end
 %% Helpers
 function idx = find_nearest_sample(sig_t, t)
 [~, idx] = min(abs(sig_t - t));
+end
+
+function moved = adaptive_ectopic(rr, min_shift)
+% Beats to replace (true at the interval each one closes), one at a time:
+% classify, move the first ectopic beat to the middle of its neighbors,
+% classify again. A flag at beat j marks interval j; the beat out of place
+% is j or the one before (a premature beat often flags the beat closing its
+% compensatory pause): the one whose move leaves the smaller successive
+% differences over intervals j-2 to j+2. A beat is moved only if that
+% shifts it by at least min_shift x the mean of its two intervals. Moved
+% beats and their neighbors are not moved again; the first and last beats
+% are left alone.
+w = rr(:);  n = numel(w);
+moved = false(n, 1);  skip = false(n, 1);
+for it = 1:n
+    c = classify_beats(w);
+    j = find(c.ectopic & ~skip, 1);
+    if isempty(j), break; end
+    skip(j) = true;
+    cand = [j j-1];  cost = inf(1, 2);
+    span = max(1, j-2):min(n, j+2);
+    for q = 1:2
+        bq = cand(q);
+        if bq < 2 || bq > n-1 || any(moved(bq-1:bq+1)), continue; end
+        v = w(span);  i0 = bq - span(1) + 1;
+        v(i0:i0+1) = (v(i0) + v(i0+1)) / 2;
+        cost(q) = sum(abs(diff(v)));
+    end
+    [cmin, q] = min(cost);
+    if isinf(cmin), continue; end
+    b = cand(q);
+    if abs(w(b) - w(b+1)) / (w(b) + w(b+1)) < min_shift, continue; end
+    moved(b) = true;
+    w(b:b+1) = (w(b) + w(b+1)) / 2;
+end
+end
+
+function c = classify_beats(rr)
+% Beat classification of Lipponen & Tarvainen (2019), following NeuroKit2's
+% implementation (signal_fixpeaks, method 'Kubios'). rr: intervals (s); each
+% output is true where the beat closing that interval is ectopic, long or
+% short, extra (a false beat: its interval and the next sum to one beat), or
+% where a beat is missing before it (interval ~ 2 beats); mrr: deviation
+% from the 11-beat median (medrr) in units of Th2.
+alpha = 5.2;  c1 = 0.13;  c2 = 0.17;  win = 91;  medwin = 11;
+rr = rr(:);  n = numel(rr);
+c = struct('ectopic', false(n,1), 'longshort', false(n,1), 'extra', false(n,1), 'missed', false(n,1), ...
+    'medrr', movmedian(rr, medwin), 'mrr', zeros(n,1));
+if n < 5, return; end
+
+% dRR (difference with the previous interval), in units of Th1
+drr = [0; diff(rr)];  drr(1) = mean(drr(2:end));
+th1 = alpha * quartile_dev(abs(drr), win);
+d   = drr ./ max(th1, eps);
+% S12: the neighbor dRR of opposite direction (max if dRR > 0, min if < 0);
+% S22: the next two dRR (min if dRR >= 0, max if < 0). Ends reflected.
+dp   = [d(3); d(2); d; d(end-1); d(end-2)];
+prv  = dp(2:n+1);  nxt = dp(4:n+3);  nxt2 = dp(5:n+4);
+s12  = zeros(n,1);
+up   = d > 0;  dn = d < 0;
+s12(up) = max(prv(up), nxt(up));
+s12(dn) = min(prv(dn), nxt(dn));
+s22     = min(nxt, nxt2);
+s22(dn) = max(nxt(dn), nxt2(dn));
+% mRR: deviation from the 11-beat median, shorter intervals counted double,
+% in units of Th2
+medrr = c.medrr;
+mrr   = rr - medrr;
+mrr(mrr < 0) = 2 * mrr(mrr < 0);
+th2   = alpha * quartile_dev(abs(mrr), win);
+m     = mrr ./ max(th2, eps);
+c.mrr = m;
+
+% Decision flow (Lipponen & Tarvainen, 2019, Fig. 1)
+i = 1;
+while i <= n-2
+    if abs(d(i)) <= 1, i = i + 1; continue; end
+    if (d(i) > 1 && s12(i) < -c1*d(i) - c2) || (d(i) < -1 && s12(i) > -c1*d(i) + c2)
+        c.ectopic(i) = true;
+        i = i + 1;
+        continue
+    end
+    cand = i;
+    if abs(d(i+1)) < abs(d(i+2)), cand = [i i+1]; end
+    for j = cand
+        long  = d(j) > 1  && s22(j) < -1;
+        short = d(j) < -1 && s22(j) > 1;
+        if ~(long || short || abs(m(j)) > 3), continue; end
+        if short && abs(rr(j) + rr(j+1) - medrr(j)) < th2(j)
+            c.extra(j) = true;
+        elseif long && abs(rr(j)/2 - medrr(j)) < th2(j)
+            c.missed(j) = true;
+        else
+            c.longshort(j) = true;
+        end
+    end
+    i = i + numel(cand);
+end
+end
+
+function qd = quartile_dev(x, win)
+% (Q3 - Q1) / 2 over a centered window of win values (shorter at the ends);
+% quartiles interpolated linearly between order statistics
+n  = numel(x);  h = (win - 1) / 2;
+qd = zeros(n, 1);
+for k = 1:n
+    s = sort(x(max(1, k-h):min(n, k+h)));
+    qd(k) = (lin_quantile(s, 0.75) - lin_quantile(s, 0.25)) / 2;
+end
+end
+
+function q = lin_quantile(s, p)
+pos = p * (numel(s) - 1) + 1;
+lo  = floor(pos);
+hi  = min(lo + 1, numel(s));
+q   = s(lo) + (pos - lo) * (s(hi) - s(lo));
 end
 
 function local_med = local_median(nn, nn_t, win_size, med_rr)

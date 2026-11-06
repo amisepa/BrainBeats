@@ -19,68 +19,132 @@
 - [x] Release date in README "Version history": 11/2026 (user asked to push v1.6, 2026-11-03).
 
 ## Next (user, 2026-11-03)
-- [ ] ICA quality for HEP (user: improve the decomposition rather than lower the ICLabel eye
-      threshold, .90 kept): compare Picard (used for the README figures and the screening) with
-      extended Infomax (the default, 'icamethod' 2), with and without ASR on the ICA copy (item
-      below). Measures: ICLabel brain/eye IC counts, eye activity left in the kept epochs,
-      ROI HEP and its surrogate test.
-- [ ] Surrogate statistics more conservative than per-latency FDR (user): max-statistic (tmax,
-      FWER: null = max |z| over latencies of each surrogate) and 1-D TFCE over time, null from
-      the surrogates' TFCE maxima. Needs more surrogates (100 gives a coarse 95th percentile of
-      maxima; ~1000 for the HEP, cheap without HRSP/HRPC). Validate on noise (FWER ~5%) and on
-      sub-047 before switching the default.
+- [x] ICA quality for HEP (user: improve the decomposition rather than lower the ICLabel eye
+      threshold, .90 kept). Done 2026-11-03 (6 recordings x 10 settings): new HEP default = continuous 1-Hz copy, no low-pass (line noise
+      notched), ASR 80 ('ica_asr'), ICLabel on the copy. Picard vs Infomax: no consistent
+      difference (method default left at Infomax). Open: Picard diverged on 2 of 30 runs (fell
+      back to Infomax, 1300-3800 s). ICLabel on the broadband copy vs on the 0.5-30 Hz data
+      (same weights; tests/compare_iclabel_source.m, 6 recordings, 2026-11-05): same ICs removed
+      on 5, one more eye IC removed on the copy on 1; more ICs muscle-labeled on the copy but
+      none above the .99 threshold. Kept on the copy.
+- [x] Surrogate statistics more conservative than per-latency FDR (user): TFCE (default) and
+      max statistic, family-wise, 1000 surrogate HEPs ('hep_surr_stat'); simulation in
+      tests/sim_hep_fwer.m, numbers in the README.
 - [ ] IC figure: fewer plots. Clustering within one recording would merge independent sources;
       rather sort by heartbeat locking (max |z|) and optionally show only ICs that pass the
       surrogate test or are classified brain. Across subjects, cluster ICs in an EEGLAB STUDY
       (scalp maps + HEP).
-- [ ] README: hep_ecg and hep_ppg look the same by design (the PPG beats are shifted back by the
-      pulse arrival time measured from the ECG). A single overlay of the ROI HEP from the ECG,
-      the corrected PPG and the uncorrected PPG would show that instead.
+- [x] README: hep_ecg and hep_ppg replaced by one overlay (hep_ecg_ppg.png: ROI HEP from the
+      ECG, the corrected and the uncorrected PPG).
 - [ ] plot_NN labels the ECG in uV; ds003838 stores the ECG in raw amplifier units (50,000-
       730,000 at the 99.5th percentile across 21 recordings, the tutorial dataset included).
       Label from EEG.chanlocs/units when known, else 'a.u.'.
-- [ ] More ds003838 subjects if a clearer HEP is needed: 22 of 65 usable screened (sample, 033-036,
-      038-054); 055-098 not yet.
-- [ ] HEP cleaning, ASR on the ICA copy (user, 2026-11-03): ICA is already fitted on a 1-Hz
-      high-passed copy (filtered continuous, then epoched; bad epochs removed from both) and the
-      weights applied to the 0.5-Hz data, but the HEP path has no ASR (bad epochs only). Try ASR
-      on the 1-Hz continuous copy before epoching it, for the ICA fit only (the HEP data are not
-      modified by ASR), with a very lax cutoff (~100 SD, user) so ocular activity stays in the
-      copy and ICA can model it; compare a few cutoffs (e.g. 50, 100). Measure first on the 22 screened ds003838 recordings: ICLabel brain/eye
-      IC counts, frontal-pole activity left in the kept epochs, ROI HEP and its surrogate test,
-      with and without. Same rank question: ICA's rank is counted with an absolute 1e-7
-      threshold on the covariance eigenvalues (uV^2), in clean_eeg and run_HEP.
+- [x] More ds003838 subjects: all 65 usable screened (2026-11-03; 064, 065 fail with < 10
+      heartbeats, not investigated). sub-047 stays the sample; sub-062 is the alternative.
+- [x] HEP cleaning, ASR on the ICA copy (user, 2026-11-03: lax, 80 SD): default (item above).
+      ASR 80 changed 0-0.4% of the samples of the ds003838 copies, 1.5-2.9% of the tutorial
+      dataset's (added artifacts). ICA's rank: relative tolerance since 2026-11-05 (data_rank).
+
+## Next (user, 2026-11-04)
+- [x] Pre-R-peak values of each heartbeat exported for group covariates and single-trial
+      models (HEP.brainbeats.prestim, <file>_HEP_beats.csv): baseline voltage (Alday's
+      regressor) and induced theta/alpha/beta power. No correction inside BrainBeats.
+- [x] Recording-level Alday correction removed (user, 2026-11-04): 'hep_baseline' only warns
+      (BrainBeats:removed); 'hep_baseline_win' sets the exported baseline window;
+      BASELINE_REGRESSION kept as a function for epochs that pool conditions.
+- [x] QRS map stored ('hep_cfa', default on; CFA_MAP) with notes; PNG and .txt with 'save';
+      README note on posture and head orientation (Dirlich et al. 1997; Plantard et al. 2025).
+- [x] Within-recording change warning: sees only large lasting changes (tests/sim_cfa_drift.m:
+      no false alarm on 24 recordings; 30-deg turn 3-4/12, 20 deg 1-2/12, 10 deg 0-1/12).
+      Robust means and the whole QRS complex did not do better.
+- [x] HRSP of the induced power (Cohen & Donner 2013) plotted by default ('hep_tf_power').
+- [ ] A better sample dataset than sub-047 (user: "maybe we should find a better one"): screen
+      other public EEG + ECG resting datasets (OpenNeuro) with the 2026-11-03 criteria (clear
+      late HEP, flat pre-R, low frontal-pole activity, late map unlike the QRS map).
+- [x] Surrogate reference (review 2026-11-04; user, 2026-11-05: keep the cycle average): the null compares
+      each latency with the cardiac-cycle average, so a large locked deflection makes the other
+      latencies differ too. Measured 2026-11-05: a pre-R reference fixes it in simulation
+      (tests/sim_surrogate_reference.m: 2-9% vs 15-47% false positives) but no fixed pre-R
+      window is quiet on real recordings (tests/check_surrogate_reference.m: P wave at -100 to
+      -168 ms; sub-047 loses its late HEP with [-150 -50], sub-062 gets 44-308 ms with
+      [-300 -200]). Recommendation: keep the cycle average (README explains).
+- [x] Runtime of the family-wise HRSP/HRPC statistics (341 s vs 207 s, 2026-11-04): TFCE per
+      height on the series that reach it, TF surrogates batched (2026-11-05, identical output):
+      16 ch 170 -> 103 s; TFCE still 28% of it (74 s without), so the max statistic is the
+      default for all measures (user, 2026-11-05) and TFCE is computed only when chosen.
+- [ ] Line-noise detection: only 50-Hz recordings (66) and a synthetic 60-Hz one (the sample
+      with 50 Hz notched out and 60 Hz added, run_tutorial_headless 'hep_ica_epochs_60hz');
+      a real 60-Hz recording is still to find.
+- [x] 'ecg_regression': the ICA copy keeps the cardiac field (ICLabel sees it, the data no
+      longer have it). Harmless (tests/compare_regression_copy.m, 4 recordings, 2026-11-05):
+      ROI HEP within 0.06 uV with the copy regressed too, heart-locked residual within .01 uV.
+- [x] Tests for 'ica_epochs', 'ica_srate', 'ica_lowpass' > 0, 'ica_asr' 0 and the
+      Picard-to-Infomax fallback (Picard stub with NaN weights): run_tutorial_headless
+      'hep_ica_epochs_60hz', 'hep_ica_lowpass_noasr'. The copy/data mismatch fallback is a
+      guard that no path reaches (same channels and epochs by construction): not tested.
+- [x] Memory at 2048 Hz (user, 2026-11-05): no chunking; data above 1024 Hz must be
+      downsampled (error on the command line, question in the GUI, 512 Hz recommended), above
+      512 Hz a warning or question (run_checks).
+- [x] 'rigid' surrogates removed (2026-11-05): still heartbeat-locked, they test condition
+      contrasts, which BrainBeats does not do; 'hep_surrogate_mode' warns.
+- [x] cfa_map offset rule (user, 2026-11-05): HEP without 'clean_eeg' stops on unfiltered EEG
+      (run_checks: median |channel mean| > median 1-s SD; raw 105-1080, filtered < 0.6);
+      cfa_map no longer removes offsets, it warns.
+- [x] Paper on the CFA map vs posture and head orientation: dropped (user, 2026-11-05).
+
+## Next release, after the current updates (user, 2026-11-05)
+- Methods paper: the same public HEP dataset(s) (a well-known one or two, to be found)
+  analyzed with different approaches, showing how each changes the results, and new
+  guidelines: Alday's regressor at the group level, GLMs with inverse-variance weighting,
+  covariate models (respiration, QRS amplitude, pre-R power), surrogate controls, IC vs scalp
+  domain, building on the HEP_neurofeedback project; with the group-analysis tools released
+  in BrainBeats if possible.
+- README numbers with tolerances (tests/readme_numbers.m) once the program is updated.
 
 ## From the code review of v1.6 (fixed ones are in the README version history)
 Scientific, may change results:
 - Brain-heart coherence (experimental, out of the GUI): redesign at HRV time scales (NN series
   not high-passed at 0.5 Hz, MVAR at a matching rate); fit at the data rank with QR, not
   `(Y*Z')/(Z*Z')` and inv() in fdMVAR_5order, since cleaned EEG is rank-deficient.
-- HRSP and the QRS (checked 2026-11-03): a heartbeat-locked broadband transient 5 x the noise SD
-  makes every point at 350-600 ms a significant power decrease (-1.7 dB) against the 'random'
-  surrogates (none at 2 x); normalizing by the continuous data gives the same (-1.9 dB), since it
-  contains every QRS. Possible fix: a QRS-free null (surrogate power from samples away from the
-  R-peaks); impossible at low frequencies (a 5-cycle wavelet at 4 Hz spans a whole cycle). Size
-  of the effect on real data: measure on ds003838 (HRSP at 350-600 ms vs the CFA amplitude).
-- Surrogate beats can fall on epochs rejected by the cleaning (wider null, depends on the
-  artifact load): pass the rejected spans to compute_hep_tf as exclusions.
-- HRV: LF (125-s windows) and HF (34-s windows) come from windows of different lengths; with ms^2
-  (default since 2026-11-03) both estimate the same spectrum, but LF and HF from one window of
-  2 min or more would be simpler. LF/(LF+HF) = 'hrv_norm' when VLF is not estimated.
-- clean_rr ectopic rule (20%): detected 1-6 of 6 injected premature beats at 0.70 x per
-  recording, 1-4 at 0.75 x; looser rules flagged beats in the high-RMSSD sub-033. An adaptive
-  rule (Lipponen & Tarvainen, 2019) could do better: compare on an annotated arrhythmia database.
+  Redesign in progress on branch `brain-heart` (docs/brain-heart-plan.md there): MVAR at
+  2 Hz on EEG band envelopes, NN and respiration; conditional GC; simulator first.
+- [x] HRSP and the QRS (checked 2026-11-03): a heartbeat-locked broadband transient makes every
+  point away from it a significant power decrease. Fixed 2026-11-04: the HRSP plotted is that
+  of the induced power (HEP subtracted, Cohen & Donner 2013; 'hep_tf_power'): -0.08 dB and no
+  FDR point instead of -1.9 dB and all (tests/test_compute_hep_tf.m check 8). Still open: the
+  size of the residual on real data, where the QRS amplitude varies with breathing.
+- [x] Surrogate beats can fall on epochs rejected by the cleaning: the rejected windows and the
+  data outside the epoched range are passed to compute_hep_tf ('exclude'; user, 2026-11-05),
+  surrogate trains refilled to the HEP's number of beats. Tutorial dataset null SD 0.43 vs 1.99
+  uV (its first 2 s hold 5,000-uV artifacts); sub-047 +4%, sub-070 +1%.
+- [x] HRV: LF and HF from the same 120-s windows, spread over the whole recording (2026-11-05,
+  tests/compare_hrv_windows.m). 60/90-s windows let VLF into LF (1/f-like synthetic:
+  Lomb-Scargle +24/+13%, welch +28/+7%; 120 s: +10/+2%); the 34-s HF windows let LF into HF
+  (+14% vs +5%).
+- Lomb-Scargle has no taper: VLF power adds to LF (+7-10% on synthetic series with VLF, welch
+  +/-2%). Try detrending or tapering each window; compare with tests/compare_hrv_windows.m.
+- [x] clean_rr ectopic rule: 'adaptive' (Lipponen & Tarvainen, 2019) is the default since
+  2026-11-05 (user asked for it; tests/compare_ectopic_rules.m, 40 recordings): 92-96% vs 13-15%
+  of injected premature beats at 0.80 x, RMSSD error 1-7 vs 13-23 ms; replaced 1 sinus and 2
+  unclear beats in 12,800 (20% rule: none). 'ectopic_rule','ratio' keeps the v1.6 rule.
+- [ ] An annotated arrhythmia database (e.g. MIT-BIH, PhysioNet) would settle the false-positive
+  rate of the ectopic rule: needs the user's OK to download.
 - PAT: show the method in the HEP figure titles; check the censoring of the pairing in 'peaks'
   mode. (The 250 ms fallback is gone: without an ECG, 'ppg_transit' must be given or 'eeg'.)
 - Validation: every number in the README comes from one subject. Run other ds003838 subjects,
   an annotated ECG/PPG benchmark and an HRV cross-check; v1.4 vs v1.6 table of changed outputs.
 Robustness:
-- Absolute thresholds: rank `eig(cov) > 1e-7` (clean_eeg, run_HEP, apply_car),
-  flatline `< 0.05` in get_RR (fails for ECG in volts), `signal_filt(fs:...)` with non-integer fs.
-- PPG SQI clipping test (`|diff| > 0.5`) is in absolute units: normalize each beat.
-- Fewer than 30 channels: no re-reference before ICLabel: allow average with a warning, or say so.
-- Bad-epoch HF metric (data minus 45-Hz low-pass) does nothing after a 30-Hz low-pass, and the
-  padded epochs overlap: evaluate on the analysis window with a band under the low-pass.
+- [x] Absolute thresholds (2026-11-05): rank relative (data_rank: (n eps_single)^2 x the
+  largest eigenvalue; same ranks on 4 recordings in uV, right in volts where 1e-7 gave 0-1);
+  ECG flatline = no variation around the offset (the old check, after the band-pass, let a
+  constant with an offset through); signal_filt index rounded for non-integer fs; PPG
+  clipping relative to each beat's range per second (same 'Q' share on our data, 0.3-0.8%,
+  in any unit; the old one went to 4-23% at x1e-3).
+- [x] Fewer than 30 channels: no re-reference, with a warning that says so and suggests choosing
+  one (user, 2026-11-05: leave it to the users).
+- [x] Bad-epoch HF metric (2026-11-05, tests/compare_badepoch_metrics.m): analysis window only;
+  HF = 90th percentile over channels of the RMS of the >45 Hz residual of the broadband ICA
+  copy: 15/15 added muscle bursts on 5 of 6 recordings (old: 0-2/15).
 - IBIs are computed after synthetic beats are dropped: compute them before.
 - 'rr' mode cannot take a PAT: accept a numeric 'ppg_transit'; tests/test_rr_vs_ppg.m locks HEPs
   to pulses.
@@ -151,7 +215,9 @@ reuses the cleaning ICA (faster, one decomposition).
 - PPG pulse onset: detected on the 0.5-3 Hz signal (R + 92-112 ms after the polarity fix); locate
   it on a less smoothed signal (e.g. maximum of the second derivative) and compare the HEP match.
 - Python port (../BrainBeats-py): carry over the 2026-11-03 changes (PPG polarity, ectopic rule,
-  Lomb-Scargle ms^2 default and grid, half-open EEG bands, asymmetry sign, qeeg paf, no 'mode').
+  Lomb-Scargle ms^2 default and grid, half-open EEG bands, asymmetry sign, qeeg paf, no 'mode')
+  and the v1.7 changes (HRV LF/HF from the same 120-s windows, bad-epoch metric, relative
+  thresholds, surrogate exclusions, max statistic default).
 - EEG aperiodic activity (user, 2026-11-03): add the aperiodic exponent and offset, and the
   spectrum and band power after removing the aperiodic component compared with before, as in
   ASCENT (github.com/amisepa/Ascent, specparam; offer to install the plugin on the fly when

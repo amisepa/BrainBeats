@@ -115,6 +115,16 @@ if strcmpi(sig_type, 'ecg')
     end
     % ------------------------------------------------------------------
 
+    % Flatline check, in any unit (uV, mV, V, raw amplifier units): the raw
+    % signal barely varies around its offset. (After the band-pass, a
+    % constant keeps a fraction of its offset: the FIR high-pass does not
+    % reach zero gain at 0 Hz.)
+    ok = isfinite(signal);
+    dev = prctile(abs(signal(ok) - median(signal(ok))), 95);
+    if isempty(dev) || dev <= 1e-5 * abs(median(signal(ok)))
+        error('get_RR: ECG amplitude too small - likely a flat line.');
+    end
+
     % Bandpass filter
     if isfield(params, 'ecg_bandpass') && isequal(params.ecg_bandpass, false)
         fprintf('  Bandpass filter: skipped (pre-filtered externally)\n');
@@ -140,11 +150,6 @@ if strcmpi(sig_type, 'ecg')
             bp_cutoff(1), bp_cutoff(2), hp_order, lp_order);
     end
 
-    % Flatline check
-    if prctile(abs(signal), 95) < 0.05
-        error('get_RR: ECG amplitude too small - likely a flat line.');
-    end
-
     % P&T pipeline: differentiate, square, integrate
     dffecg      = [0; diff(signal)];
     sqrecg      = dffecg .^ 2;
@@ -155,7 +160,7 @@ if strcmpi(sig_type, 'ecg')
 
     % Energy threshold: 98th percentile of the integrated energy between
     % 1 s (skips the filter edge) and 90 s
-    xs        = sort(signal_filt(fs : min(fs*90, nSamp)));
+    xs        = sort(signal_filt(round(fs) : min(round(fs*90), nSamp)));
     en_thres  = xs(ceil(0.98 * numel(xs)));
     poss_reg  = signal_filt > (peakThresh * en_thres);
 

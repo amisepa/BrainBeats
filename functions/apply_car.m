@@ -30,7 +30,7 @@ function EEG = apply_car(EEG, refLabels, chanlocs_template)
 %
 % Copyright (C) - Cedric Cannard, 2025
 
-rankBefore = sum(eig(cov(double(EEG.data'))) > 1e-7);
+rankBefore = data_rank(EEG.data);
 fprintf('apply_car: rank before CAR = %d / %d\n', rankBefore, EEG.nbchan);
 
 retainRefs = nargin == 3 && ~isempty(refLabels) && ~isempty(chanlocs_template);
@@ -73,7 +73,7 @@ EEG.data           = EEG.data - mean(EEG.data, 1);
 EEG.data(end, :)   = [];
 EEG.nbchan         = EEG.nbchan - 1;
 
-rankAfter = sum(eig(cov(double(EEG.data'))) > 1e-7);
+rankAfter = data_rank(EEG.data);
 fprintf('apply_car: rank after CAR  = %d / %d\n', rankAfter, EEG.nbchan);
 
 EEG = eeg_checkset(EEG);

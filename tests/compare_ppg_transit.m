@@ -41,7 +41,7 @@ files = cellstr(files);
 rows = {};
 for k = 1:numel(files)
     [fp, fn, ext] = fileparts(files{k});
-    EEG = pop_loadset('filename',[fn ext],'filepath',fp);
+    EEG = highpass_eeg(pop_loadset('filename',[fn ext],'filepath',fp));   % no cleaning: filtered EEG needed
     E = brainbeats_process(pop_select(EEG,'nochannel',{'PPG'}), common{:}, 'heart_signal','ECG','heart_channels',{'ECG'});
     runs = { 'off',              EEG,                                  {'ppg_transit','off'}
              'ECG (auto)',       EEG,                                  {}

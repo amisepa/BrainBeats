@@ -43,7 +43,8 @@ for c = 1:numel(cases)
     P = run_gui(EEG, base, cases{c});
     assert(strcmp(P.ref,'average') && strcmp(P.clean_method,'asr_ica') && P.linenoise == 50 && strcmp(P.filttype,'noncausal'))
     if strcmp(P.analysis,'hep')
-        assert(P.highpass == 0.5 && P.lowpass == 30 && isequal(P.hep_window,[-300 600]) && strcmp(P.hep_baseline,'none'))
+        assert(P.highpass == 0.5 && P.lowpass == 30 && isequal(P.hep_window,[-300 600]) && ~isfield(P,'hep_baseline') ...
+            && isequal(P.hep_baseline_win,[-150 -50]) && P.hep_cfa)
         assert(P.hep_surrogates == 100 && strcmp(P.detectMethod,'grubbs') && strcmp(P.heart_removal,'none') && abs(P.conf_thresh - .75) < 1e-9)
         assert(strcmp(P.hep_level, cases{c}{4}) && isfield(P,'hep_roi') ~= strcmp(P.hep_level,'ics'))
         if strcmp(P.heart_signal,'ppg'), assert(strcmp(P.ppg_transit,'auto') && strcmp(P.ppg_detect_mode,'valleys')); end
@@ -54,11 +55,11 @@ for c = 1:numel(cases)
 end
 
 % 2. Non-default choices
-setappdata(0,'inputgui_override',struct('clean_method',2,'ref',3,'hep_baseline',2,'ppg_transit_mode',2, ...
+setappdata(0,'inputgui_override',struct('clean_method',2,'ref',3,'hep_baseline_win','[-200 -60]','ppg_transit_mode',2, ...
     'ppg_transit','300','hep_window_mode',2,'linenoise',2,'filttype',2,'detectMethod',1,'ppg_detect_mode',2, ...
-    'heart_removal',2));
+    'heart_removal',2,'hep_cfa',0));
 P = run_gui(EEG, base, {'hep','ppg','PPG','channels'});
-assert(strcmp(P.clean_method,'gedai') && strcmp(P.ref,'csd') && strcmp(P.hep_baseline,'regression') && isequal(P.hep_baseline_win,[-150 -50]))
+assert(strcmp(P.clean_method,'gedai') && strcmp(P.ref,'csd') && isequal(P.hep_baseline_win,[-200 -60]) && ~P.hep_cfa)
 assert(P.ppg_transit == 300 && strcmp(P.hep_window,'adaptive') && P.linenoise == 60 && strcmp(P.filttype,'causal'))
 assert(strcmp(P.detectMethod,'quartiles') && strcmp(P.ppg_detect_mode,'peaks') && strcmp(P.heart_removal,'ica'))   % PPG: none or ICA
 setappdata(0,'inputgui_override',struct('clean_eeg',0));
@@ -88,10 +89,16 @@ P = run_gui(pop_select(EEG,'nochannel',{'ECG'}), base, {'hep','ppg','PPG','chann
 assert(strcmp(P.ppg_transit,'eeg'))
 fprintf('OK: PPG without ECG asks for the pulse arrival time\n');
 
-% 3. A run through the GUI path, and its history command again
+% 3. A run through the GUI path, and its history command again (HEP
+% without cleaning: on unfiltered EEG the GUI stops with an error dialog)
 setappdata(0,'inputgui_override',struct('clean_eeg',0,'hep_surrogates','10'));
 setappdata(0,'brainbeats_main_answers',answers(base, {'hep','ecg','ECG','channels'}));
-E = pop_select(EEG,'nochannel',{'PPG'});
+[H, com] = brainbeats_process(pop_select(EEG,'nochannel',{'PPG'}));
+assert(isempty(com) && ~isfield(H,'brainbeats'), 'GUI run on unfiltered EEG without cleaning was not stopped')
+close(findall(0,'type','figure'))     % the error dialog
+setappdata(0,'inputgui_override',struct('clean_eeg',0,'hep_surrogates','10'));
+setappdata(0,'brainbeats_main_answers',answers(base, {'hep','ecg','ECG','channels'}));
+E = highpass_eeg(pop_select(EEG,'nochannel',{'PPG'}));
 [H, com] = brainbeats_process(E);
 rmappdata(0,'inputgui_override'); rmappdata(0,'brainbeats_main_answers');
 assert(H.trials > 100 && isfield(H.brainbeats,'roi') && isfield(H.brainbeats.roi.tf,'hrpc') && isfield(H.brainbeats,'hrsp'))

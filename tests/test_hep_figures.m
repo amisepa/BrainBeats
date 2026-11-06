@@ -1,7 +1,7 @@
 function test_hep_figures
 % TEST_HEP_FIGURES - The HEP output figures contain what they should.
 %
-% Runs a HEP analysis on the sample data (no EEG cleaning, to be fast) with
+% Runs a HEP analysis on the sample data (high-passed, no EEG cleaning, to be fast) with
 % the output plots on and the figures invisible, with and without the heart
 % channel kept, and checks the content of the figures: the 'HEP' figure must
 % hold the image of the single heartbeats (heartbeats x latencies) under the
@@ -29,10 +29,17 @@ cleanup = onCleanup(@() set(groot,'DefaultFigureVisible',vis));
 for keep = [true false]
     close all force
     EEG = pop_loadset('filename','dataset.set','filepath',fullfile(bb,'sample_data'));
-    EEG = pop_select(EEG,'nochannel',{'PPG'});
+    EEG = highpass_eeg(pop_select(EEG,'nochannel',{'PPG'}));
+    % with the heart channel: total-power HRSP and TFCE contours; without:
+    % the defaults (induced power, max statistic)
+    opt = {};
+    if keep, opt = {'hep_tf_power','total','hep_surr_stat','tfce'}; end
     HEP = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'}, ...
-        'clean_eeg',false,'keep_heart',keep,'vis_cleaning',false,'vis_outputs',true, ...
+        'clean_eeg',false,'keep_heart',keep,'hep_surrogates',20,opt{:},'vis_cleaning',false,'vis_outputs',true, ...
         'save',false,'gong',false);
+    f = findall(0,'type','figure','Name','QRS map (cardiac field artifact)');
+    assert(isscalar(f) && isfield(HEP.brainbeats,'cfa') && numel(findall(f,'type','axes')) >= 3, ...
+        'QRS map figure or HEP.brainbeats.cfa missing (keep_heart = %d)', keep)
 
     f = findall(0,'type','figure','Name','HEP');
     assert(isscalar(f), 'No ''HEP'' figure (keep_heart = %d)', keep)
@@ -49,10 +56,12 @@ end
 % IC level: one scalp map and one HEP with the surrogate band per IC
 close all force
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(bb,'sample_data'));
-EEG = pop_select(EEG,'nochannel',{'PPG'});
+EEG = highpass_eeg(pop_select(EEG,'nochannel',{'PPG'}));
 HEP = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'}, ...
     'clean_eeg',false,'icamethod',1,'hep_level','ics','hep_surrogates',20,'hep_tf_freqs',[8 10], ...
-    'vis_cleaning',false,'vis_outputs',true,'save',false,'gong',false);
+    'hep_cfa','off','vis_cleaning',false,'vis_outputs',true,'save',false,'gong',false);
+assert(~isfield(HEP.brainbeats,'cfa') && isempty(findall(0,'type','figure','Name','QRS map (cardiac field artifact)')), ...
+    '''hep_cfa'',''off'' still made the QRS map')
 nIC = numel(HEP.brainbeats.ics.ic);
 f = findall(0,'type','figure','-regexp','Name','^HEP of the independent components');
 nAx = sum(arrayfun(@(h) numel(findall(h,'type','axes')), f));

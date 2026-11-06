@@ -53,6 +53,10 @@ cleanup = onCleanup(@() rmpath(stubs));
 dpath = fullfile(tempdir,'brainbeats_test_data');
 if ~exist(dpath,'dir'), mkdir(dpath); end
 copyfile(fullfile(bbroot,'sample_data','dataset.set'), dpath);
+% High-passed copy (EEG channels, 0.5 Hz) for the HEP runs without EEG
+% cleaning: unfiltered EEG is refused there
+pop_saveset(highpass_eeg(pop_loadset('filename','dataset.set','filepath',dpath)), ...
+    'filename','dataset_hp.set','filepath',dpath);
 fprintf('Testing %s\n', which('brainbeats_process'));
 
 % Run the tests; errors are caught and reported, not thrown
@@ -93,14 +97,14 @@ end
 % -------------------------------------------------------------------------
 function T = tests(dpath)
 % List of tests: name and a function handle returning the output EEG.
-% L() reloads the scratch copy of the sample dataset.
+% L() reloads the scratch copy of the sample dataset, H() its high-passed
+% copy (HEP without EEG cleaning).
 L = @() pop_loadset('filename','dataset.set','filepath',dpath);
+H = @() pop_loadset('filename','dataset_hp.set','filepath',dpath);
 T = struct('name',{},'fn',{});
 % brainbeats_tutorial calls, in tutorial order (plots off); its HEP on ICs
 % call is 'hep_ics' below
-T(end+1) = struct('name','hep_ecg','fn', @() bbp(L(),'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1, ...
-    'hep_surrogates',100,'keep_heart',true));
+T(end+1) = struct('name','hep_ecg','fn', @() hep_ecg_main(L));
 T(end+1) = struct('name','hep_ppg','fn', @() bbp(L(),'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
     'ref','infinity','highpass',1,'lowpass',20,'filttype','causal', ...
@@ -130,31 +134,33 @@ T(end+1) = struct('name','coh_ppg','fn', @() bbp(pop_select(L(),'nochannel',{'EC
     'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
     'ref','infinity','ica_method',1,'parpool',false));
 % Extras not in the tutorial
-T(end+1) = struct('name','hep_rr_mode','fn', @() hep_rr(L));
+T(end+1) = struct('name','hep_rr_mode','fn', @() hep_rr(L, H));
 T(end+1) = struct('name','rr_features','fn', @() rr_feat(L));
-T(end+1) = struct('name','hep_ecg_2chan','fn', @() hep_2chan(L));
+T(end+1) = struct('name','hep_ecg_2chan','fn', @() hep_2chan(H));
 T(end+1) = struct('name','hrv_eegfeatures_off','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
     'analysis','features','heart_signal','ECG','heart_channels',{'ECG'},'eeg_features','off','parpool','off'));
-T(end+1) = struct('name','hep_baseline_regression','fn', @() hep_blreg(L));
-T(end+1) = struct('name','hep_adaptive_window','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}), ...
+T(end+1) = struct('name','hep_baseline_export','fn', @() hep_blreg(H));
+T(end+1) = struct('name','hep_adaptive_window','fn', @() bbp(pop_select(H(),'nochannel',{'PPG'}), ...
     'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'},'hep_window','adaptive','clean_eeg',false,'save',0));
-T(end+1) = struct('name','hep_ppg_transit','fn', @() hep_ppg_transit(L));
-T(end+1) = struct('name','hep_tf_surrogates','fn', @() hep_tf_surr(L));
+T(end+1) = struct('name','hep_ppg_transit','fn', @() hep_ppg_transit(H));
+T(end+1) = struct('name','hep_tf_surrogates','fn', @() hep_tf_surr(H));
 T(end+1) = struct('name','hep_ics','fn', @() hep_ics(L, true));
-T(end+1) = struct('name','hep_ics_noclean','fn', @() hep_ics(L, false));
+T(end+1) = struct('name','hep_ics_noclean','fn', @() hep_ics(H, false));
 T(end+1) = struct('name','hep_csd','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep', ...
     'heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1,'ref','csd','save',0));
-T(end+1) = struct('name','hep_ppg_pat_eeg','fn', @() hep_ppg_pat_eeg(L));
+T(end+1) = struct('name','hep_ppg_pat_eeg','fn', @() hep_ppg_pat_eeg(H));
 T(end+1) = struct('name','feat_csd','fn', @() bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','features', ...
     'heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1,'ref','csd', ...
     'eeg_features',{'frequency'},'hrv_features','off','save',0));
 T(end+1) = struct('name','hep_gedai','fn', @() hep_gedai(L));
 T(end+1) = struct('name','hep_ecg_regression','fn', @() hep_ecgreg(L));
-T(end+1) = struct('name','input_errors','fn', @() input_errors(L));
+T(end+1) = struct('name','input_errors','fn', @() input_errors(L, H));
 T(end+1) = struct('name','feat_relative_power','fn', @() feat_relative(L));
 T(end+1) = struct('name','hep_ica_ecg','fn', @() hep_removal(L, 'ica_ecg'));
 T(end+1) = struct('name','hep_ssp','fn', @() hep_removal(L, 'ssp'));
 T(end+1) = struct('name','hep_ica_caracas','fn', @() hep_removal(L, 'ica_caracas'));
+T(end+1) = struct('name','hep_ica_epochs_60hz','fn', @() hep_ica_opts(L, 'epochs'));
+T(end+1) = struct('name','hep_ica_lowpass_noasr','fn', @() hep_ica_opts(L, 'lowpass'));
 end
 
 function EEG = bbp(EEG, varargin)
@@ -166,11 +172,23 @@ end
 EEG = brainbeats_process(EEG, varargin{:});
 end
 
-function EEG = hep_rr(L)
+function EEG = hep_ecg_main(L)
+% The brainbeats_tutorial call: ICA fitted on the continuous copy, whose line
+% noise (50 Hz in the sample data, 'linenoise' not given) was detected and
+% notched
+EEG = bbp(L(),'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',true, ...
+    'ica_method',1,'hep_surrogates',100,'keep_heart',true);
+I = EEG.brainbeats.preprocessings.ica;
+assert(~I.epoched && I.copy_options && isequal(I.line_noise_notched, 50), ...
+    'ICA copy: epoched %d, copy options %d, line noise notched %s', I.epoched, I.copy_options, mat2str(I.line_noise_notched))
+fprintf('ICA on the continuous copy (%d samples, rank %d), line noise notched at %g Hz\n', I.samples, I.rank, I.line_noise_notched);
+end
+
+function EEG = hep_rr(L, H)
 % Beats from an HRV-only run, then HEP from those latencies ('rr' mode)
 E = bbp(pop_select(L(),'channel',{'ECG'}),'analysis','features','eeg','off', ...
     'heart_signal','ECG','heart_channels',{'ECG'},'save',0);
-EEG = bbp(pop_select(L(),'nochannel',{'ECG' 'PPG'}),'analysis','hep','heart_signal','rr', ...
+EEG = bbp(pop_select(H(),'nochannel',{'ECG' 'PPG'}),'analysis','hep','heart_signal','rr', ...
     'beat_latencies',E.brainbeats.preprocessings.NN_times,'clean_eeg',false,'save',0);
 end
 
@@ -225,23 +243,42 @@ EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','E
 tf = EEG.brainbeats.hrsp; S = EEG.brainbeats.surrogate;
 iE = ismember({EEG.chanlocs.labels}, S.channels);
 assert(max(abs(mean(EEG.data(iE,:,:),3) - S.hep.real),[],'all') < 1e-6, 'HEP from the continuous data differs from the epochs')
-assert(isequal(size(tf.hrsp), size(tf.hrpc), size(S.hrsp.p_fdr)) && ~any(isnan(tf.hrsp(:))), 'Incomplete HRSP/HRPC outputs')
+assert(isequal(size(tf.hrsp), size(tf.hrpc), size(S.hrsp.p_fdr), size(tf.hrsp_induced), size(S.hrsp_induced.p_fdr)) ...
+    && ~any(isnan(tf.hrsp(:))), 'Incomplete HRSP/HRPC outputs')
 fprintf('HRSP/HRPC: %d channels x %d freqs x %d times; %.1f%% of HEP points differ from the surrogates (FDR)\n', ...
     size(tf.hrsp), 100*mean(S.hep.p_fdr(:) < .05));
+% Pre-R-peak values of each heartbeat and the QRS map
+P = EEG.brainbeats.prestim; C = EEG.brainbeats.cfa; nE = sum(iE);
+assert(isequal(size(P.baseline), [nE EEG.trials]) && isequal(size(P.power), [nE 3 EEG.trials]) && ...
+    mean(isnan(P.power(:))) < .05 && numel(P.beat_time) == EEG.trials, 'Incomplete pre-R-peak values')
+assert(numel(C.map) == nE && abs(C.latency) <= 60 && ~isempty(C.notes), 'Incomplete QRS map')
+fprintf('Pre-R-peak values: %d channels x %d bands x %d heartbeats; QRS map at %g ms, %s\n', size(P.power), C.latency, C.summary);
 end
 
 function EEG = hep_blreg(L)
-% Regression baseline: same average HEP, heart channel untouched, reversible
+% Exported baselines (no correction of the HEP): each heartbeat's mean in
+% 'hep_baseline_win'; the removed 'hep_baseline' option only warns; the
+% regression with BASELINE_REGRESSION keeps the average and can be undone
 args = {'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'}, ...
-    'clean_eeg',false,'keep_heart',true,'save',0};
-A = bbp(pop_select(L(),'nochannel',{'PPG'}), args{:});
-EEG = bbp(pop_select(L(),'nochannel',{'PPG'}), args{:}, 'hep_baseline','regression');
-r = EEG.brainbeats.preprocessings.baseline_regression;
-iE = ismember({EEG.chanlocs.labels}, r.channels);
-assert(max(abs(mean(A.data(iE,:,:),3) - mean(EEG.data(iE,:,:),3)),[],'all') < 1e-6, 'Average HEP changed')
-assert(isequal(A.data(~iE,:,:), EEG.data(~iE,:,:)), 'Heart channel was corrected')
-undo = EEG.data(iE,:,:) + r.beta .* permute(r.baseline - mean(r.baseline,2), [1 3 2]);
-assert(max(abs(undo - A.data(iE,:,:)),[],'all') < 1e-6, 'Correction cannot be undone')
+    'clean_eeg',false,'keep_heart',true,'hep_surrogates',0,'save',0};
+EEG = bbp(pop_select(L(),'nochannel',{'PPG'}), args{:}, 'hep_baseline_win',[-150 -50]);
+P = EEG.brainbeats.prestim;
+iE = ismember({EEG.chanlocs.labels}, P.channels);
+iB = EEG.times >= -150 & EEG.times <= -50;
+assert(max(abs(P.baseline - squeeze(mean(double(EEG.data(iE,iB,:)),2))),[],'all') < 1e-6, 'Exported baselines differ from the epochs')
+s = warning('error', 'BrainBeats:removed');
+try
+    bbp(pop_select(L(),'nochannel',{'PPG'}), args{:}, 'hep_baseline','regression');
+    ok = false;
+catch ME
+    ok = strcmp(ME.identifier, 'BrainBeats:removed');
+end
+warning(s);
+assert(ok, '''hep_baseline'',''regression'' did not warn that it was removed')
+[Y, beta, bl] = baseline_regression(EEG.data(iE,:,:), EEG.times, [-150 -50]);
+assert(max(abs(mean(Y,3) - mean(EEG.data(iE,:,:),3)),[],'all') < 1e-6, 'Average HEP changed')
+undo = Y + beta .* permute(bl - mean(bl,2), [1 3 2]);
+assert(max(abs(undo - EEG.data(iE,:,:)),[],'all') < 1e-6, 'Correction cannot be undone')
 end
 
 function EEG = hep_ics(L, clean)
@@ -304,7 +341,60 @@ EEG = bbp(pop_select(L(),'nochannel',{'PPG'}),'analysis','hep','heart_signal','E
 pre = EEG.brainbeats.preprocessings;
 if strcmp(method,'ssp'), r = pre.heart_ssp; else, r = pre; end
 assert(isfinite(r.cfa_before) && isfinite(r.cfa_after) && isfinite(r.cfa_late_after), 'Heart-locked amplitude missing')
+if strcmp(method,'ssp')
+    % the projected topographies stay out after the ICA cleaning (the ICA
+    % copy is projected too), on the channels the projection was computed
+    % on (the bad channels are interpolated afterwards)
+    lab = {EEG.chanlocs.labels};
+    iE = find(~ismember(lab, [pre.removed_eeg_channels {'ECG' 'PPG'}]));
+    assert(numel(iE) == size(r.patterns,1), 'SSP: channel count differs from the projection')
+    Y = reshape(double(EEG.data(iE,:,:)), numel(iE), []);
+    left = norm(r.patterns' * Y, 'fro')^2 / norm(Y, 'fro')^2;
+    assert(left < 1e-6, 'SSP: %.2g%% of the output EEG energy along the projected topographies', 100*left)
+end
 fprintf('%s: %.2f -> %.2f uV (-50 to 100 ms)\n', method, r.cfa_before, r.cfa_after);
+end
+
+function EEG = hep_ica_opts(L, which)
+% Options of the copy the HEP ICA is fitted on.
+% 'epochs': 60-Hz line noise (the sample's 50-Hz line noise shifted to 60 Hz,
+% so that it keeps its distribution over channels: a sinusoid common to all
+% channels is removed by the average reference), the copy epoched and
+% resampled to 125 Hz, and Picard made to diverge (a stub returning NaN
+% weights): the copy must be notched at 60 Hz, epoched, at 125 Hz, and the
+% ICA rerun with Infomax.
+% 'lowpass': copy low-passed at 40 Hz (no line-noise notch then) without ASR.
+EEG = pop_select(L(),'nochannel',{'PPG'});
+args = {'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1,'save',0};
+if strcmp(which, 'epochs')
+    iE = ~strcmp({EEG.chanlocs.labels}, 'ECG');
+    F = pop_eegfiltnew(EEG,'locutoff',48,'hicutoff',52,'revfilt',1);     % 50 Hz notched out
+    B = pop_eegfiltnew(EEG,'locutoff',49.5,'hicutoff',50.5,'filtorder',8*round(EEG.srate));   % the 50-Hz line only
+    t = (0:EEG.pnts-1) / EEG.srate;
+    shifted = real(hilbert(double(B.data(iE,:))') .* exp(1i*2*pi*10*t'))';   % moved to 60 Hz
+    EEG.data(iE,:) = F.data(iE,:) + shifted;
+    stub = fullfile(tempdir, 'brainbeats_test_picard');
+    if ~exist(stub,'dir'), mkdir(stub); end
+    fid = fopen(fullfile(stub,'picard.m'), 'w');
+    fprintf(fid, 'function [Y, W] = picard(X, varargin)\n%% Test stub: a diverged Picard (NaN weights)\nY = X; W = nan(size(X,1));\n');
+    fclose(fid);
+    addpath(stub); c = onCleanup(@() rmpath(stub));
+    EEG = bbp(EEG, args{:}, 'ica_epochs',true, 'ica_srate',125);
+    I = EEG.brainbeats.preprocessings.ica;
+    assert(isequal(I.line_noise_notched, 60) && I.epoched && I.srate == 125 && I.method == 2, ...
+        'ICA copy: line noise %s Hz, epoched %d, %g Hz, method %d (expected 60 Hz, epoched, 125 Hz, Infomax after Picard failed)', ...
+        mat2str(I.line_noise_notched), I.epoched, I.srate, I.method)
+    assert(all(isfinite(EEG.icaweights(:))), 'Non-finite ICA weights after the fallback')
+else
+    EEG = bbp(EEG, args{:}, 'ica_lowpass',40, 'ica_asr',0);
+    I = EEG.brainbeats.preprocessings.ica;
+    P = EEG.brainbeats.parameters;
+    assert(I.copy_options && ~I.epoched && isempty(I.line_noise_notched) && P.ica_asr == 0 && P.ica_lowpass == 40, ...
+        'ICA copy: options %d, epoched %d, line noise %s, ica_asr %g, ica_lowpass %g', I.copy_options, I.epoched, ...
+        mat2str(I.line_noise_notched), P.ica_asr, P.ica_lowpass)
+end
+fprintf('ICA copy (%s): %d samples at %g Hz, epoched %d, line noise notched %s, method %d, %d ICs removed\n', which, ...
+    I.samples, I.srate, I.epoched, mat2str(I.line_noise_notched), I.method, numel(EEG.brainbeats.preprocessings.removed_eeg_components));
 end
 
 function EEG = hep_gedai(L)
@@ -320,10 +410,28 @@ assert(isfield(EEG.brainbeats,'ics') && isfield(EEG.etc,'GEDAI'), 'GEDAI or IC o
 assert(isfield(EEG.brainbeats.preprocessings,'cfa_gedai'), 'Heart-locked amplitude of GEDAI missing')
 end
 
-function EEG = input_errors(L)
+function EEG = input_errors(L, H)
 % On the command line, failed checks and unknown inputs must raise errors
-EEG = pop_select(L(),'nochannel',{'PPG'});
+EEG = pop_select(H(),'nochannel',{'PPG'});
 good = {'analysis','hep','heart_signal','ECG','heart_channels',{'ECG'},'clean_eeg',false,'save',0};
+% Unfiltered EEG for HEP without cleaning (the HEP is not baseline-corrected),
+% and sampling rates above 1024 Hz, are refused; above 512 Hz, a warning
+E = pop_select(L(),'nochannel',{'PPG'});
+E2 = EEG; E2.srate = 2048;
+E3 = EEG; E3.srate = 1000;
+s = warning('error', 'BrainBeats:srate');
+cases = {E, 'BrainBeats:input', 'unfiltered EEG'; E2, 'BrainBeats:input', '2048 Hz'; E3, 'BrainBeats:srate', '1000 Hz'};
+for k = 1:size(cases,1)
+    id = ''; txt = '';
+    try
+        bbp(cases{k,1}, good{:});
+    catch ME
+        id = ME.identifier; txt = ME.message;
+    end
+    assert(strcmp(id, cases{k,2}), '%s: expected %s, got ''%s''', cases{k,3}, cases{k,2}, id)
+    fprintf('%s refused: %s\n', cases{k,3}, txt(1:min(end,90)));
+end
+warning(s);
 bad = { [good(1:4) {'heart_channels',{'NOPE'}} good(7:end)], ...   % heart channel not in the data
     [good {'lowpas',20}], ...                                      % typo in an input
     [good {'vis_outputs'}] };                                      % not 'key', value pairs
@@ -340,6 +448,22 @@ end
 P = getparams_cmd('analysis','hep','heart_signal','ppg','heart_channels',{'PPG'},'ppg_transit','eeg', ...
     'clean_eeg',false,'parpool',0,'gpu',0);
 assert(isequal(P.eeg,true) && strcmp(P.ppg_transit,'eeg'), '''ppg_transit'',''eeg'' was read as the ''eeg'' input')
+% Switches accept 'on'/'off' ('clean_eeg','off' cleaned and 'save','off' saved before v1.7)
+P = getparams_cmd('analysis','hep','heart_signal','ecg','heart_channels',{'ECG'},'clean_eeg','off', ...
+    'save','off','hep_cfa','off','vis_outputs','on','keep_heart','off','parpool',0,'gpu',0);
+assert(isequal([P.clean_eeg P.save P.hep_cfa P.vis_outputs P.keep_heart], [false false false true false]), '''on''/''off'' switches misread')
+% Out-of-range values raise errors
+bad = {{'clean_eeg','maybe'}, {'clean_eeg',true,'hep_baseline_win',[100 200]}, ...
+    {'clean_eeg',true,'ica_lowpass',0.5}, {'clean_eeg',true,'ica_srate',5}};
+for k = 1:numel(bad)
+    failed = false;
+    try
+        getparams_cmd('analysis','hep','heart_signal','ecg','heart_channels',{'ECG'},bad{k}{:},'parpool',0,'gpu',0);
+    catch
+        failed = true;
+    end
+    assert(failed, 'No error for %s', strjoin(cellfun(@(v) char(string(mat2str(v))), bad{k}, 'UniformOutput', false), ' '))
+end
 EEG = bbp(EEG, good{:});
 % A dataset without a file is saved under its name
 [name, folder] = output_file(struct('filename','','filepath','','setname','my data 1'), '_HEP.set');

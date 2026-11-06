@@ -34,7 +34,7 @@
 function vers = eegplugin_BrainBeats(fig,try_strings,catch_strings)
 
 % Plugin version (no arguments: just return it)
-vers = '1.6';
+vers = '1.7';
 if nargin < 3, return; end
 
 % Add paths to subfolders
