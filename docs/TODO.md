@@ -58,10 +58,27 @@ Scientific, may change results:
   Done: ds003838 cohort (61 usable of 64, all variants), ECG-derived respiration vs a belt
   (38 participants), cardiac field options on real data ('evoked' kept), calibration at 200
   recordings per scenario with fresh seeds, segment-swap null on real data, report figure.
-  Numbers in README section 3. Still open before merging:
-  - [ ] The F-tests run ~8% at nominal 5% (simulation and real-data null): a small-sample
-        correction (e.g., the bootstrap as the default p, or an F with effective df) before
-        the paper; q (FDR) uses the F-test p.
+  Numbers in README section 3. Release plan (user, 2026-11-06): v1.7 = main without coupling;
+  v1.8 = this branch merged after the v1.7 release; v2.0 = the step-based redesign (its own
+  branch). For the v1.8 merge:
+  - [ ] Merge main (v1.7) into this branch here and resolve: brainbeats_process.m,
+        getparams_cmd.m, clean_eeg.m, tests/make_readme_figures.m, docs/TODO.md (trial
+        merge, 2026-11-06).
+  - [ ] v1.7 changes the heart series (adaptive ectopic rule by default) and adds the
+        rr_alternation warning (frequent ectopic beats, atrial fibrillation): carry that
+        warning into the coupling report (no sinus rhythm, no heart-period GC), then rerun
+        test_coupling_engine/sim/stats and the ds003838 cohort on the merged code.
+  - [ ] Label transfer entropy, time-reversed GC, DC/GPDC as exploratory in the README (TE
+        rejected 10% heart -> alpha in simulation; the report uses the F-test and q only).
+  - [ ] Regenerate figures/coupling_report.png (make_readme_figures({'coupling'})): it still
+        shows p-values from the classical F-test.
+  Still open:
+  - [x] F-tests ~1-2 points liberal on real nulls: now HC3-robust with the degrees of freedom
+        less the detrended runs (5.8% on both real nulls, was 6.1-7.2%; README section 3).
+  - [ ] Still ~1 point above 5% in places: an FDR-significant link in 7-10% of the null
+        models (5% expected under the complete null); 6.5% on HEP-NF swaps with each
+        segment cut in two. Watch it in the paper's null; no cause found beyond
+        heteroskedasticity.
   - [ ] Respiratory phase inputs ('resp_phase' in get_coupling_series): helped EEG -> heart
         calibration in simulation only; test on the belt dataset before exposing it.
   - [ ] Heart-period equation fails Ljung-Box in ~1/3 of real recordings (5-9% for the EEG

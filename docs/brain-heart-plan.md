@@ -85,6 +85,12 @@ normalized ratios: not comparable across models with different variable sets. GC
   cut the usable data by more than half is dropped with a warning.
 - FDR (q) on the F-test p: the bootstrap's resolution, 1/(nboot+1), is too coarse for ~32
   tests. A model that cannot be fitted in any region is an error (it used to crash later).
+- F-tests robust to heteroskedasticity (HC3 Wald) with the residual degrees of freedom less
+  2 per detrended run. Classical F on real nulls (EEG of one segment or recording with the
+  heart of another): 6.1% (HEP-NF), 7.2% (ds003838); robust: 5.8% and 5.8%; simulation
+  5.4 -> 5.3%; power unchanged. Not the cause (measured): order selection (cross order 1
+  in 99% of tests), residual autocorrelation (Bartlett/Dutilleul inflation 1.00), BIC
+  underfitting, onset-aligned trends. A wild bootstrap did no better than HC3.
 
 Comparators for the paper only, not shipped: MIC at 1 Hz and lag 0, SDG (Catrambone code),
 PCMI (order <= 3, circular-shift null per direction), pairwise GC.
