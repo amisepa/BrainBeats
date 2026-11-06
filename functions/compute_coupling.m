@@ -465,16 +465,24 @@ te = 0.5*log2(RSSr/(e'*e));
 
 
 function Y = detrend_std(X)
-% Remove a linear trend and standardize each row (NaN-aware)
-Y = X;
-t = (1:size(X,2))';
-for i = 1:size(X,1)
-    ok = isfinite(X(i,:))';
-    if sum(ok) < 3, Y(i,:) = NaN; continue; end
-    B = [ones(sum(ok),1) t(ok)] \ X(i,ok)';
-    Y(i,:) = X(i,:) - (B(1) + B(2)*t');
-    Y(i,:) = Y(i,:) / std(Y(i,ok));
+% Remove the mean and linear trend of each run of complete samples (runs
+% are separated by gaps: removed artifacts, separate blocks), then scale
+% each row to unit variance. Per run: a level shift between blocks (e.g.
+% a change of state that moves EEG power and heart period together) would
+% otherwise look like lagged prediction across the whole recording.
+Y = nan(size(X));
+ok = all(isfinite(X), 1);
+d = diff([false ok false]);
+runs = [find(d == 1); find(d == -1) - 1]';
+for k = 1:size(runs,1)
+    idx = runs(k,1):runs(k,2);
+    if numel(idx) < 10, continue; end                  % too short to fit lags
+    t = (1:numel(idx))';
+    D = [ones(numel(idx),1) t - mean(t)];
+    Y(:, idx) = X(:, idx) - (D*(D \ X(:, idx)'))';
 end
+s = std(Y, 0, 2, 'omitnan');
+Y = Y ./ s;
 
 
 function Y = copnorm_rows(X)

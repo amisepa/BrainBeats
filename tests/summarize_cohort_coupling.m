@@ -15,8 +15,10 @@ function T = summarize_cohort_coupling(resFile)
 %
 % Copyright (C) - Cedric Cannard, 2026
 
-L = load(resFile, 'R', 'V');
-R = L.R; V = L.V;
+L = load(resFile, 'R');
+R = L.R;
+fn = fieldnames(R);
+V = struct('name', fn(cellfun(@(f) isstruct(R(1).(f)) && isfield(R(1).(f), 'table'), fn)));
 n = numel(R);
 fprintf('%d recordings\n', n);
 rows = {};

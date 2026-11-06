@@ -52,6 +52,9 @@
 %     .cfa_window - [start end] (s) around each beat (default [-0.3 0.7])
 %     .ssp_n      - SSP components (default 2)
 %     .min_seg    - shortest run of valid samples kept (s; default 30)
+%     .bridge     - gaps up to this length (s; default 1) are bridged for
+%                   the filters only (linear interpolation); the beats or
+%                   grid windows touching them are left out
 %
 % OUTPUT (S fields):
 %   t          - grid times (s), 1 x T ('beat': the beat closing each
@@ -88,6 +91,8 @@ opt = set_default(opt, 'cfa', 'evoked');
 opt = set_default(opt, 'cfa_window', [-0.3 0.7]);
 opt = set_default(opt, 'ssp_n', 2);
 opt = set_default(opt, 'vascular', {});
+opt = set_default(opt, 'resp_phase', false);
+opt = set_default(opt, 'bridge', 1);
 opt = set_default(opt, 'min_seg', 30);
 opt = set_default(opt, 'decim', 'bin');
 opt = set_default(opt, 'win', 1/opt.fs_out);
@@ -109,6 +114,23 @@ end
 % Regions
 regions = make_regions(opt.regions, chanlocs, nChan);
 nr = numel(regions);
+
+% Short gaps (e.g. ASR bursts) bridged for the filters only: linear
+% interpolation across gaps of <= .bridge s; every interval or grid
+% window touching one is set to NaN below. Otherwise many short removals
+% would leave no run long enough for the filters and the model.
+ok = all(isfinite(X), 1);
+bridged = false(1, nPts);
+d = diff([true ok true]);
+g0 = find(d == -1); g1 = find(d == 1) - 1;          % gap start / end samples
+for k = 1:numel(g0)
+    if g0(k) > 1 && g1(k) < nPts && g1(k) - g0(k) + 1 <= opt.bridge*fs
+        a = g0(k) - 1; b = g1(k) + 1;
+        X(:, g0(k):g1(k)) = X(:, a) + (X(:, b) - X(:, a)) .* ((g0(k):g1(k)) - a)/(b - a);
+        bridged(g0(k):g1(k)) = true;
+    end
+end
+cb = [0 cumsum(bridged)];
 
 % Runs of valid samples, starting on the grid
 ok = all(isfinite(X), 1);
@@ -153,7 +175,7 @@ if ~strcmpi(opt.cfa, 'none') && ~isempty(beats)
     c = repmat(1:L, numel(beats), 1);
     keep = r >= 1 & r <= nPts;
     D = sparse(r(keep), c(keep), 1, nPts, L);
-    valid = all(isfinite(Y), 2);
+    valid = all(isfinite(Y), 2) & ~bridged(:);
     Dv = D(valid,:);
     G = full(Dv'*Dv);
     G = G + 1e-10*trace(G)/L*eye(L);                  % only guards a degenerate (strictly periodic) beat train
@@ -190,8 +212,9 @@ S.eeg = nan(nr, nb, T);
 for k = 1:size(seg,1)
     idx = seg(k,1):seg(k,2);
     g = (seg(k,1)-1)/step + 1;                        % grid index of the run's first sample
-    if isBeat                                     % intervals inside the run, away from filter edges
+    if isBeat                                     % intervals inside the run, away from filter edges and bridged gaps
         inRun = find(bStart >= seg(k,1) + edgeS & bEnd <= seg(k,2) - edgeS);
+        inRun = inRun(cb(bEnd(inRun)+1) - cb(bStart(inRun)) == 0);
     end
     for b = 1:nb
         P = abs(hilbert(filtfilt(fband{b}, 1, Y(idx,:)))).^2;    % time x channels
@@ -209,6 +232,9 @@ for k = 1:size(seg,1)
                 z = to_grid(log10(pr), step, Lwin, 'resample');
             end
             z([1:edge end-edge+1:end]) = NaN;
+            c = seg(k,1) + (0:numel(z)-1)*step;           % grid samples: NaN where the window touches a bridged gap
+            lo = max(c - floor(Lwin/2), 1); hi = min(c + ceil(Lwin/2) - 1, nPts);
+            z(cb(hi+1) - cb(lo) > 0) = NaN;
             S.eeg(ir, b, g:g+numel(z)-1) = z;
         end
     end
@@ -254,7 +280,7 @@ if isstruct(resp) && isfield(resp,'source')
         z = [];
         switch lower(resp(ir).source)
             case 'channel'
-                z = nan(1,T);
+                z = nan(1,T); zc = nan(1,T); zs = nan(1,T);
                 flp = lowpass_fir(fs, 1);
                 for k = 1:size(seg,1)
                     idx = seg(k,1):seg(k,2);
@@ -264,6 +290,10 @@ if isstruct(resp) && isfield(resp,'source')
                         cs = [0; cumsum(rs)];
                         lo = bStart(inRun)' - seg(k,1) + 1; hi = bEnd(inRun)' - seg(k,1) + 1;
                         z(inRun) = (cs(hi+1) - cs(lo)) ./ (hi - lo + 1);
+                        if opt.resp_phase         % respiratory phase at the beat closing the interval
+                            ph = angle(hilbert(rs - movmean(rs, round(8*fs))));
+                            zc(inRun) = cos(ph(hi)); zs(inRun) = sin(ph(hi));
+                        end
                         continue
                     end
                     g = (seg(k,1)-1)/step + 1;
@@ -281,6 +311,10 @@ if isstruct(resp) && isfield(resp,'source')
         if ~isempty(z)
             S.resp(end+1,:) = z;
             names{end+1} = lower(resp(ir).source); %#ok<AGROW>
+        end
+        if strcmpi(resp(ir).source, 'channel') && opt.resp_phase && isBeat
+            S.resp(end+1:end+2,:) = [zc; zs];
+            names(end+1:end+2) = {'channel_cos' 'channel_sin'};
         end
     end
 end

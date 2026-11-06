@@ -1,4 +1,4 @@
-function R = test_coupling_sim(nSim, nboot, pick)
+function R = test_coupling_sim(nSim, nboot, pick, sopt)
 % TEST_COUPLING_SIM - End-to-end check of the brain-heart coupling analysis
 % (GET_COUPLING_SERIES + COMPUTE_COUPLING) on simulated EEG, ECG and
 % respiration with a known coupling (SIM_BRAINHEART; tier 3). No EEGLAB
@@ -18,6 +18,7 @@ function R = test_coupling_sim(nSim, nboot, pick)
 %               modulation of the QRS)
 %   null_ssp, null_both - the cardiac field removed by SSP, or SSP + evoked
 % pick: cell array of scenario names to run (default all)
+% sopt: extra options of GET_COUPLING_SERIES (e.g. struct('resp_phase',true))
 % Prints the rejection rates (p < .05) of the conditional tests (bootstrap
 % GC, F-test, transfer entropy) and of the pairwise F-test, for alpha <->
 % heart and beta <-> heart (beta carries most of the QRS power), and
@@ -28,6 +29,7 @@ if nargin < 1, nSim = 20; end
 if nargin < 2, nboot = 50; end
 addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))),'functions'));
 if nargin < 3 || isempty(pick), pick = 'all'; end
+if nargin < 4, sopt = struct; end
 scen = {
     'null',     struct('c_ah',0,  'c_ha',0),   'channel', 'evoked'
     'null_cfa', struct('c_ah',0,  'c_ha',0),   'channel', 'none'
@@ -56,8 +58,8 @@ for s = 1:size(scen,1)
                 resp = struct('source','ecg','t',(sim.beats-1)/sim.fs,'amp',amp);
             otherwise, resp = struct('source','none');
         end
-        S = get_coupling_series(sim.data, sim.fs, sim.chanlocs, sim.beats, sim.NN_t, sim.NN, resp, ...
-            struct('regions', {reg}, 'cfa', scen{s,4}));
+        so = sopt; so.regions = reg; so.cfa = scen{s,4};
+        S = get_coupling_series(sim.data, sim.fs, sim.chanlocs, sim.beats, sim.NN_t, sim.NN, resp, so);
         w = warning('off','BrainBeats:coupling');
         out = compute_coupling(S, struct('nboot', nboot, 'nfreq', 64, 'seed', i));
         warning(w);

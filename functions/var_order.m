@@ -25,7 +25,9 @@
 %                cross lags (Hsiao, 1981).
 %
 % Every order is fitted on the same time points (those valid at the
-% largest order), so the criteria compare models of the same data.
+% largest order), so the criteria compare models of the same data. With
+% gappy data the largest order is lowered until >= 20 time points per
+% variable remain (crit.maxlag_used).
 %
 % Copyright (C) - Cedric Cannard, BrainBeats 2026
 
@@ -36,13 +38,21 @@ if nargin < 4 || isempty(pown), pown = pmax; end
 if nargin < 5 || isempty(maxcoef), maxcoef = Inf; end
 n = size(X,1); nu = size(U,1);
 pl = max(pmax, pown);
-[~, ~, info] = var_fit(X, pl, [], U, pl);
-rows = info.rows;
-nObs = info.nObs;
+% time points with all lags available; with gappy data (many short runs)
+% long lags leave few of them: shrink the largest lag tried until >= 20
+% points per variable remain
+rows = lag_rows([X; U], pl);
+while numel(rows) < 20*(n + nu) && pl > 1
+    pl = pl - 1; pmax = min(pmax, pl); pown = min(pown, pl);
+    rows = lag_rows([X; U], pl);
+end
+nObs = numel(rows);
+maxcoef = min(maxcoef, floor(nObs/10));
 
 % whole model, same order for everything
 bic = nan(1,pmax); aic = nan(1,pmax);
 for p = 1:pmax
+    if n*p + nu*(p+1) >= nObs, break; end
     [~, V] = var_fit(X, p, rows, U, p);
     ld = 2*sum(log(diag(chol(V))));
     k = n*(n*p + nu*(p+1));
@@ -77,4 +87,14 @@ for i = 1:n
         end
     end
 end
-crit = struct('p', 1:pmax, 'bic', bic, 'aic', aic, 'P', P, 'qx', qx);
+P(P == 0) = 1;                                         % (no admissible order: the smallest)
+crit = struct('p', 1:pmax, 'bic', bic, 'aic', aic, 'P', P, 'qx', qx, 'maxlag_used', pl, 'nObs', nObs);
+
+
+function rows = lag_rows(X, p)
+% Time points whose value and p lags are all finite
+ok = all(isfinite(X), 1);
+N = numel(ok);
+c = cumsum([0 ~ok]);
+t = p+1:N;
+rows = t(c(t+1) - c(t-p) == 0);
