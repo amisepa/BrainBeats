@@ -73,14 +73,19 @@ Scientific, may change results:
   Still open:
   - [x] F-tests ~1-2 points liberal on real nulls: now HC3-robust with the degrees of freedom
         less the detrended runs (5.8% on both real nulls, was 6.1-7.2%; README section 3).
-  - [ ] Still ~1 point above 5% in places: an FDR-significant link in 7-10% of the null
-        models (5% expected under the complete null); 6.5% on HEP-NF swaps with each
-        segment cut in two. Watch it in the paper's null; no cause found beyond
-        heteroskedasticity.
+  - [ ] Still ~1 point above 5% in places: an FDR-significant link in 11% of the ds003838
+        null models (4% in the belt dataset; 5% expected under the complete null); 6.5% on
+        HEP-NF swaps with each segment cut in two. Watch it in the paper's null; no cause
+        found beyond heteroskedasticity.
   - [ ] Respiratory phase inputs ('resp_phase' in get_coupling_series): helped EEG -> heart
         calibration in simulation only; test on the belt dataset before exposing it.
-  - [ ] Heart-period equation fails Ljung-Box in ~1/3 of real recordings (5-9% for the EEG
-        equations): longer own lags or a different heart series (log NN, HR).
+  - [x] Heart-period equation failed Ljung-Box (p < .05) in 58% (belt dataset) and 40%
+        (ds003838) of the recordings: own lags are now added until the residuals are white
+        (0-1% fail; nulls 5.4% and 5.7%, real pairings unchanged). Log NN, HR, longer BIC
+        caps, cubic detrending and longer respiration lags did not help.
+  - [ ] Belt-dataset heart residuals are heavy-tailed (kurtosis ~14 vs ~4 in ds003838):
+        residual artifacts in its RR series (cached before the v1.7 adaptive ectopic rule)?
+        Check after the v1.8 merge.
   - [ ] Interpolate single missed PPG pulses: scattered misses break the PPG series into
         pieces < 20 beats, and the PPG proxies are then left out (3 of 61 in ds003838).
   - [ ] A dataset with a belt and long recordings for the paper (MIT-BIH Polysomnographic,

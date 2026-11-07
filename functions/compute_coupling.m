@@ -41,6 +41,14 @@
 %     .maxlag_own - longest own lag considered (s; default 10). Orders are
 %               chosen by BIC per equation, own and cross lags separately
 %               (VAR_ORDER), with >= 10 samples per coefficient.
+%     .maxlag_white - own lags are then added, one at a time, to each
+%               equation whose residuals fail Ljung-Box (p < .05), up to
+%               this lag (s; default 30; 0 = BIC orders only). BIC left
+%               the heart-period residuals autocorrelated in 40-58% of real
+%               recordings (ds003838, HEP-NF; own lags predicting ~1.5% of
+%               the residual variance); the added lags whiten them without
+%               changing the EEG -> heart F-tests (null 4.6-5.3% at
+%               p < .05, vs 4.7-5.8%).
 %     .nfreq  - frequency intervals from 0 to Nyquist (default 128)
 %     .nboot  - parametric bootstrap samples for the conditional GC tests
 %               (time and LF/HF; default 200; 0 = F-tests only). The null
@@ -67,7 +75,8 @@
 %             EEG -> heart / heart -> EEG), gc_eh_pair / gc_he_pair, coh,
 %             pcoh, dc_eh / dc_he, gpdc_eh / gpdc_he, and gc_eh_null95 /
 %             gc_he_null95 (95th percentile of the bootstrap null)
-%   models  - per region: variables, own and cross orders (BIC) and the
+%   models  - per region: variables, own orders (order_own_bic: before
+%             the lags added for white residuals), cross orders (BIC), the
 %             lag-order matrix P, nObs, samples per coefficient (largest
 %             equation), spectral radius, Ljung-Box p of each residual
 %             series, zero-lag partial correlations
@@ -101,6 +110,7 @@ if nargin < 2, opt = struct; end
 opt = set_default(opt, 'window', 300);
 opt = set_default(opt, 'maxlag', 5);
 opt = set_default(opt, 'maxlag_own', 10);
+opt = set_default(opt, 'maxlag_white', 30);
 opt = set_default(opt, 'nfreq', 128);
 opt = set_default(opt, 'nboot', 200);
 opt = set_default(opt, 'seed', 0);
@@ -174,12 +184,12 @@ for r = 1:nr
         continue
     end
     [~, ~, crit] = var_order(Xw, pmax, Uw, pown, maxcoef);
-    P = crit.P; qx = crit.qx; pm = max(P(:));
-    [A, V, info] = var_fit(Xw, P, [], Uw, qx);
-    [lbmin, lbp] = ljungbox(info.E, info.rows, max(10, 2*pm), max(P,[],2));
+    qx = crit.qx; pwhite = round(opt.maxlag_white*fso);
+    [P, A, V, info, lbp] = fit_white(Xw, Uw, crit.P, qx, pwhite, maxcoef);
+    lbmin = min(lbp);
     exoN = {}; if nu > 0, exoN = strsplit(S.resp_source, '+'); end
     mdl = struct('name', rname, 'variables', {vnames}, 'exogenous', {exoN}, ...
-        'order_own', diag(P)', 'order_cross', max(P - diag(diag(P)), [], 2)', 'order_resp', qx', 'P', P, 'nObs', info.nObs, ...
+        'order_own', diag(P)', 'order_own_bic', diag(crit.P)', 'order_cross', max(P - diag(diag(P)), [], 2)', 'order_resp', qx', 'P', P, 'nObs', info.nObs, ...
         'samples_per_coef', info.nObs/max(info.ncoef), 'rho', info.rho, ...
         'ljungbox_minp', lbmin, 'ljungbox_p', lbp', 'zerolag_pcorr', partial_corr(V));
     if any(info.ncoef >= maxcoef - nv)
@@ -189,8 +199,8 @@ for r = 1:nr
         out.warnings{end+1} = sprintf('%s: the fitted model is unstable (spectral radius %.3f).', rname, info.rho);
     end
     if lbmin*nv < 0.01                                % Bonferroni over the variables
-        out.warnings{end+1} = sprintf('%s: residuals are not white (Ljung-Box p = %.2g, %s): the model may miss slow structure.', ...
-            rname, lbmin, vnames{find(lbp == lbmin, 1)});
+        out.warnings{end+1} = sprintf(['%s: residuals are not white (Ljung-Box p = %.2g, %s) even with %g s of ' ...
+            'own lags: the model may miss slow structure.'], rname, lbmin, vnames{find(lbp == lbmin, 1)}, opt.maxlag_white);
     end
 
     spec = var_spectral(A, V, opt.nfreq);
@@ -203,9 +213,9 @@ for r = 1:nr
 
         % pairwise model: the band and the heart alone (no respiration)
         X2 = Xw([b ih], :);
-        [~, ~, c2] = var_order(X2, pmax, [], pown, floor(sum(all(isfinite(X2),1))/10));
-        P2 = c2.P;
-        [A2, V2, info2] = var_fit(X2, P2);
+        mc2 = floor(sum(all(isfinite(X2),1))/10);
+        [~, ~, c2] = var_order(X2, pmax, [], pown, mc2);
+        [P2, A2, V2, info2] = fit_white(X2, [], c2.P, [], pwhite, mc2);
         spec2 = var_spectral(A2, V2, opt.nfreq);
 
         for dir = 1:2
@@ -396,6 +406,28 @@ end
 pb = (1 + sum(null >= obs, 1)) / (nboot + 1);
 med = median(null, 1);
 null95 = prctile_cols(nullf, 95);
+
+
+function [P, A, V, info, lbp] = fit_white(X, U, P, qx, pcap, maxcoef)
+% Fit the model, then add one own lag at a time to each equation whose
+% residuals fail Ljung-Box (p < .05), until they pass, reach pcap lags or
+% the coefficient cap, or too few time points remain
+[A, V, info] = var_fit(X, P, [], U, qx);
+[~, lbp] = ljungbox(info.E, info.rows, max(10, 2*max(P(:))), max(P,[],2));
+while true
+    grow = find(lbp(:) < .05 & diag(P) < pcap & info.ncoef(:) < maxcoef);
+    if isempty(grow), break; end
+    P1 = P;
+    d = sub2ind(size(P), grow, grow);
+    P1(d) = P1(d) + 1;
+    try
+        [A1, V1, info1] = var_fit(X, P1, [], U, qx);
+    catch
+        break
+    end
+    P = P1; A = A1; V = V1; info = info1;
+    [~, lbp] = ljungbox(info.E, info.rows, max(10, 2*max(P(:))), max(P,[],2));
+end
 
 
 function pval = ftest(X, U, rows, P, qx, tgt, src)

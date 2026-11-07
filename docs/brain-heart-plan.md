@@ -91,6 +91,16 @@ normalized ratios: not comparable across models with different variable sets. GC
   5.4 -> 5.3%; power unchanged. Not the cause (measured): order selection (cross order 1
   in 99% of tests), residual autocorrelation (Bartlett/Dutilleul inflation 1.00), BIC
   underfitting, onset-aligned trends. A wild bootstrap did no better than HC3.
+- White residuals (2026-11-06): BIC left the heart-period residuals autocorrelated
+  (Ljung-Box p < .05) in 58% (HEP-NF, ~1600 beats) and 40% (ds003838, ~270 beats) of the
+  recordings; the residuals' own lags predicted ~1.5% of their variance. No effect:
+  own-lag caps of 20-30 s (BIC never took the lags), log NN, HR, cubic detrending,
+  respiration lags to 10 s. AIC on the own order alone: still 12-19% failures with 18 s of
+  lags. Kept: own lags added one at a time until Ljung-Box p >= .05 (up to 30 s, every
+  equation, full and pairwise models). Nulls 5.8 -> 5.4% (HEP-NF) and 5.8 -> 5.7%
+  (ds003838), any q < .05 7 -> 4% and 10 -> 11%; real pairings 23.6 -> 22.8% and 8.0 ->
+  7.6%; simulation 5.28 -> 5.22% (400), power unchanged (100% / 95-98%); 0-1% of equations
+  still fail. Decisions changed in 0.7-1.9% of null tests, 1.3-5.6% of real ones.
 
 Comparators for the paper only, not shipped: MIC at 1 Hz and lag 0, SDG (Catrambone code),
 PCMI (order <= 3, circular-shift null per direction), pairwise GC.
