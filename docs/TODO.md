@@ -70,8 +70,6 @@ Scientific, may change results:
         test_coupling_engine/sim/stats and the ds003838 cohort on the merged code.
   - [ ] Label transfer entropy, time-reversed GC, DC/GPDC as exploratory in the README (TE
         rejected 10% heart -> alpha in simulation; the report uses the F-test and q only).
-  - [ ] Regenerate figures/coupling_report.png (make_readme_figures({'coupling'})): it still
-        shows p-values from the classical F-test.
   Still open:
   - [x] F-tests ~1-2 points liberal on real nulls: now HC3-robust with the degrees of freedom
         less the detrended runs (5.8% on both real nulls, was 6.1-7.2%; README section 3).
