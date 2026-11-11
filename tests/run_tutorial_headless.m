@@ -265,6 +265,11 @@ P = EEG.brainbeats.prestim;
 iE = ismember({EEG.chanlocs.labels}, P.channels);
 iB = EEG.times >= -150 & EEG.times <= -50;
 assert(max(abs(P.baseline - squeeze(mean(double(EEG.data(iE,iB,:)),2))),[],'all') < 1e-6, 'Exported baselines differ from the epochs')
+% 'keep_heart': the heart channel is filtered (raw sample ECG: epoch offset 1.1
+% times the range of its average; filtered: 0.007)
+h = squeeze(double(EEG.data(strcmp({EEG.chanlocs.labels},'ECG'),:,:)));
+r = median(abs(mean(h,1))) / range(mean(h,2));
+assert(r < 0.1, 'Kept heart channel not filtered: epoch offset %.2f times the range of its average', r)
 s = warning('error', 'BrainBeats:removed');
 try
     bbp(pop_select(L(),'nochannel',{'PPG'}), args{:}, 'hep_baseline','regression');

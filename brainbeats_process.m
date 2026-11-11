@@ -50,7 +50,8 @@
 %   'ecg_peakthresh', 'ecg_refperiod', 'ecg_searchback', 'ecg_bandpass',
 %   'ecg_polarity', 'ecg_adaptive_pol', 'ppg_bandpass', 'ppg_height_method',
 %   'ppg_polarity'   - see GET_RR
-%   'keep_heart'     - keep the heart channel in the output (default false)
+%   'keep_heart'     - keep the heart channel in the output (default false),
+%                      filtered like the EEG (HEP epochs)
 %   RR artifacts are corrected by CLEAN_RR (implausible beats removed, missing
 %   beats inserted in gaps, ectopic beats replaced).
 %   'ectopic_rule'   - 'adaptive' (default: Lipponen & Tarvainen, 2019,
@@ -508,7 +509,16 @@ if ~strcmpi(params.heart_signal,'off')
         % Plot the filtered heart signal with its beats, and the RR and NN
         % series of the channel kept
         if params.vis_cleaning
-            plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, params.heart_signal)
+            % y-axis unit: from a 'unit(s)' channel field when an importer
+            % added one (EEGLAB has none), else arbitrary units
+            unit = 'a.u.';
+            for f = {'unit' 'units'}
+                if isfield(CARDIO.chanlocs, f{1}) && ischar(CARDIO.chanlocs(best_elec).(f{1})) ...
+                        && ~isempty(strtrim(CARDIO.chanlocs(best_elec).(f{1})))
+                    unit = strtrim(CARDIO.chanlocs(best_elec).(f{1}));
+                end
+            end
+            plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, params.heart_signal, unit)
             pause(1)  % draw it now rather than after the EEG preprocessing
         end
 

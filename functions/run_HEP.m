@@ -63,7 +63,8 @@
 %      2013; params.hep_tf_power 'induced', default), or of all the power
 %      ('total'); both are stored.
 %   12. With params.keep_heart, the heart channel(s) are added to the epochs
-%      (in their own units, after the EEG cleaning).
+%      (in their own units, after the EEG cleaning), filtered like the EEG
+%      (0.5-Hz high-pass when the EEG is not cleaned).
 %   13. Plot (params.vis_outputs: IBI distribution, HEP of all channels with
 %      scalp maps at 0 ms and at the largest ROI deflection at 150-350 ms and
 %      after 350 ms, each labeled with its spatial correlation with the
@@ -528,14 +529,24 @@ prestim.notes = {['Values of each heartbeat before its QRS, for group-level or s
     'beat_time: time of each heartbeat in the recording (s); ibi: interval to the next heartbeat (ms).'};
 HEP.brainbeats.prestim = prestim;
 
-% Heart channel(s), in their own units, epoched at the same heartbeats
+% Heart channel(s), in their own units, epoched at the same heartbeats.
+% Filtered like the EEG, so that its waveform lines up with the HEP; when
+% the EEG is not cleaned here, a 0.5-Hz high-pass only removes the offset
+% and drift of the raw channel (raw amplifier counts on the sample ECG)
 nEEG = HEP.nbchan;
 if isfield(params,'keep_heart') && params.keep_heart && ~isempty(CARDIO)
-    hepIdx = round(HEP.times/1000*EEG.srate);
-    Hd = zeros(CARDIO.nbchan, HEP.pnts, HEP.trials);
-    for e = 1:HEP.trials
-        Hd(:,:,e) = CARDIO.data(:, hepBeats(e) + hepIdx);
+    causal = isfield(params,'filttype') && strcmpi(params.filttype,'causal');
+    if params.clean_eeg
+        C = pop_eegfiltnew(CARDIO,'locutoff',params.highpass,'hicutoff',params.lowpass,'minphase',causal);
+    else
+        C = pop_eegfiltnew(CARDIO,'locutoff',0.5,'minphase',causal);
     end
+    hepIdx = round(HEP.times/1000*EEG.srate);
+    Hd = zeros(C.nbchan, HEP.pnts, HEP.trials);
+    for e = 1:HEP.trials
+        Hd(:,:,e) = C.data(:, hepBeats(e) + hepIdx);
+    end
+    clear C
     HEP.data(end+1:end+CARDIO.nbchan,:,:) = Hd;
     HEP.nbchan = HEP.nbchan + CARDIO.nbchan;
     for iChan = 1:CARDIO.nbchan

@@ -9,10 +9,12 @@
 %
 % Usage:
 %   plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, sigtype)
+%   plot_NN(..., sigtype, unit)
 %
 % Inputs:
 %   sig_t   - signal time vector (s), length N
-%   sig     - cardiac signal, e.g. as returned by get_RR (ECG in uV, PPG a.u.)
+%   sig     - cardiac signal, e.g. as returned by get_RR (filtered, in the
+%             units of the recording)
 %   RR_t    - time of each detected peak / RR interval (s), length M
 %   RR      - RR intervals before cleaning (s), length M
 %   Rpeaks  - sample indices of the detected peaks, length M
@@ -21,11 +23,15 @@
 %   Npeaks  - sample indices of the NN peaks, length K (NaN for synthetic
 %             beats, whose amplitude is then interpolated at NN_t); if
 %             empty or not of length K, all amplitudes are interpolated
-%   sigtype - 'ecg' or 'ppg' (titles and y-axis units)
+%   sigtype - 'ecg' or 'ppg' (titles)
+%   unit    - y-axis unit of sig (default 'a.u.': EEGLAB stores no channel
+%             units, and recordings hold uV, mV or raw amplifier units)
 %
 % Copyright (C) - Cedric Cannard, 2023
 
-function plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, sigtype)
+function plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, sigtype, unit)
+
+if nargin < 10 || isempty(unit), unit = 'a.u.'; end
 
 figure("color","w",'name','Time series & corresponding RR/NN intervals', ...
     'numberTitle','off', 'Units', 'normalized', 'OuterPosition', [0 0 1 1]);
@@ -59,11 +65,10 @@ try
     scroll = true;
     if strcmp(sigtype, 'ecg')
         title('ECG signal + R peaks (press -> arrow to scroll)');
-        ylabel('μV');
     else
         title('PPG signal + Pulse wave peaks (press -> arrow to scroll)');
-        ylabel('a.u.');
     end
+    ylabel(unit);
     xlabel('Time (s)')
     legend('signal', 'before correction', 'after correction');
 catch
@@ -80,11 +85,10 @@ axis tight
 ylim([-std(sig,'omitnan')*10  std(sig,'omitnan')*10])
 if strcmp(sigtype, 'ecg')
     title('Entire ECG time series + R-peaks');
-    ylabel('μV');
 else
     title('Entire PPG time series + peaks');
-    ylabel('a.u.')
 end
+ylabel(unit);
 
 %% Subplot 2: RR and NN interval time series
 if scroll, subplot(3,1,2); else, subplot(2,1,2); end

@@ -72,6 +72,8 @@
 %   ms at 128 Hz; RMSSD bias +0.13 and +0.40 ms -> 0).
 %
 % Notes:
+%   Shortest recordings: ECG 3 s, PPG 12 s (filtfilt needs more than three
+%   lengths of the high-pass filters; shorter ones stop with an error).
 %   ecg_refperiod is 0.25 s, not 0.35 s: on a slow heart a T-wave detected
 %   ~350 ms after R would be deduplicated against its own beat and one of
 %   the pair deleted; 0.25 s is also the value all validation used.
@@ -88,9 +90,10 @@ function [RR, RR_t, peaks, signal, times, polarity, HR] = get_RR(signal, times, 
 fs       = params.fs;
 sig_type = params.heart_signal;
 
-% Sanity check: times should be in milliseconds
-if max(times) < 1000 && max(times) > 0
-    error('get_RR: times appears to be in seconds (max=%.3f). Pass times in milliseconds (e.g. EEG.times).', max(times));
+% Sanity check: times should be in milliseconds, one sample every 1000/fs ms
+% (the former test, max(times) < 1000, also refused recordings under 1 s)
+if numel(times) > 1 && abs(median(diff(times(:)))*fs - 1) < 0.01
+    error('get_RR: times appears to be in seconds (one sample every %.4f). Pass times in milliseconds (e.g. EEG.times).', median(diff(times(:))));
 end
 
 % Enforce column vector and convert time to seconds
@@ -156,10 +159,12 @@ if strcmpi(sig_type, 'ecg')
 
         hp_order = 3 * round(fs / bp_cutoff(1));
         b_hp     = fir1(hp_order, bp_cutoff(1) / (fs/2), 'high');
+        check_length(numel(signal), b_hp, fs, 'ECG', sprintf('%g-Hz high-pass', bp_cutoff(1)), 'ecg_bandpass');
         signal   = filtfilt(b_hp, 1, signal);
 
         lp_order = 5 * round(fs / bp_cutoff(2));
         b_lp     = fir1(lp_order, bp_cutoff(2) / (fs/2), 'low');
+        check_length(numel(signal), b_lp, fs, 'ECG', sprintf('%g-Hz low-pass', bp_cutoff(2)), 'ecg_bandpass');
         signal   = filtfilt(b_lp, 1, signal);
         fprintf('  Bandpass filter: %.1f-%.1f Hz (order-%d/%d FIR, zero-phase)\n', ...
             bp_cutoff(1), bp_cutoff(2), hp_order, lp_order);
@@ -446,6 +451,7 @@ elseif strcmpi(sig_type, 'ppg')
     if ~isfield(params, 'ppg_bandpass') || params.ppg_bandpass
         hp_order = 2 * round(fs / 0.5);
         b_hp     = fir1(hp_order, 0.5 / (fs/2), 'high');
+        check_length(numel(signal), b_hp, fs, 'PPG', '0.5-Hz high-pass', 'ppg_bandpass');
         signal   = filtfilt(b_hp, 1, signal);
         lp_order = 2 * round(fs / 3);
         b_lp     = fir1(lp_order, 3 / (fs/2), 'low');
@@ -545,4 +551,15 @@ if size(y,1) ~= nnz(in), y = y.'; end      % a single peak gives a row
 d = 0.5 * (y(:,1) - y(:,3)) ./ (y(:,1) - 2*y(:,2) + y(:,3));
 d(~isfinite(d) | abs(d) > 0.5) = 0;
 t(in) = t(in) + d/fs;
+end
+
+function check_length(n, b, fs, what, filt, opt)
+% filtfilt needs more than 3 filter lengths of data: stop with the minimum
+% duration instead of filtfilt's own message (ECG: 3 s with the default
+% 3-Hz high-pass; PPG: 12 s with the 0.5-Hz high-pass)
+need = 3*(numel(b) - 1);
+if n <= need
+    error(['get_RR: the %s is %.1f s long, and its %s filter needs more than %.1f s. ' ...
+        'Use a longer recording, or a band-passed signal with ''%s'' set to false.'], what, n/fs, filt, need/fs, opt);
+end
 end

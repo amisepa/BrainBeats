@@ -4,15 +4,8 @@ Open items only. What was done, with its numbers, is in the README version histo
 headers of the test and validation scripts.
 
 ## Before the v1.7 release
-- [ ] Commit the v1.7 review fixes on main (not committed yet: TF exclusion, next-QRS rule,
-      bb_ renames, ASCENT nonlinear features, ASR chunk size, docs, figures; and from
-      2026-11-08: pNN50 > 50 ms, median/SEF90 bin edges, 'hrv_norm' without dialogs,
-      asymmetry warning, tests/test_features_synthetic.m; from 2026-11-09: sub-sample beat
-      times in get_RR, tests/validate_subsample_rr.m; from 2026-11-10: PPG polarity from
-      the quantile skewness, tests/validate_ppg_polarity.m), then push with 9c34514. The release
-      suite passed on this working tree before the 2026-11-08 changes; the feature cases were
-      rerun after; on 2026-11-10 the full suite passed again (32/32, after a fix of the
-      coherence mode for sub-sample beat times).
+- [ ] Update the installed plugin first: eeglab/plugins/BrainBeats (a clone, what EEGLAB
+      runs) was at 9c34514 with 26 local changes on 2026-11-11, so the GUI would run older code.
 - [ ] Click through the GUI in the MATLAB desktop: 'BrainBeats' in the EEGLAB menu bar, main
       window (Load dataset / Sample dataset, analysis, heart channels and the '...' list,
       'Perform analysis on'), parameters window for HEP and for features (heart artifact
@@ -104,12 +97,6 @@ headers of the test and validation scripts.
 - 'rr' mode cannot take a PAT: accept a numeric 'ppg_transit'.
 - Nonlinear EEG features are O(N^2) on whole recordings and on by default (ASCENT's fuzzy
   entropy is twice as fast as v1.6's, still O(N^2)): use 30-60 s windows.
-- get_RR fails on recordings shorter than ~3 s (filter length).
-- plot_NN labels the ECG in uV; ds003838 stores it in raw amplifier units: label from the
-  channel units when known, else 'a.u.'.
-- 'keep_heart' stores the raw heart channel (large DC offset on the sample ECG): filter it?
-- Sample data: dataset.set is stored as double (30 MB); single would halve it (values change
-  in the last digits: rerun the regression).
 
 ## Python port (branch python-port)
 - Carry over the v1.7 changes: PPG polarity, adaptive ectopic rule and RR_ALTERNATION,
@@ -118,7 +105,9 @@ headers of the test and validation scripts.
   exclusions, max statistic default, pNN50 > 50 ms on differences rounded to 1 us, median
   and SEF90 from the bin edges, 'hrv_norm' NaN without LF, sub-sample beat times (vertex
   of the parabola through each peak or onset and its neighbors) for RR and RR_t, PPG
-  polarity from the quantile skewness of the slope (5th/95th percentiles, warning below 0.2).
+  polarity from the quantile skewness of the slope (5th/95th percentiles, warning below 0.2),
+  'keep_heart' channel filtered like the EEG, get_RR minimum durations (ECG 3 s, PPG 12 s),
+  cleaning plots in 'a.u.'.
 
 ## Decisions (with the reason, so they are not reopened)
 - 2026-11-02: heart artifact not removed by default; ICA, CARACAS, ECG correlation, ECG

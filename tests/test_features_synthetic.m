@@ -29,6 +29,8 @@ function test_features_synthetic
 %
 % Copyright (C) - Cedric Cannard, 2026
 
+% EEGLAB first: it puts the installed plugin above this repository on the path
+if ~exist('readlocs','file'), eeglab; close; end
 bbroot = fileparts(fileparts(mfilename('fullpath')));
 p = strsplit(path, pathsep);
 old = p(contains(p,'BrainBeats','IgnoreCase',true) & ~startsWith(p,bbroot));
@@ -91,7 +93,6 @@ assert(H.time.pNN50 == 100, 'pNN50 %g%% for differences of 51 ms', H.time.pNN50)
 disp('HRV pNN50 OK: 0% at exactly 50 ms, 100% at 51 ms')
 
 %% 2. EEG features on synthetic EEG
-if ~exist('readlocs','file'), eeglab; close; end
 fs = 250; rng(3);
 [X, chanlocs, A, isRight, iNoise] = eeg_series(fs, 120);
 dens = 4/(fs/2);                                 % white noise PSD (uV^2/Hz), SD 2 uV
