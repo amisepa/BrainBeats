@@ -7,8 +7,7 @@ function results = run_tutorial_headless(ids)
 % Run before a release.
 %
 % Usage:
-%   results = run_tutorial_headless;        % in MATLAB, EEGLAB on the path
-%   results = run_tutorial_headless;        % all tests
+%   results = run_tutorial_headless;        % all tests (EEGLAB on the path)
 %   results = run_tutorial_headless(1:5);   % a subset (indices in tests())
 %
 % Input:

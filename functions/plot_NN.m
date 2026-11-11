@@ -5,7 +5,7 @@
 %      cleaning (dark red).
 %   2. RR intervals before cleaning (red dashed) and NN intervals (blue).
 %   3. Scrollable 8-s window of the signal with both sets of peaks (only if
-%      scrollplot works on this system; otherwise panels 1-2 only).
+%      bb_scrollplot works on this system; otherwise panels 1-2 only).
 %
 % Usage:
 %   plot_NN(sig_t, sig, RR_t, RR, Rpeaks, NN_t, NN, Npeaks, sigtype)
@@ -52,7 +52,7 @@ nn_amp(~valid)= interp1(sig_t, sig, NN_t(~valid), 'linear', NaN);
 try
     subplot(3,1,3)
     win_len = 8;  % visible window (s)
-    scrollplot( ...
+    bb_scrollplot( ...
         {sig_t, sig,         'color', '#0072BD'}, {'X'}, win_len, ...
         {RR_t,  sig(Rpeaks), '+', 'MarkerSize', 10, 'LineWidth', 2, 'color', 'r',}, ...
         {NN_t,  nn_amp,      '+', 'MarkerSize', 11, 'LineWidth', 2, 'color', 'k'});

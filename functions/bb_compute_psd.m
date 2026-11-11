@@ -1,9 +1,9 @@
-% COMPUTE_PSD - Power spectral density (or power spectrum) of each channel
+% BB_COMPUTE_PSD - Power spectral density (or power spectrum) of each channel
 % with Welch's method (pwelch).
 %
 % Usage:
-%   [pwr, pwr_db, f] = compute_psd(eegData, winSize, taperM, overlap, nfft, Fs, fRange, type, useGPU)
-%   [pwr, pwr_db, f] = compute_psd(EEG.data, EEG.srate*2, 'hamming', 50, [], EEG.srate, [1 40], 'psd', false)
+%   [pwr, pwr_db, f] = bb_compute_psd(eegData, winSize, taperM, overlap, nfft, Fs, fRange, type, useGPU)
+%   [pwr, pwr_db, f] = bb_compute_psd(EEG.data, EEG.srate*2, 'hamming', 50, [], EEG.srate, [1 40], 'psd', false)
 %
 % Inputs:
 %   eegData - data (channels x samples)
@@ -24,7 +24,7 @@
 %
 % Copyright (C) - Cedric Cannard, 2021
 
-function [pwr, pwr_db, f] = compute_psd(eegData,winSize,taperM,overlap,nfft,Fs,fRange,type,useGPU)
+function [pwr, pwr_db, f] = bb_compute_psd(eegData,winSize,taperM,overlap,nfft,Fs,fRange,type,useGPU)
 
 % Error if no sampling rate provided
 if ~exist('Fs', 'var') || isempty(Fs)

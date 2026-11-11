@@ -28,6 +28,8 @@ function test_compute_hep_tf
 %   11. One output latency; fewer HEP surrogates than HRSP ones; the default
 %      statistic is the max statistic (TFCE only on request).
 %   12. Excluded spans: surrogates avoid them and keep as many beats as the HEP.
+%
+% Copyright (C) - Cedric Cannard, 2026
 
 addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))),'functions'));
 fs = 250; nPts = 250*240; rng(3);

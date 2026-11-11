@@ -1,5 +1,5 @@
-function scrollplot(varargin)
-    % SCROLLPLOT - Scrollable time series plot with optional overlays.
+function bb_scrollplot(varargin)
+    % BB_SCROLLPLOT - Scrollable time series plot with optional overlays.
     %
     % Plots in the current axes. The y-axis adapts to the visible data.
     % Scrolling via:
@@ -8,8 +8,8 @@ function scrollplot(varargin)
     %   - Shift + arrow keys (pan by 10% of the window, fine control)
     %
     % Usage:
-    %   scrollplot(toPlot1, scrollOrient, windowSize)
-    %   scrollplot(toPlot1, scrollOrient, windowSize, toPlot2, toPlot3, ...)
+    %   bb_scrollplot(toPlot1, scrollOrient, windowSize)
+    %   bb_scrollplot(toPlot1, scrollOrient, windowSize, toPlot2, toPlot3, ...)
     %
     % Inputs:
     %   toPlot1      - {time, signal, 'prop', val, ...} for the main signal
@@ -33,7 +33,7 @@ function scrollplot(varargin)
     x = toPlot1{1}(:);
     y = toPlot1{2}(:);
     if length(x) ~= length(y)
-        error('scrollplot: X and Y must have the same number of elements.');
+        error('bb_scrollplot: X and Y must have the same number of elements.');
     end
     toPlot1{1} = x;
     toPlot1{2} = y;

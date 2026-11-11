@@ -116,7 +116,9 @@ if ~isempty(asy)
     fprintf(['Alpha asymmetry was succesfully computed on %g channel pairs. ' ...
         'Values are ln(right alpha) - ln(left alpha): since alpha is inversely related to cortical activity, positive values reflect greater left-hemispheric activity, and negative values greater right-hemispheric activity \n'], length(asy))
 else
-    warning("Failed to compute alpha asymmetry on these data")
+    % usually coordinates in another convention (e.g. a FieldTrip .elc
+    % file read as is: nose along +Y, so no left/right mirror is found)
+    warning("Failed to compute alpha asymmetry on these data: no symmetric electrode pairs. Check the channel coordinates (EEGLAB convention: X toward the nose, Y toward the left ear).")
 end
 
 

@@ -1,5 +1,22 @@
 function [labels, theta, phi] = read_chanlocs(chanlocfile, locExt)
-% Robust parsing for common channel location file types.
+% READ_CHANLOCS - Channel labels and spherical angles from a channel location
+% file, for the surface Laplacian (CSD_TRANSFORM).
+%
+% Usage:
+%   [labels, theta, phi] = read_chanlocs(chanlocfile, locExt)
+%
+% Inputs:
+%   chanlocfile - path of the file
+%   locExt      - its format: 'xyz' (label X Y Z), 'ced' (EEGLAB),
+%                 'locs' (EEGLAB polar) or 'csd' (label theta phi)
+%
+% Outputs:
+%   labels - channel labels (cell array)
+%   theta  - azimuth (degrees)
+%   phi    - elevation (degrees)
+%
+% Copyright (C) - Cedric Cannard, 2025
+
 labels = {};
 theta = [];
 phi = [];

@@ -4,4 +4,10 @@
 *.fig
 *.DS_Store
 *.set
-!sample_data/*.set
+*.fdt
+!sample_data/dataset.set
+!sample_data/sub-047_rest.set
+# outputs saved next to the sample data by the tutorial ('save')
+sample_data/*_HEP*
+sample_data/*_features*
+sample_data/*_coupling*

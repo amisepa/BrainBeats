@@ -58,7 +58,7 @@
 % Output parameter:
 %        CE = CSD estimates as electrodes-by-samples matrix
 %
-% Copyright (C) 2003 by Jürgen Kayser (Email: kayserj@pi.cpmc.columbia.edu)
+% Copyright (C) 2003 by Jurgen Kayser (Email: kayserj@pi.cpmc.columbia.edu)
 % GNU General Public License (http://www.gnu.org/licenses/gpl.txt)
 % Updated: $Date: 2005/02/11 14:00:00 $ $Author: jk $
 % -----------------------------------------------------------------------

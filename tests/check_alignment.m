@@ -8,6 +8,8 @@
 % the first 10 beat times before/after adding that offset.
 %
 % Usage: run the script from MATLAB (text output only, no EEGLAB needed).
+%
+% Copyright (C) - Cedric Cannard, 2026
 
 eeg = readtable(fullfile(fileparts(mfilename('fullpath')), 'data', 'test_eeg.csv'));
 opt = readtable(fullfile(fileparts(mfilename('fullpath')), 'data', 'test_optics.csv'));

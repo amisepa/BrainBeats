@@ -9,6 +9,8 @@
 %
 % Usage: run the script from MATLAB (no EEGLAB needed). The figure is saved
 % as tests/figures/timestamp_drift.png.
+%
+% Copyright (C) - Cedric Cannard, 2026
 
 close all;
 opt = readtable(fullfile(fileparts(mfilename('fullpath')), 'data', 'test_optics.csv'));

@@ -135,9 +135,22 @@ params.hep_window = epochWin;   % exported (ms)
 
 % Reject beats followed by the next one before the end of the epoch (+ the
 % QRS margin), so that no epoch contains the next heartbeat's QRS and
-% cardiac field artifact (see Candia-Rivera et al. 2021; Park & Blanke 2019)
+% cardiac field artifact (see Candia-Rivera et al. 2021; Park & Blanke 2019).
+% The next QRS is taken from all detected beats (params.detected_beats), the
+% ones the RR cleaning removed included: a premature beat removed as ectopic
+% still has its QRS (on 8 recordings, 0-1 more epochs rejected on clean ones,
+% 9 on sub-038, whose ectopic beats were among them)
 minIBI = epochWin(2) + qrsMargin;
-keep = ~(IBI < minIBI);
+nextQRS = IBI;
+if isfield(params,'detected_beats') && ~isempty(params.detected_beats)
+    D = sort(params.detected_beats(:));
+    j = sum(D <= Rpeaks, 1) + 1;                     % first detected beat after each beat
+    v = j <= numel(D);
+    nextD = inf(size(Rpeaks));
+    nextD(v) = (D(j(v))' - Rpeaks(v)) / EEG.srate * 1000;
+    nextQRS = min(IBI, nextD);                       % NaN ignored: the last beat gets its next detected one
+end
+keep = ~(nextQRS < minIBI);
 if any(~keep)
     fprintf('Removing %g/%g heartbeats followed by the next one within %g ms (epoch end + %g ms). \n', ...
         sum(~keep), length(IBI), minIBI, qrsMargin)
@@ -152,7 +165,7 @@ if ~isempty(outliers)
     keep(outliers) = false;
 end
 fprintf('%g/%g heartbeats kept for HEP epochs. \n', sum(keep), length(Rpeaks))
-nShort = sum(IBI < minIBI);
+nShort = sum(nextQRS < minIBI);
 if nShort > .25*length(Rpeaks)
     warning(['%.0f%% of the heartbeats are followed by the next one within %g ms: the HEP comes from the slower ' ...
         'heartbeats of this recording, a subset that depends on the heart rate.'], 100*nShort/length(Rpeaks), minIBI)
@@ -368,7 +381,7 @@ if needCont
         keptTrials = setdiff(1:rawWide.trials, params.removed_eeg_trials);
         Xr = reshape(double(rawWide.data(:,:,keptTrials)), rawWide.nbchan, []);
         Yc = reshape(double(HEPwide.data), HEPwide.nbchan, []);
-        T = (Yc*Xr') * pinv(Xr*Xr');
+        T = lsqminnorm(Xr', Yc')';     % least squares by orthogonal decomposition (Xr is rank-deficient after an average reference)
         err = norm(Yc - T*Xr, 'fro') / norm(Yc, 'fro');
         if err > 1e-3
             warning('The EEG cleaning of the epochs is not reproduced exactly on the continuous data (relative error %.1e).', err)

@@ -35,7 +35,8 @@
 % Outputs (the first detected beat is dropped, so each interval is paired
 % with the peak that closes it):
 %   RR       - RR intervals (s)
-%   RR_t     - time of the peak closing each interval (s)
+%   RR_t     - time of the peak closing each interval (s), to a fraction of
+%              a sample (see Method)
 %   peaks    - sample index of the peak closing each interval
 %   signal   - filtered signal, column (ECG or PPG flipped if inverted); use
 %              it with peaks for HEP epoching
@@ -50,14 +51,25 @@
 %   integration (all zero-phase). Candidates exceed ecg_peakthresh x the
 %   98th percentile of the integrated energy (1-90 s); gaps > 1.5x the
 %   median spacing are searched again. Each peak is the extremum of its
-%   segment, refined within +/-15 ms.
-%   PPG: polarity from the skewness of the slope (0.5-8 Hz; the systolic
-%   upstroke is the fast edge), inverted signals flipped; then findpeaks on
+%   segment, refined within +/-15 ms. RR and RR_t use the peak times to a
+%   fraction of a sample (vertex of the parabola through the peak and its two
+%   neighbors); peaks stay sample indices. On the sample grid, RR intervals
+%   were off by 1.65 ms RMS at 250 Hz and 3.2 ms at 128 Hz (64 ds003838
+%   ECGs resampled from 1000 Hz), which biased RMSSD (+0.35 ms at 128 Hz) and
+%   pNN50 (up to 3 points per recording); with the parabola 0.04 and 0.19 ms
+%   (MIT-BIH, from 360 Hz to 180 and 128 Hz: 2.29 -> 0.11, 3.22 -> 0.24 ms;
+%   tests/validate_subsample_rr.m).
+%   PPG: polarity from the quantile skewness of the slope (5th and 95th
+%   percentiles, 0.5-8 Hz; the systolic upstroke is the fast edge; a warning
+%   below 0.2), inverted signals flipped; then findpeaks on
 %   the filtered signal (negated for valleys), with
 %   MinPeakDistance = half the median interval of a first pass, and a
 %   prominence of at least 30% of the local peak-to-peak amplitude. A global
 %   height threshold missed low-amplitude pulses (first 3 s of the sample
-%   PPG: 301 beats vs 306 R-peaks; 306 with the local prominence).
+%   PPG: 301 beats vs 306 R-peaks; 306 with the local prominence). Pulse
+%   times are refined with the same parabola (61 ds003838 PPGs resampled
+%   from 1000 Hz: interval error 1.87 -> 0.90 ms RMS at 250 Hz, 3.30 -> 0.64
+%   ms at 128 Hz; RMSSD bias +0.13 and +0.40 ms -> 0).
 %
 % Notes:
 %   ecg_refperiod is 0.25 s, not 0.35 s: on a slow heart a T-wave detected
@@ -120,6 +132,9 @@ if strcmpi(sig_type, 'ecg')
     % constant keeps a fraction of its offset: the FIR high-pass does not
     % reach zero gain at 0 Hz.)
     ok = isfinite(signal);
+    if ~any(ok)
+        error('get_RR: the ECG holds no finite sample (all NaN or Inf).');
+    end
     dev = prctile(abs(signal(ok) - median(signal(ok))), 95);
     if isempty(dev) || dev <= 1e-5 * abs(median(signal(ok)))
         error('get_RR: ECG amplitude too small - likely a flat line.');
@@ -366,10 +381,11 @@ if strcmpi(sig_type, 'ecg')
 
     fprintf('  P&T energy threshold: %.2f\n', en_thres);
 
-    % RR intervals and HR; drop the first peak so each interval is paired
-    % with the peak that closes it
-    RR      = diff(peaks) / fs;
-    RR_t    = times(peaks);
+    % RR intervals and HR from the sub-sample peak times (peaks stay sample
+    % indices); drop the first peak so each interval is paired with the peak
+    % that closes it
+    RR_t    = subsample_times(signal, peaks, times, fs);
+    RR      = diff(RR_t)';
     HR      = 60 ./ RR;
     RR_t(1)  = [];
     peaks(1) = [];
@@ -388,23 +404,38 @@ elseif strcmpi(sig_type, 'ppg')
     % ------------------------------------------------------------------
 
     % Polarity: in a blood-volume PPG the systolic upstroke is the fast edge,
-    % so the slope (0.5-8 Hz) is skewed toward positive values. Raw device
-    % outputs are often light intensity, inverted (all 14 PPG we have: 6
-    % ds003838 recordings, skewness -0.59 to -2.34; 8 Muse optics channels,
-    % -0.98 to -1.51): they are flipped, so that 'valleys' are the pulse onsets
-    % and 'peaks' the systolic peaks whatever the device. Without the flip,
-    % 'valleys' marked the systolic peak of these recordings (R + 384-424 ms
-    % instead of R + 92-112 ms), and the PPG-locked HEP matched the ECG-locked
-    % one less well (r .52-.86 instead of .68-.92; tests/compare_ppg_transit.m).
+    % so the slope (0.5-8 Hz) has a longer positive than negative tail. Raw
+    % device outputs are often light intensity, inverted (all 70 PPGs of known
+    % polarity we have: 61 ds003838 recordings and the sample dataset, by the
+    % order of pulse foot and systolic peak after the ECG R-peak, and 8 Muse
+    % optics channels): they are flipped, so that 'valleys' are the pulse
+    % onsets and 'peaks' the systolic peaks whatever the device. Without the
+    % flip, 'valleys' marked the systolic peak of these recordings (R + 384-424
+    % ms instead of R + 92-112 ms), and the PPG-locked HEP matched the
+    % ECG-locked one less well (r .52-.86 instead of .68-.92;
+    % tests/compare_ppg_transit.m). The tails are compared at the 5th and 95th
+    % percentiles of the slope (quantile skewness, -1 to 1): right on all 70,
+    % clean and with injected steps, motion (up to 10% of the recording),
+    % dropouts or clipping. The skewness used until 2026-11-10 was decided by
+    % a few large transients: right in 52-67% with the larger artifacts, and
+    % wrong on one clean PPG; the 1st and 99th percentiles in 85-88% with heavy
+    % motion (tests/validate_ppg_polarity.m). Clean PPGs gave |q| >= 0.46,
+    % three with scattered pulses (sub-052, 056, 080) |q| < 0.03: below 0.2,
+    % a warning.
     if isfield(params, 'ppg_polarity') && ~isempty(params.ppg_polarity)
         polarity = sign(params.ppg_polarity);
         fprintf('  PPG polarity: forced %+d (params.ppg_polarity)\n', polarity);
     else
         [bP, aP] = butter(2, [0.5 min(8, 0.45*fs)]/(fs/2));
-        slopeSkew = skewness(diff(filtfilt(bP, aP, signal - mean(signal))));
+        q = quantile(diff(filtfilt(bP, aP, signal - mean(signal))), [0.05 0.5 0.95]);
+        slopeSkew = (q(3) + q(1) - 2*q(2)) / (q(3) - q(1));
         polarity = 1 - 2*(slopeSkew < 0);
-        fprintf('  PPG polarity: skewness of the slope %+.2f (%s)\n', slopeSkew, ...
+        fprintf('  PPG polarity: quantile skewness of the slope %+.2f (%s)\n', slopeSkew, ...
             ternary(polarity > 0, 'blood volume', 'light intensity, inverted'));
+        if ~(abs(slopeSkew) >= 0.2)
+            warning(['get_RR: PPG polarity unclear (quantile skewness of the slope %+.2f; ' ...
+                'clean PPGs beyond +/-0.46): the PPG may hold few pulses. Check it, or set ''ppg_polarity''.'], slopeSkew);
+        end
     end
     if polarity < 0
         signal = -signal;
@@ -464,9 +495,10 @@ elseif strcmpi(sig_type, 'ppg')
             detect_mode, minPeakHeight, minPeakDist, minPeakDist/fs);
     end
 
-    % RR intervals and HR (first peak dropped, as for ECG)
-    RR      = diff(peaks) / fs;
-    RR_t    = times(peaks);
+    % RR intervals and HR from the sub-sample pulse times (first peak
+    % dropped, as for ECG)
+    RR_t    = subsample_times(signal, peaks, times, fs);
+    RR      = diff(RR_t);
     HR      = 60 ./ RR;
     RR_t(1)  = [];
     peaks(1) = [];
@@ -498,4 +530,19 @@ end
 
 function out = ternary(cond, a, b)
 if cond, out = a; else, out = b; end
+end
+
+function t = subsample_times(sig, pk, times, fs)
+% Times (s, column) of the peaks or troughs pk of sig, refined to a
+% fraction of a sample: vertex of the parabola through each extremum and its
+% two neighbors (|shift| <= half a sample; samples at the edges, or that are
+% not a local extremum, keep their sample time)
+pk = pk(:);
+t = times(pk);
+in = pk > 1 & pk < numel(sig);
+y = sig(pk(in) + (-1:1));
+if size(y,1) ~= nnz(in), y = y.'; end      % a single peak gives a row
+d = 0.5 * (y(:,1) - y(:,3)) ./ (y(:,1) - 2*y(:,2) + y(:,3));
+d(~isfinite(d) | abs(d) > 0.5) = 0;
+t(in) = t(in) + d/fs;
 end

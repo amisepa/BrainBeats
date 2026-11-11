@@ -5,7 +5,8 @@
 %
 % Stage 0 (params.clean_eeg_step == 0): filter, re-reference, remove bad channels
 %   - High-pass (params.highpass, default 0.5 Hz for 'hep' to keep the slow HEP
-%     components, 1 Hz otherwise) and low-pass (params.lowpass, default 30 Hz)
+%     components, 1 Hz otherwise) and low-pass (params.lowpass, default 30 Hz
+%     for 'hep', 40 Hz otherwise)
 %     FIR filters (pop_eegfiltnew). Zero-phase by default; minimum-phase
 %     (causal) if params.filttype = 'causal'.
 %   - Re-reference (params.ref: 'average' (default, full-rank CAR via apply_car),
@@ -30,8 +31,8 @@
 %     analysis window (params.hep_window), the latter on the epochs of the
 %     broadband copy (params.hf_source, from RUN_HEP) since the data are
 %     low-passed at 30 Hz. 'features', 'coherence': remove bad
-%     segments with ASR (params.asr_cutoff, default 30 SD; params.asr_mem,
-%     default .85 of available RAM).
+%     segments with ASR (params.asr_cutoff, default 30 SD), processed in
+%     ASR's default chunks: its output depends on the chunk size.
 %   - Interpolate removed channels back to params.orichanlocs (> 10 channels).
 %   - ICA at the effective data rank to avoid ghost ICs (Kim et al. 2023).
 %     'hep': ICA is fitted on a continuous copy of the data (made in stage
@@ -150,11 +151,6 @@ if isfield(params,'asr_cutoff')
     asr_cutoff = params.asr_cutoff;
 else
     asr_cutoff = 30;  % main ASR SD cutoff (lower = more aggressive, higher = more lax; same as the GUI)
-end
-if isfield(params,'asr_mem')
-    asr_mem = params.asr_mem;
-else
-    asr_mem = .85;     % available RAM to use for ASR (.85 = 85% of available RAM)
 end
 
 % ICA parameters
@@ -370,15 +366,12 @@ elseif params.clean_eeg_step == 1
     % ASR on continuous data
     elseif contains(params.analysis, {'features' 'coherence'})
         
-        % Identify artifacts using ASR
+        % Identify artifacts using ASR, in its default chunks (64 MB). Its
+        % output depends on the chunk size: chunks sized from the free RAM
+        % (up to v1.6) changed the result between runs (sample data: 2063 to
+        % 2596 samples modified for 256 MB to 20 GB) without being faster.
         oriEEG = EEG;
-        try
-            m = memory; maxmem = round(asr_mem*(m.MemAvailableAllArrays/1000000),1);  % asr_mem fraction of available memory (in MB); memory() is Windows-only
-            cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,maxmem);
-        catch
-            warning("Failed to use high RAM to run ASR faster. Defaulting back to default values (ASR will just be slower).")
-            cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,[]);
-        end
+        cleanEEG = clean_asr(EEG,asr_cutoff,[],[],[],[],[],[],usegpu,false,[]);
         
         % Samples modified by ASR = artifacts; convert to [start end] intervals
         mask = sum(abs(EEG.data-cleanEEG.data),1) > 1e-10;

@@ -30,7 +30,7 @@ function [X, Y] = current_source_density(Data, G, H, lambda, head)
 %      Y = spherical spline surface potential (SP) interpolation electrodes-
 %          by-samples matrix (only if requested)
 %
-% Copyright (C) 2003 by Jürgen Kayser (Email: kayserj@pi.cpmc.columbia.edu)
+% Copyright (C) 2003 by Jurgen Kayser (Email: kayserj@pi.cpmc.columbia.edu)
 % GNU General Public License (http://www.gnu.org/licenses/gpl.txt)
 % Updated: $Date: 2005/02/11 14:00:00 $ $Author: jk $
 %        - code compression and comments 

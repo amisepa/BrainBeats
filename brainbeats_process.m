@@ -30,6 +30,11 @@
 %   'vis_outputs'    - plot the outputs (default true)
 %   'save'           - save the output dataset next to the input file, and the
 %                      features in a .mat file (default true)
+%   'parpool'        - parallel computing for the EEG features and GEDAI
+%                      (default false)
+%   'gpu'            - GPU computing for the EEG features and cleaning
+%                      (default false)
+%   'gong'           - play a sound when done (default true)
 %   Sampling rate: at most 1024 Hz, 512 Hz recommended (higher rates only cost
 %   memory and time). Above 1024 Hz the command line stops with an error
 %   (EEG = pop_resample(EEG, 512) first); above 512 Hz it warns. The GUI asks.
@@ -42,16 +47,19 @@
 %                      with a prominence relative to the local pulse amplitude,
 %                      and their quality is scored on the filtered PPG (bad =
 %                      beats of unacceptable quality, Li & Clifford, 2012).
-%   'ecg_peakthresh', 'ecg_refperiod', 'ecg_bandpass', 'ecg_polarity',
-%   'ecg_adaptive_pol', 'ppg_bandpass', 'ppg_height_method', 'ppg_polarity'
-%                     - see GET_RR
+%   'ecg_peakthresh', 'ecg_refperiod', 'ecg_searchback', 'ecg_bandpass',
+%   'ecg_polarity', 'ecg_adaptive_pol', 'ppg_bandpass', 'ppg_height_method',
+%   'ppg_polarity'   - see GET_RR
 %   'keep_heart'     - keep the heart channel in the output (default false)
 %   RR artifacts are corrected by CLEAN_RR (implausible beats removed, missing
 %   beats inserted in gaps, ectopic beats replaced).
 %   'ectopic_rule'   - 'adaptive' (default: Lipponen & Tarvainen, 2019,
 %                      thresholds scaled to the recording's beat-to-beat
-%                      variability), 'ratio' (fixed 20% rule of v1.6) or 'none' For ECG, RPEAK_QA reports beats detected on the
-%   wrong wave (e.g. T-wave).
+%                      variability), 'ratio' (fixed 20% rule of v1.6) or 'none'.
+%                      A warning flags heart rhythms the cleaning cannot fix:
+%                      frequent ectopic beats or atrial fibrillation
+%                      (RR_ALTERNATION above 10%).
+%   For ECG, RPEAK_QA reports beats detected on the wrong wave (e.g. T-wave).
 %
 % HEP options ('hep'):
 %   'hep_window'       - epoch window [start end] in ms (default [-300 600]), or
@@ -68,8 +76,6 @@
 %                        ESTIMATE_PAT_EEG: check its figure; on 6 test subjects
 %                        it was right on 3, wrong on 1 and not clear enough on
 %                        2), the label of an ECG channel, or 'off'.
-%                        Or: the label of an ECG channel, 'eeg', a delay in ms,
-%                        or 'off'.
 %   'hep_baseline_win' - window in ms of each heartbeat's exported baseline
 %                        voltage (default [-150 -50], which ends before the QRS
 %                        onset). The HEP is not baseline-corrected (Steinfath et
@@ -135,10 +141,10 @@
 %   low-passed at 'ica_lowpass' Hz, default 0 = none, line noise notched;
 %   ICLabel runs on it), 'ica_epochs' (true: epoch that copy like the HEP
 %   data), 'ica_srate' (resample it),
-%   'flatline', 'corrThresh', 'maxBad', 'asr_cutoff', 'asr_mem', 'detectMethod'
-%   (bad epochs: 'grubbs' default, 'median', 'mean'), 'icamethod' (1 = Picard,
-%   fast; 2 = Infomax, default; 3 = Infomax with lrate 1e-5, slow but replicable).
-%   See CLEAN_EEG.
+%   'flatline', 'corrThresh', 'maxBad', 'asr_cutoff', 'detectMethod'
+%   (bad epochs: 'grubbs' default, 'median', 'mean'), 'icamethod' or
+%   'ica_method' (1 = Picard, fast; 2 = Infomax, default; 3 = Infomax with
+%   lrate 1e-5, slow but replicable). See CLEAN_EEG.
 %
 % Features options ('features'):
 %   'hrv_features'   - any of {'time' 'frequency' 'nonlinear'} (default all), or 'off'
@@ -147,9 +153,12 @@
 %   'eeg'            - 'off' to turn off all EEG operations
 %   'eeg_features'   - any of {'time' 'frequency' 'nonlinear'} (default all), or 'off'
 %   'eeg_frange', 'eeg_wintype', 'eeg_winlen', 'eeg_winoverlap', 'eeg_norm',
-%   'asy_norm'       - see GET_EEG_FEATURES
-%   'parpool'        - use parallel computing (default false)
-%   'gpu'            - use GPU computing (default false)
+%   'eeg_freqbounds' ('conventional' default, or 'individualized': alpha set
+%   from the individual alpha peak), 'asy_norm' - see GET_EEG_FEATURES
+%   Nonlinear HRV and EEG features: fuzzy entropy and fractal dimension come
+%   from the ASCENT plugin (2.1 or later, installed if missing; NaN without
+%   it). Fuzzy entropy is higher than with BrainBeats 1.6 and earlier (see
+%   BB_FUZZY_FRACTAL): do not pool it with older results.
 %
 % Heart components:
 %   'heart_removal'  - ('hep' with 'clean_eeg') 'none' (default and
@@ -273,7 +282,7 @@ if any(idx)
     auxChan = strjoin({EEG.chanlocs(idx).labels});
     opts.Interpreter = 'tex';
     opts.Default = 'Yes';
-    quest = sprintf("The following channels may not be EEG or ECG/PPG and may cause serious innacuracies: \n\n %s \n\n They are about to be removed, please confirm", auxChan);
+    quest = sprintf("The following channels may not be EEG or ECG/PPG and may cause serious inaccuracies: \n\n %s \n\n They are about to be removed, please confirm", auxChan);
     if exist('batchStartupOptionUsed') > 0 && batchStartupOptionUsed %#ok<EXIST>
         answer = 'Yes';   % no one to answer a dialog under 'matlab -batch'
         fprintf('Removing channels that may not be EEG or ECG/PPG: %s\n', auxChan);
@@ -468,10 +477,14 @@ if ~strcmpi(params.heart_signal,'off')
         altRatio = 100 * rr_alternation(NN);
         EEG.brainbeats.preprocessings.rr_alternation = altRatio;
         if altRatio > 10
+            if strcmp(params.analysis,'hep')
+                what = 'HEP epochs include ectopic beats';
+            else
+                what = 'HRV measures are unreliable';
+            end
             msg = sprintf(['%.1f%% of the heartbeats alternate between short and long intervals after RR cleaning: ' ...
                 'frequent ectopic beats, or an arrhythmia such as atrial fibrillation. RR cleaning corrects only ' ...
-                'occasional ectopic beats, so HRV measures are unreliable, and HEP epochs include ectopic beats. ' ...
-                'Check the RR series (vis_cleaning).'], altRatio);
+                'occasional ectopic beats, so %s. Check the RR series (vis_cleaning).'], altRatio, what);
             warning('BrainBeats:irregularRR', '%s', msg)
             bb_warndlg(msg, 'Irregular heart rhythm')
         end
@@ -511,7 +524,10 @@ if ~strcmpi(params.heart_signal,'off')
         EEG.brainbeats.preprocessings.NN_times = NN_t;
 
         % HEP is time-locked to the beats clean_rr kept (not the ones it
-        % removed, nor the synthetic ones it inserted in gaps)
+        % removed, nor the synthetic ones it inserted in gaps); all detected
+        % beats are kept for RUN_HEP's next-QRS rule (a removed premature
+        % beat still has its QRS)
+        params.detected_beats = Rpeaks;
         Rpeaks = Npeaks(~idx_interp);
 
         % PPG: shift the pulse beats back to the heartbeats by the pulse
@@ -578,6 +594,8 @@ if ~strcmpi(params.heart_signal,'off')
             if ~isnan(pat)
                 Rpeaks = Rpeaks - round(pat/1000*EEG.srate);
                 Rpeaks(Rpeaks < 1) = [];
+                params.detected_beats = params.detected_beats - round(pat/1000*EEG.srate);
+                params.detected_beats(params.detected_beats < 1) = [];
                 EEG.brainbeats.preprocessings.ppg_transit = patInfo;
                 fprintf('PPG beats shifted by -%.0f ms to estimate the heartbeat times for HEP (%s). \n', pat, patInfo.method)
             end
@@ -694,12 +712,14 @@ elseif strcmpi(params.analysis,'coherence')
     end
 
     % Coherence is computed with the NN series (not the raw ECG/PPG), which
-    % is unevenly sampled: interpolate it at the EEG sampling rate
-    [NN_resamp, t_resamp] = resample_NN(NN_t,NN,EEG.srate,'cub');
-    t_resamp = t_resamp*1000; % ms
+    % is unevenly sampled: keep the EEG samples within the time range of the
+    % NN series and interpolate it (cubic spline) at those samples, so both
+    % share one time grid (beat times fall between samples since 2026-11-09)
+    idx = EEG.times/1000 >= NN_t(1) & EEG.times/1000 <= NN_t(end);
+    t_resamp = EEG.times(idx);   % ms
     CARDIO = eeg_emptyset();
     CARDIO.chanlocs.labels = 'HRV';
-    CARDIO.data = NN_resamp;
+    CARDIO.data = interp1(NN_t(:), NN(:), t_resamp(:)/1000, 'spline')';
     CARDIO.times = t_resamp;
     CARDIO.srate = EEG.srate;
     CARDIO.pnts = size(CARDIO.data,2);
@@ -712,8 +732,7 @@ elseif strcmpi(params.analysis,'coherence')
     end
 
     % Keep the time range covered by the NN series
-    idx = EEG.times >= t_resamp(1) & EEG.times <= t_resamp(end);
-    EEG.times = EEG.times(idx);
+    EEG.times = t_resamp;
     EEG.data = EEG.data(:,idx);
     EEG.pnts = size(EEG.data,2);
     EEG.xmax = EEG.times(end)/1000;
@@ -769,7 +788,9 @@ elseif strcmpi(params.analysis,'coherence')
 
 end
 
-% Store parameters in EEG structure for reporting
+% Store parameters in EEG structure for reporting (without the beats passed
+% to RUN_HEP)
+if isfield(params,'detected_beats'), params = rmfield(params,'detected_beats'); end
 EEG.brainbeats.parameters = params;
 
 % Store, save and plot features
@@ -810,6 +831,8 @@ if params.clean_eeg
     if strcmp(params.analysis,'hep')
         cleanOpts = [cleanOpts argstr(params, {'conf_thresh' 'ecg_corr' 'ssp_n' 'ica_asr' 'ica_lowpass' 'ica_epochs' 'ica_srate'})];
     end
+elseif strcmp(params.analysis,'hep') && isfield(params,'hep_level') && any(strcmp(params.hep_level, {'ics' 'both'}))
+    cleanOpts = [cleanOpts argstr(params, {'highpass' 'filttype'})];   % the ICA of the IC measures uses them
 end
 switch params.analysis
     case 'hep'

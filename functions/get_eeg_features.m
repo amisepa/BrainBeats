@@ -43,10 +43,13 @@
 %                 alpha/theta, theta/beta, alpha/beta, alpha/(theta+beta),
 %                 paf (peak alpha frequency: maximum of the PSD at 7-13 Hz),
 %                 median and 90% spectral edge frequency (Hz)
-%     nonlinear - FD (fractal dimension), FE (fuzzy entropy, m=2, r=0.15, n=2,
-%                 tau=1), computed on data resampled to ~90 Hz when fs > 100 Hz
+%     nonlinear - FD (box-counting fractal dimension), FE (fuzzy entropy, m=2,
+%                 r=0.15, n=2, tau=1), from the ASCENT plugin (see
+%                 BB_FUZZY_FRACTAL; NaN without it), computed on data
+%                 resampled to ~90 Hz when fs > 100 Hz
 %   params       - input params plus the defaults used (eeg_frange, eeg_wintype,
-%                  eeg_winlen, eeg_winoverlap, eeg_freqbounds, eeg_norm, asy_norm)
+%                  eeg_winlen, eeg_winoverlap, eeg_freqbounds, eeg_norm, asy_norm,
+%                  ascent_version)
 %
 % Copyright (C) - Cedric Cannard, 2023
 
@@ -159,7 +162,7 @@ if params.eeg_frequency
 
     % Frequency vector, computed once outside the parfor loop so that all
     % iterations (and workers) share the same one
-    [~, ~, f] = compute_psd(signals(1,:),fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
+    [~, ~, f] = bb_compute_psd(signals(1,:),fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
     f = gather(f);
 
     % Band limits (Hz), rows: delta, theta, alpha, beta, gamma; each band is
@@ -174,7 +177,7 @@ if params.eeg_frequency
     % delta, theta, beta and gamma bands of resting-state spectra.
     if strcmp(freqbounds,'individualized')
         disp('Estimating individualized alpha band bounds...')
-        pwr_all = gather(compute_psd(signals,fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu));
+        pwr_all = gather(bb_compute_psd(signals,fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu));
         alphaBounds = nan(nChan,2);
         for iChan = 1:nChan
             try
@@ -222,7 +225,7 @@ if params.eeg_frequency
         end
 
         % Compute PSD using pwelch
-        [pwr, pwr_dB, ~] = compute_psd(sig,fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
+        [pwr, pwr_dB, ~] = bb_compute_psd(sig,fs*winlen,wintype,overlap,[],fs,fRange,'psd',usegpu);
 
         % Band masks (limits set above)
         idxD = band_mask(f, bands, 1);
@@ -292,12 +295,15 @@ if params.eeg_frequency
         
         % Median frequency (MF), the frequency that splits the power 
         % spectrum into two equal halves.
-        % Spectral edge frequency 90 (SEF90), the frequency below which 90% 
+        % Spectral edge frequency 90 (SEF90), the frequency below which 90%
         % of the total spectral power is contained.
-        cs = cumsum(pwr) * df;   % df = mean(diff(f)) defined before the parfor
+        % Cumulative power at the upper edge of each bin (at the bin centers,
+        % both were half a bin low: -0.24 Hz with 2-s windows, white noise)
+        cs = [0 cumsum(pwr(:)')] * df;   % df = mean(diff(f)) defined before the parfor
+        edges = [f(1)-df/2; f(:)+df/2];
         if cs(end) > 0
-            MF_Hz(iChan)    = interp1(cs, f, 0.5*cs(end), 'linear', 'extrap');
-            SEF90_Hz(iChan) = interp1(cs, f, 0.9*cs(end), 'linear', 'extrap');
+            MF_Hz(iChan)    = interp1(cs, edges, 0.5*cs(end), 'linear', 'extrap');
+            SEF90_Hz(iChan) = interp1(cs, edges, 0.9*cs(end), 'linear', 'extrap');
         else
             MF_Hz(iChan) = NaN;
             SEF90_Hz(iChan) = NaN;
@@ -376,16 +382,12 @@ if params.eeg_frequency
     end
 end
 
-%% Entropy
+%% Nonlinear domain: fuzzy entropy and fractal dimension (ASCENT plugin)
 
 if params.eeg_nonlinear
 
-    % Initiate progressbar (only when not in parpool)
     disp('Computing EEG features in the nonlinear-domain (this may take a while)...')
-    if ~useparpool
-        progressbar('Computing nonlinear features on all EEG channels')
-    end
-    
+
     % Resample to ~90 Hz when fs > 100 Hz, to limit memory use and computation
     % time of the entropy measures. Done regardless of the recording length
     % so that entropy values are always computed at the same sample rate
@@ -401,27 +403,10 @@ if params.eeg_nonlinear
         end
         signals = signals_res;
     end
-    
-    parfor (iChan = 1:nChan, maxWorkers)
 
-        if usegpu
-            sig = gpuArray(signals(iChan,:));
-        else
-            sig = signals(iChan,:);
-        end
-
-        fprintf(' channel %g... \n', iChan);
-
-        % Fractal dimension (box counting)
-        fd(iChan,:) = fractal_volatility(sig);
-
-        % Fuzzy entropy
-        fe(iChan,:) = compute_fe(sig, m, r, n, tau);
-
-        if ~useparpool
-            progressbar(iChan / nChan);
-        end
-    end
+    % All channels in one call per measure (parfor over the channels with
+    % 'parpool'; on the CPU even with 'gpu')
+    [fe, fd, params.ascent_version] = bb_fuzzy_fractal(signals, m, r, n, tau, useparpool);
 
     % Outputs
     eeg_features.nonlinear.FD = fd;     % fractal dimension

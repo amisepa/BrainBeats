@@ -196,8 +196,8 @@ if params.heart
                 error("'hep_window' must be [start end] in ms or 'adaptive'.")
             end
             params.hep_window = 'adaptive';
-        elseif ~isnumeric(params.hep_window) || numel(params.hep_window) ~= 2 || params.hep_window(1) >= 0
-            error("'hep_window' must be [start end] in ms (start < 0) or 'adaptive'.")
+        elseif ~isnumeric(params.hep_window) || numel(params.hep_window) ~= 2 || params.hep_window(1) >= 0 || params.hep_window(2) <= 0
+            error("'hep_window' must be [start end] in ms (start < 0 < end) or 'adaptive'.")
         end
     end
 
@@ -206,14 +206,14 @@ if params.heart
     idx = find(strcmpi(keys,'hep_tf_freqs'));
     if ~isempty(idx)
         params.hep_tf_freqs = varargin{idx+1};
-        if ~isnumeric(params.hep_tf_freqs) || numel(params.hep_tf_freqs) ~= 2 || params.hep_tf_freqs(1) < 1
+        if ~isnumeric(params.hep_tf_freqs) || numel(params.hep_tf_freqs) ~= 2 || params.hep_tf_freqs(1) < 1 || params.hep_tf_freqs(2) <= params.hep_tf_freqs(1)
             error("'hep_tf_freqs' must be [low high] in Hz (e.g. [4 30]).")
         end
     end
     idx = find(strcmpi(keys,'hep_surrogates'));
     if ~isempty(idx)
         params.hep_surrogates = varargin{idx+1};
-        if ~isscalar(params.hep_surrogates) || params.hep_surrogates < 0
+        if ~isscalar(params.hep_surrogates) || params.hep_surrogates < 0 || params.hep_surrogates ~= round(params.hep_surrogates)
             error("'hep_surrogates' must be the number of surrogates (e.g. 100), or 0 for none.")
         end
     end
@@ -265,8 +265,8 @@ if params.heart
 
     % PPG pulse arrival time, to shift PPG beats back to the heartbeats for
     % HEP: 'auto' (default: from an ECG channel of the file if there is one,
-    % else from the EEG cardiac field artifact, else a literature value), the
-    % label of an ECG channel, 'eeg', a delay in ms, or 'off'
+    % else an error that suggests the estimate from the EEG cardiac field
+    % artifact), the label of an ECG channel, 'eeg', a delay in ms, or 'off'
     idx = find(strcmpi(keys,'ppg_transit'));
     if ~isempty(idx)
         params.ppg_transit = varargin{idx+1};
@@ -391,9 +391,8 @@ if params.eeg
     if ~isempty(idx)
         params.asr_cutoff = varargin{idx+1};
     end
-    idx = find(strcmpi(keys,'asr_mem'));
-    if ~isempty(idx)
-        params.asr_mem = varargin{idx+1};
+    if any(strcmpi(keys,'asr_mem'))
+        warning("'asr_mem' is ignored since v1.7: ASR runs in its default chunks, as its output depends on the chunk size.")
     end
     idx = find(strcmpi(keys,'ref'));
     if ~isempty(idx)
@@ -471,7 +470,8 @@ if params.eeg
     end
     % HEP options have no effect on the other analyses
     if ~strcmp(params.analysis,'hep')
-        ignored = given(startsWith(lower(given), {'ica_' 'hep_'}) | ismember(lower(given), {'keep_heart' 'ppg_transit'}));
+        ignored = given(startsWith(lower(given), {'ica_' 'hep_'}) & ~strcmpi(given, 'ica_method') | ...
+            ismember(lower(given), {'keep_heart' 'ppg_transit'}));   % 'ica_method': alias of 'icamethod', used by any cleaning
         if ~isempty(ignored)
             warning("Input(s) ignored for '%s' (HEP only): %s.", params.analysis, strjoin(ignored, ', '))
         end

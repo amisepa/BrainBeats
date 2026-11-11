@@ -15,6 +15,8 @@
 %   fig2_ibi_timeseries.png - IBI time series, A and B
 %   fig3_hep_waveforms.png  - HEP per channel, A and B, with early
 %                             (200-350 ms) and late (400-600 ms) windows
+%
+% Copyright (C) - Cedric Cannard, 2026
 
 clear; close all;
 

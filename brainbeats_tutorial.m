@@ -17,7 +17,7 @@
 %   eeglab > plugins.
 %
 % Sample dataset used for the tutorial:
-% Raw 64-channel EEG, ECG, and PPG data during 3.8 minutes of resting state
+% Raw 63-channel EEG, ECG, and PPG data during 3.8 minutes of resting state
 % with eyes open. This file corresponds to sub-032_task-rest_eeg.set and
 % sub-032_task-rest_ecg.set merged, downsampled to 250 Hz to speed up
 % processing.
@@ -31,7 +31,7 @@
 % Note: we artificially modified channel 10 (TP9) so that it is detected as
 % a bad channel, since there were no bad channels in this dataset. We also
 % added electrode artifacts at the beginning of the file and some muscle
-% artifacts at 3-6 s on temporal channels, to illustrate artifact removal.
+% artifacts at 10-13 s on temporal channels, to illustrate artifact removal.
 % The script used to prepare this file is "tests" > "prep_sampledata.m".
 %
 % You can run each section one by one by clicking in the section and
@@ -70,10 +70,12 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'clean_eeg' set to true to preprocess the EEG data with default
 %       parameters (0.5-30 Hz filter, average reference, bad channels, bad
 %       epochs, ICA + ICLabel; the ICA is fitted on a 1-Hz high-passed copy)
-%   - 'ica_method' set to 1 (Picard, fast) instead of 2 (Infomax, default)
-%   - 'hep_surrogates' set to 100 to test the heartbeat locking of the HEP,
-%       HRSP and HRPC against 100 surrogate heartbeat trains (beats at
-%       random cardiac phases)
+%   - 'icamethod' set to 1 (Picard, fast) instead of 2 (Infomax, default)
+%   - 'hep_surrogates' set to 100 to test the heartbeat locking of the HRSP
+%       and HRPC against 100 surrogate heartbeat trains, and of the HEP
+%       against at least 1000 (beats at random cardiac phases); significant
+%       points are family-wise corrected over channels and latencies with
+%       the max statistic ('hep_surr_stat','tmax', default)
 %   - 'keep_heart' set to true to keep the heart channel in the output
 % Epochs span -300 to 600 ms around the R-peaks by default ('hep_window'),
 % and heartbeats followed by the next one within 650 ms are rejected so no
@@ -93,7 +95,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % to remove it. This is expected: it does not process ECG and PPG at the
 % same time.
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1, ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1, ...
     'hep_surrogates',100,'keep_heart',true);
 
 %% Same, on the independent components (ICs) too
@@ -105,7 +107,7 @@ EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
 EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample_data'));
 EEG = pop_select(EEG,'nochannel',{'PPG'});
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','ECG', ...
-    'heart_channels',{'ECG'},'clean_eeg',true,'ica_method',1, ...
+    'heart_channels',{'ECG'},'clean_eeg',true,'icamethod',1, ...
     'hep_level','both','hep_surrogates',100);
 
 %% Same as above but using the PPG signal and adjusting some parameters
@@ -123,7 +125,8 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %       of common average (default) or 'csd' for current source density
 %       transformation (surface Laplacian)
 %   - 'highpass' set to 1 to remove EEG frequencies < 1 Hz (default 0.5)
-%   - 'lowpass' set to 20 to remove EEG frequencies > 20 Hz
+%   - 'lowpass' set to 20 to remove EEG frequencies > 20 Hz, so the HRSP
+%       and HRPC are limited to 4-20 Hz ('hep_tf_freqs', default [4 30])
 %   - 'filttype' set to 'causal' to use a causal minimum-phase FIR filter
 %       instead of the default noncausal zero-phase FIR filter (useful when
 %       examining the pre-heartbeat period)
@@ -143,7 +146,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 % right on 3, wrong on 1, and not clear enough on 2).
 EEG = brainbeats_process(EEG,'analysis','hep','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
-    'ref','infinity','highpass',1,'lowpass',20,'filttype','causal', ...
+    'ref','infinity','highpass',1,'lowpass',20,'hep_tf_freqs',[4 20],'filttype','causal', ...
     'detectMethod','median','icamethod',1, ...
     'save',false,'vis_cleaning',true,'vis_outputs',true);
 
@@ -156,6 +159,9 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 %   - 'analysis' set to 'features' to extract EEG and HRV features
 %   - 'clean_eeg' set to true and 'linenoise' to 50 (Hz)
 %   - 'parpool' set to true to speed up the EEG features with parallel computing
+% Fuzzy entropy and fractal dimension (nonlinear features) come from the
+% ASCENT plugin, installed if missing. Fuzzy entropy is higher than with
+% BrainBeats 1.6 and earlier: do not pool it with older results.
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','ECG', ...
     'heart_channels',{'ECG'},'clean_eeg',true,'linenoise',50,'parpool',true);
 
@@ -226,7 +232,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 EEG = pop_select(EEG,'nochannel',{'PPG' 'ECG'});  % remove heart channels
 EEG = brainbeats_process(EEG,'analysis','features','heart_signal','off', ...
     'eeg_features',{'time' 'frequency','nonlinear'},'clean_eeg',1,'linenoise',50, ...
-    'ref','infinity','ica_method',1,'parpool',1,'vis_cleaning',1,'vis_outputs',1,'save',1);
+    'ref','infinity','icamethod',1,'parpool',1,'vis_cleaning',1,'vis_outputs',1,'save',1);
 
 % Preprocessing outputs can be found in:
 EEG.brainbeats.preprocessings
@@ -251,7 +257,7 @@ EEG = pop_loadset('filename','dataset.set','filepath',fullfile(main_path,'sample
 EEG = pop_select(EEG,'nochannel',{'ECG'});  % remove ECG channel to avoid warning
 EEG = brainbeats_process(EEG,'analysis','coherence','heart_signal','PPG', ...
     'heart_channels',{'PPG'},'clean_eeg',true,'linenoise',50, ...
-    'ref','infinity','ica_method',1,'parpool',false,'vis_outputs',true);
+    'ref','infinity','icamethod',1,'parpool',false,'vis_outputs',true);
 
 
 %% To launch the BrainBeats window via command line (or EEGLAB menu 'BrainBeats')

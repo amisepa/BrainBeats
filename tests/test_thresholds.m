@@ -6,6 +6,8 @@ function test_thresholds
 %   2. GET_RR flatline check: a synthetic ECG passes with an offset and in
 %      volts; a constant (with an offset) and zeros are refused.
 %   3. GET_SQI_PPG: the same beat classes for a synthetic PPG in any unit.
+%
+% Copyright (C) - Cedric Cannard, 2026
 
 addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))),'functions'));
 rng(1);

@@ -64,14 +64,15 @@ function [S, T] = validate_ectopic_mitbih(dbPath, records, variants)
 %   adaptive 407.9, ratio 276.4.
 % Detected beats (GET_RR): normal sinus 99.7% detected, V 91.3%, a 52%;
 %   337 false detections (153 in 207, 86 in 108); ectopic-step false
-%   positives 0.30 (ratio) and 0.74 (adaptive) per 1000 sinus beats.
+%   positives 0.29 (ratio) and 0.75 (adaptive) per 1000 sinus beats (0.30
+%   and 0.74 before the sub-sample beat times of 2026-11-09).
 % RR_ALTERNATION after 'adaptive' on the detected beats: above 10% (the
 %   warning of BRAINBEATS_PROCESS) on 14 records: all 7 with atrial
 %   fibrillation or flutter (201 202 203 210 219 221 222; 11-30%) and 7 of
 %   the 10 others with over 15% abnormal beats (106 119 200 208 223 228 233;
-%   15-44%); not on 207 (ventricular flutter, false detections; 4.5%), 213
+%   15-44%); not on 207 (ventricular flutter, false detections; 4.4%), 213
 %   (fusion beats; RMSSD error 6 ms) and 232 (atrial premature beats with
-%   long pauses; 0.5%). At most 4.3% on the other 27 records (108, noisy).
+%   long pauses; 0.5%). At most 4.2% on the other 27 records (108, noisy).
 %
 % Reference:
 %   Moody, G. B., & Mark, R. G. (2001). The impact of the MIT-BIH Arrhythmia

@@ -5,6 +5,8 @@ function test_clean_rr_ectopic
 % (default since v1.7) and the 'ratio' rule. No EEGLAB needed.
 %
 % Both rules on real recordings: tests/compare_ectopic_rules.m.
+%
+% Copyright (C) - Cedric Cannard, 2026
 
 addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))),'functions'));
 rng(1); fs = 250;

@@ -8,9 +8,9 @@
 % EEG channels over the first 150 samples, and 3 s of white noise (SD 100)
 % on temporal channels starting at 10 s to mimic muscle artifacts.
 %
-% Kept as a record of how the sample data were made: the hardcoded input
-% and output paths are those of the machine that ran it (output saved as
-% dataset-new.set; the repository copy is sample_data/dataset.set).
+% Kept as a record of how the sample data were made: set datapath to the
+% folder with the ds003838 files of sub-032 (output saved as
+% sample_data/dataset-new.set; the repository copy is sample_data/dataset.set).
 % Note: the repository copy is at 250 Hz, not the 125 Hz of this script, so
 % it was made with pop_resample(EEG,250); this script as written does not
 % reproduce it.
@@ -18,7 +18,9 @@
 % Copyright (C) - Cedric Cannard, 2023
 
 clear; close all; clc
-datapath = 'C:\Users\Tracy\Downloads';
+datapath = '';   % folder with sub-032_task-rest_eeg.set and sub-032_task-rest_ecg.set (ds003838)
+if isempty(datapath), error('Set datapath to the folder with the ds003838 files of sub-032.'); end
+outpath = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'sample_data');
 eeglab;close
 locPath = fileparts(which('dipfitdefs.m'));
 cd(datapath)
@@ -77,7 +79,7 @@ t = 0:1/EEG.srate:duration-1/EEG.srate;
 artifact = 100 .* randn(length(channels), length(t));
 EEG.data(channels, startTime:(startTime+length(t)-1)) = EEG.data(channels, startTime:(startTime+length(t)-1)) + artifact;
 
-pop_saveset(EEG, 'filename','dataset-new.set','filepath','C:\Users\Tracy\Documents\MATLAB\BrainBeats\sample_data\');
+pop_saveset(EEG, 'filename','dataset-new.set','filepath',outpath);
 
 % Remove DC offset and plot for visual inspection (not saved)
 EEG.data = EEG.data - mean(EEG.data,2);

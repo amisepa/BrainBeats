@@ -99,7 +99,9 @@
 %           .exclude    [start end] sample spans of data rejected by the
 %                       cleaning (e.g. the windows of the bad epochs): no
 %                       surrogate window (with its wavelet support) overlaps
-%                       them
+%                       them, and the HRSP and HRPC leave out the heartbeats
+%                       whose wavelet support reaches them, so that observed
+%                       and surrogate windows see the same data
 %           .seed       random seed for the surrogate shifts (default 1)
 %           .hep_times  time points of the HEP epochs in ms (default: every
 %                       sample of win), e.g. HEP.times
@@ -115,9 +117,10 @@
 %   tf   - struct: times (ms), freqs (Hz), power, hrsp, power_induced,
 %          hrsp_induced, hrpc (channels x freqs x times), hep (channels x
 %          times, the average of the same beats), nBeats, beats (the sample
-%          indices used), cycles; with opts.prestim, prestim: win, names,
-%          bands, power (channels x bands x beats, uV^2; NaN for a band with
-%          no frequency computed)
+%          indices used), tf_beats (true for the beats in the HRSP and HRPC),
+%          cycles; with opts.prestim, prestim: win, names, bands, power
+%          (channels x bands x beats, uV^2; NaN for a band with no frequency
+%          computed, and for the beats left out of the HRSP and HRPC)
 %   surr - struct (empty without surrogates): nSurr, nSurrHep, and for hep,
 %          hrsp, hrsp_induced, hrpc: z, p, p_fdr, p_emp (see above), null_mean, null_sd,
 %          null_lo/null_hi (2.5th and 97.5th percentiles of the surrogates);
@@ -188,6 +191,27 @@ if nB < 10
     error('compute_hep_tf: fewer than 10 heartbeats.')
 end
 
+% Data rejected by the cleaning or outside the epochs ('exclude'): no
+% surrogate window reaches them with its wavelet support, nor, for the HRSP
+% and HRPC, any heartbeat's (whose support extends past the epoch, where no
+% cleaning step looked), so that observed and surrogate windows see the
+% same data
+excl = getdef(opts, 'exclude', zeros(0,2));
+lims = [hepIdx(1) hepIdx(end)] + [-half half];
+inExcl = @(b) any(b(:) + lims(1) <= excl(:,2)' & b(:) + lims(2) >= excl(:,1)', 2);
+tfUse = true(nB, 1);
+if doTF && ~isempty(excl)
+    tfUse = ~inExcl(beats);
+    if ~all(tfUse)
+        fprintf(['compute_hep_tf: %g/%g heartbeats whose wavelet support reaches data rejected by the cleaning ' ...
+            'or outside the epochs are left out of the HRSP and HRPC. \n'], sum(~tfUse), nB);
+    end
+    if sum(tfUse) < 10
+        error('compute_hep_tf: fewer than 10 heartbeats for the HRSP and HRPC.')
+    end
+end
+nTF = sum(tfUse);
+
 % Surrogate heartbeat trains (the same for all channels): nSurrHep trains,
 % the first nSurr are used for HRSP and HRPC too (the same trains as with
 % nSurr alone). One beat at a random position in each inter-beat interval
@@ -201,13 +225,11 @@ if nSurr > 0
     allB = sort(round(getdef(opts, 'allBeats', beats)));
     allB = allB(:);
     ibi = diff(allB);
-    excl = getdef(opts, 'exclude', zeros(0,2));
-    lims = [hepIdx(1) hepIdx(end)] + [-half half];
     for s = 1:nSurrHep
         b = zeros(0,1);
         for r = 1:5
             c = allB(1:end-1) + floor(rand(rs, numel(ibi), 1) .* ibi);
-            b = [b; c(okBeat(c) & ~any(c + lims(1) <= excl(:,2)' & c + lims(2) >= excl(:,1)', 2))]; %#ok<AGROW>
+            b = [b; c(okBeat(c) & ~inExcl(c))]; %#ok<AGROW>
             if numel(b) >= nB, break, end
         end
         if numel(b) > nB
@@ -215,6 +237,14 @@ if nSurr > 0
         end
         b = sort(b);
         surrBeats{s} = b;
+    end
+    nPer = cellfun(@numel, surrBeats);
+    if any(nPer == 0)
+        error('compute_hep_tf: no valid position for the surrogate beats (edges, discontinuities, rejected data).')
+    elseif min(nPer) < nB
+        warning('BrainBeats:surrogates', ['%d of %d surrogate trains have fewer beats than the HEP (fewest: %d of ' ...
+            '%d): few positions avoid the edges, discontinuities and rejected data, so the surrogate band is wider.'], ...
+            sum(nPer < nB), nSurrHep, min(nPer), nB)
     end
 end
 
@@ -236,9 +266,18 @@ if nSurr > 0
         surr.hep.null = nullHep;        % channels x times x surrogates
     end
     clear nullHep
+    % HRSP and HRPC: as many surrogate beats as heartbeats used
+    if doTF && nTF < nB
+        for s = 1:nSurr
+            b = surrBeats{s};
+            if numel(b) > nTF
+                surrBeats{s} = sort(b(randperm(rs, numel(b), nTF)));
+            end
+        end
+    end
 end
 
-tf.times = times; tf.freqs = freqs; tf.cycles = cycles; tf.nBeats = nB; tf.beats = beats;
+tf.times = times; tf.freqs = freqs; tf.cycles = cycles; tf.nBeats = nB; tf.beats = beats; tf.tf_beats = tfUse;
 if ~doTF
     return
 end
@@ -293,7 +332,7 @@ for iChan = 1:nChan
     for iF = 1:nF
         co = ifft(FX .* W(iF,:));
         co = co(1:nPts);
-        [pw, pc, pwi] = tf_stats(co, beats, tIdx);
+        [pw, pc, pwi] = tf_stats(co, beats(tfUse), tIdx);
         tf.power(iChan,iF,:) = pw;
         tf.power_induced(iChan,iF,:) = pwi;
         tf.hrpc(iChan,iF,:) = pc;
@@ -318,6 +357,7 @@ tf.hrsp = 10*log10(tf.power ./ mean(tf.power,3));
 tf.hrsp_induced = 10*log10(tf.power_induced ./ mean(tf.power_induced,3));
 if doPre
     prePow(:, nPerBand == 0 | isempty(tPre), :) = NaN;
+    prePow(:, :, ~tfUse) = NaN;          % wavelet support reaching rejected or unchecked data
     tf.prestim = struct('win', pre.win, 'names', {pre.names}, 'bands', pre.bands, 'power', prePow);
 end
 

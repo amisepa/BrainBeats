@@ -10,6 +10,8 @@
 % Usage: run the script from MATLAB with EEGLAB installed. Figures are
 % saved in tests/figures (clean_rr_ibi_timeseries.png,
 % clean_rr_ibi_distribution.png).
+%
+% Copyright (C) - Cedric Cannard, 2026
 
 clear; close all;
 

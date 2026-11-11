@@ -20,7 +20,7 @@
 %
 % Outputs:
 %   HRV    - struct with fields present for the domains computed:
-%     .time      - SDNN, RMSSD (ms), pNN50 (%)
+%     .time      - SDNN, RMSSD (ms), pNN50 (% of successive differences > 50 ms)
 %     .frequency - ulf, vlf, lf, hf: band power (integral of the PSD over
 %                  the band) averaged over windows. Units: ms^2 for
 %                  'LombScargle', 'welch' and 'fft' (PSD of NN in s^2/Hz,
@@ -30,14 +30,17 @@
 %                  close to the ms^2 one, but normalized values grow with the
 %                  number of beats per window, i.e. the heart rate: same
 %                  modulation in ms, LF +41% at 90 vs 60 bpm, ms^2 -3%. With
-%                  hrv_norm, fraction of ttlpwr. Bands the recording is too
+%                  hrv_norm, fraction of ttlpwr, the sum of the bands
+%                  estimated (LF + HF below ~28 min, i.e. normalized units;
+%                  NaN without LF, below 120 s). Bands the recording is too
 %                  short for are absent; all four are NaN if none can be
 %                  estimated (< 60 s). Also lfhf, ttlpwr (hrv_norm only),
 %                  pwr/pwr_freqs (spectrum of the last window of each window
 %                  length over its bands, concatenated: ULF, VLF, then LF and
 %                  HF; ms^2/Hz, or unitless), bands (Hz)
-%     .nonlinear - Poincare SD1, SD2 (ms) and SD1SD2, FE (fuzzy entropy),
-%                  FD (fractal volatility), PRSA_AC, PRSA_DC (ms)
+%     .nonlinear - Poincare SD1, SD2 (ms) and SD1SD2, FE (fuzzy entropy) and
+%                  FD (box-counting fractal dimension) from the ASCENT plugin
+%                  (see BB_FUZZY_FRACTAL; NaN without it), PRSA_AC, PRSA_DC (ms)
 %   params - input params plus the settings used, for export (hrv_spec,
 %            hrv_norm, hrv_overlap, hrv_band_freqs, hrv_band_names, ...)
 %
@@ -83,10 +86,13 @@ if params.hrv_time
     % RMSSD (root mean square of successive NN differences)
     HRV.time.RMSSD = round(sqrt(mean(diff(NN.*1000).^2)),1);  % in ms
 
-    % pNN50 (percentage of successive differences >= alpha = 50 ms);
-    % requires at least 2 min of data (Shaffer & Ginsberg, 2017)
+    % pNN50 (percentage of successive differences > alpha = 50 ms; Task
+    % Force, 1996); requires at least 2 min of data (Shaffer & Ginsberg,
+    % 2017). Differences rounded to 1 us first: one of exactly 50 ms (common
+    % at 500 or 1000 Hz) was counted or not by floating-point chance
     alpha = 50;
-    HRV.time.pNN50 = round(100 * sum( abs(diff(NN)) >= alpha/1000 )/length(diff(NN)),1);  % in %
+    dNN = round(abs(diff(NN))*1e6)/1e3;     % in ms
+    HRV.time.pNN50 = round(100 * sum(dNN > alpha)/length(dNN),1);  % in %
 
 end
 
@@ -229,46 +235,26 @@ if params.hrv_frequency
         HRV.frequency.lfhf = round(mean(HRV.frequency.lf) / mean(HRV.frequency.hf) * 100)/100;
     end
 
-    % Total power (sum of the available band means, from ULF down to LF+HF)
-    % and normalization of each band by it
+    % Total power (sum of the available band means: LF + HF, plus VLF and
+    % ULF when the recording is long enough for them) and normalization of
+    % each band by it. ULF needs 24 h and VLF ~28 min, so on most recordings
+    % the total is LF + HF (LF and HF in normalized units). Without LF (60 to
+    % 120 s), HF cannot be normalized: NaN, not ms^2 under a relative field.
     if norm
-        try
-            HRV.frequency.ttlpwr = sum([mean(HRV.frequency.ulf) mean(HRV.frequency.vlf) ...
-                mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
-        catch
-            bb_warndlg('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
-            warning('HRV total power does not include ULF power (likely due to the short length of the cardiovascular time series).')
-            try
-                HRV.frequency.ttlpwr = sum([mean(HRV.frequency.vlf) mean(HRV.frequency.lf) ...
-                    mean(HRV.frequency.hf)]);
-            catch
-                bb_warndlg('HRV total power does not include VLF power (likely due to the short length of the cardiovascular time series).')
-                warning('HRV total power does not include VLF power (likely due to the short length of the cardiovascular time series).')
-                try
-                    HRV.frequency.ttlpwr = sum([mean(HRV.frequency.lf) mean(HRV.frequency.hf)]);
-                catch
-                    bb_warndlg('Sorry, LF-HRV and HF-HRV power could not be normalized to total power.')
-                    warning('Sorry, LF-HRV and HF-HRV power could not be normalized to total power.')
-                end
-            end
-        end
-
-        % Relative power: contribution of each band to the total
-        if isfield(HRV.frequency,'ttlpwr')
-            disp('Normalizing HRV power to overall power')
-            if isfield(HRV.frequency,'ulf')
-                HRV.frequency.ulf = mean(HRV.frequency.ulf) / HRV.frequency.ttlpwr;
-            end
-            if isfield(HRV.frequency,'vlf')
-                HRV.frequency.vlf = mean(HRV.frequency.vlf) / HRV.frequency.ttlpwr;
-            end
-            if isfield(HRV.frequency,'lf')
-                HRV.frequency.lf = mean(HRV.frequency.lf) / HRV.frequency.ttlpwr;
-            end
-            if isfield(HRV.frequency,'hf')
-                HRV.frequency.hf = mean(HRV.frequency.hf) / HRV.frequency.ttlpwr;
+        have = bandFields(isfield(HRV.frequency, bandFields));
+        if all(ismember({'lf' 'hf'}, have))
+            HRV.frequency.ttlpwr = sum(cellfun(@(b) mean(HRV.frequency.(b)), have));
+            fprintf('HRV band powers normalized by their total (%s). \n', strjoin(upper(have), ' + '))
+            for b = have
+                HRV.frequency.(b{1}) = mean(HRV.frequency.(b{1})) / HRV.frequency.ttlpwr;
             end
             % (the LF/HF ratio is already scale-free: not normalized)
+        else
+            warning('HRV band powers cannot be normalized without LF power (recording shorter than %g s): set to NaN.', lfhfWin)
+            for b = have
+                HRV.frequency.(b{1}) = NaN;
+            end
+            HRV.frequency.ttlpwr = NaN;
         end
     end
 
@@ -322,11 +308,8 @@ if params.hrv_nonlinear
     params.entropy_tau = tau;  % for exportation for users
     params.entropy_n = n;  % for exportation for users
 
-    % Run Fuzzy entropy
-    HRV.nonlinear.FE = compute_fe(NN, m, r, n, tau);
-
-    % Fractal dimension (fractal volatility)
-    HRV.nonlinear.FD = fractal_volatility(NN);
+    % Fuzzy entropy and fractal dimension (box counting), from the ASCENT plugin
+    [HRV.nonlinear.FE, HRV.nonlinear.FD, params.ascent_version] = bb_fuzzy_fractal(NN(:)', m, r, n, tau);
 
     % Phase rectified signal averaging (PRSA). Anchors: beats whose NN
     % shortens (AC) or lengthens (DC) by less than thresh % (larger changes

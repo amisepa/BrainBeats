@@ -1,7 +1,7 @@
 % RUN_CHECKS - Check data and parameters, install missing plugins, set defaults.
 %
 % Usage:
-%   [EEG, params, err] = run_checks(EEG, params)
+%   [EEG, params, err] = run_checks(EEG, params, isCmd)
 %
 % Checks (error dialog and err = true on failure): data are continuous;
 % params.heart_signal is 'ecg', 'ppg', 'rr' or 'off'; all
@@ -51,12 +51,12 @@ end
 % scalp maps and the QRS map. Offset ratio: median |channel mean| / median
 % channel SD within 1 s. On 7 recordings (2026-11-05): raw 105-1080;
 % high-passed at 0.5 Hz below 0.6 (mostly < 0.003); at 0.1 Hz up to 9 (edge
-% transients of large artifacts).
+% transients of large artifacts). Threshold 30, between the two.
 if isfield(params,'analysis') && strcmp(params.analysis,'hep') && isfield(params,'clean_eeg') && ~params.clean_eeg
     r = offset_ratio(EEG, params);
-    if r > 1
+    if r > 30
         bb_fail(isCmd, sprintf(['The EEG data do not look high-pass filtered: the channels'' offsets are %.3g times ' ...
-            'their variability within 1 s (filtered data: below 1). The HEP is not baseline-corrected, so these ' ...
+            'their variability within 1 s (high-passed data: below 10; raw data: above 100). The HEP is not baseline-corrected, so these ' ...
             'offsets would be in the HEP, its scalp maps and the QRS map. High-pass filter the EEG first, e.g. ' ...
             'EEG = pop_eegfiltnew(EEG,''locutoff'',0.5); or set ''clean_eeg'' on (0.5-Hz high-pass for HEP).'], r));
         err = true; return
@@ -154,6 +154,20 @@ if params.clean_eeg
     end
 end
 
+% Fuzzy entropy and fractal dimension (nonlinear HRV and EEG features) come
+% from the ASCENT plugin. If it cannot be installed, BB_FUZZY_FRACTAL warns
+% and sets them to NaN; the other features are computed.
+if (isfield(params,'hrv_nonlinear') && params.hrv_nonlinear) || ...
+        (isfield(params,'eeg_nonlinear') && params.eeg_nonlinear)
+    if ~exist('compute_FuzzEn','file')
+        try
+            plugin_askinstall('ASCENT', 'compute_FuzzEn', 1);
+        catch ME
+            fprintf('The ASCENT plugin could not be installed (%s).\n', ME.message)
+        end
+    end
+end
+
 % Ensure data have double precision
 EEG.data = double(EEG.data);
 
@@ -185,11 +199,18 @@ if params.parpool
 
         % Put BrainBeats first on the workers' path too: they start from the
         % saved path, which can hold other functions with the same names
-        % (e.g. another compute_psd) ahead of the folders added on the client
+        % ahead of the folders added on the client (the ASCENT plugin's
+        % compute_psd took over on the workers: hence bb_compute_psd).
+        % ASCENT's functions after it (a pool opened before ASCENT was
+        % installed would not have them)
         pool = gcp('nocreate');
         if ~isempty(pool)
             bbpath = fileparts(which('eegplugin_BrainBeats.m'));
-            wait(parfevalOnAll(pool, @addpath, 0, fullfile(bbpath,'functions'), bbpath));
+            folders = {fullfile(bbpath,'functions'), bbpath};
+            if exist('compute_FuzzEn','file')
+                folders{end+1} = fileparts(which('compute_FuzzEn'));
+            end
+            wait(parfevalOnAll(pool, @addpath, 0, folders{:}));
         end
     else
         warning("You do not have the parallel toolbox installed. Turning parallel computing OFF.")
