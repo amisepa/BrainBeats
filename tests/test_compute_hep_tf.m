@@ -14,7 +14,7 @@ function test_compute_hep_tf
 %      a phase-locked burst is detected.
 %   6. HEP family-wise statistics (TFCE and max statistic, 1000 surrogates):
 %      the evoked deflection of check 3 is significant, the noise channel is
-%      not. (False-positive rate and power on simulated noise: README.)
+%      not. (False-positive rate and power on simulated noise: docs/methods.md.)
 %   7. Induced power (HEP subtracted): the phase-locked burst of check 1
 %      leaves no induced power, the random-phase burst keeps it.
 %   8. A QRS-like transient: the total HRSP shows a significant "decrease"

@@ -6,7 +6,7 @@ function test_fuzzy_fractal
 % Needs EEGLAB and ASCENT 2.1 or later on the path.
 %
 % Old (BrainBeats 1.6) vs ASCENT values on 66 recordings: see the v1.7 entry
-% of the README version history.
+% of CHANGELOG.md.
 %
 % Copyright (C) - Cedric Cannard, 2026
 

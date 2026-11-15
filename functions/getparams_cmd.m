@@ -141,7 +141,7 @@ if params.heart
     % with the ECG), 'ica_caracas' (CARACAS, SASICA plugin), 'ecg_regression'
     % or 'ssp' (ECG only). Not recommended:
     % each removed little of the artifact or part of a synthetic
-    % heartbeat-locked response on 6 ds003838 subjects (see the README)
+    % heartbeat-locked response on 6 ds003838 subjects (see docs/methods.md)
     idx = find(strcmpi(keys,'heart_removal'));
     if ~isempty(idx)
         params.heart_removal = lower(varargin{idx+1});

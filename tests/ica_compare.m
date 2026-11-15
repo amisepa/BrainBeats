@@ -20,7 +20,7 @@ function R = ica_compare(files, outdir, conds)
 %   epochs        broadband, epoched like the HEP data (bad epochs removed)
 %   lp30_epochs_noasr  30 Hz, epoched, no ASR (close to the v1.6 default)
 %
-% The README numbers (2026-11-03; 6 recordings: the tutorial dataset and
+% The numbers in docs/methods.md (2026-11-03; 6 recordings: the tutorial dataset and
 % sub-033, 035, 045, 047, 053 of ds003838 'derived') come from an earlier
 % version of this script, whose settings were the same but named after the
 % defaults of that time.

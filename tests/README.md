@@ -8,7 +8,7 @@ results and the date they were obtained). Run them from this folder, with EEGLAB
 | Script | What it checks | Time |
 |---|---|---|
 | `run_tutorial_headless.m` | Every analysis of the tutorial and the options added since (32 cases), plots off; `run_tutorial_headless(ids)` runs a subset | 30-60 min |
-| `run_command_lines.m` | The tutorial and the help examples, run as they are written | ~30 min |
+| `run_command_lines.m` | The tutorial, the help examples and the README quick tutorial, run as they are written | ~30 min |
 | `test_gui_params.m` | GUI defaults and mappings for every analysis without opening windows, and one GUI-driven run with its history command | ~5 min |
 | `test_hep_figures.m` | Content of the HEP figures (drawn invisible) | ~5 min |
 | `test_eeglab_menu.m` | The 'BrainBeats' menu of EEGLAB stays usable after a HEP run (opens EEGLAB) | ~5 min |

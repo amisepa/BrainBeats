@@ -2,8 +2,9 @@ function results = run_command_lines(ids)
 % RUN_COMMAND_LINES - Run the documented command lines as they are written.
 %
 % Runs each section of brainbeats_tutorial.m (text read from the file, so
-% the commands are the ones users copy), then the examples of
-% 'help brainbeats_process' and README.md, and prints PASS/FAIL for each.
+% the commands are the ones users copy), the examples of
+% 'help brainbeats_process', and the quick tutorial of README.md (its MATLAB
+% blocks in order, as one section), and prints PASS/FAIL for each.
 % run_tutorial_headless has its own copy of the calls, which can drift from
 % the tutorial; this test cannot.
 %
@@ -24,7 +25,8 @@ function results = run_command_lines(ids)
 %   errordlg/warndlg are replaced by stubs that print the message.
 % - The sample data are read from a copy in tempdir, so 'save' never writes
 %   into the repo. The first tutorial section (EEGLAB start, cd) and the
-%   last one (BrainBeats window) are skipped.
+%   last one (BrainBeats window) are skipped, and so is the README's
+%   'eeglab' line (it would put the installed plugin back on the path).
 %
 % Copyright (C) - Cedric Cannard, 2026
 
@@ -41,6 +43,7 @@ fprintf('Testing %s\n', which('brainbeats_process'));
 dpath = fullfile(tempdir,'brainbeats_test_data');
 if ~exist(dpath,'dir'), mkdir(dpath); end
 copyfile(fullfile(bbroot,'sample_data','dataset.set'), dpath);
+copyfile(fullfile(bbroot,'sample_data','sub-047_rest.set'), dpath);
 
 % Sections of the tutorial that call brainbeats_process, reading the data
 % from the scratch copy
@@ -54,9 +57,9 @@ for k = 1:numel(sec)
         strrep(['%' sec{k}], 'fullfile(main_path,''sample_data'')', 'dpath')); %#ok<AGROW>
 end
 
-% Examples of the brainbeats_process help (the README one is the first)
+% Examples of the brainbeats_process help
 load_ecg = 'EEG = pop_loadset(''filename'',''dataset.set'',''filepath'',dpath); ';
-S(end+1) = struct('name','help/README: HEP, ECG, 100 surrogates','code', ...
+S(end+1) = struct('name','help: HEP, ECG, 100 surrogates','code', ...
     [load_ecg 'EEG = brainbeats_process(EEG, ''analysis'',''hep'', ''heart_signal'',''ecg'', ' ...
     '''heart_channels'',{''ECG''}, ''clean_eeg'',true, ''hep_surrogates'',100);']);
 S(end+1) = struct('name','help: HEP, PPG, channels and ICs','code', ...
@@ -65,6 +68,15 @@ S(end+1) = struct('name','help: HEP, PPG, channels and ICs','code', ...
 helptxt = help('brainbeats_process');
 assert(contains(helptxt,'''hep_surrogates'',100);') && contains(helptxt,'''hep_level'',''both'');'), ...
     'The examples of the brainbeats_process help changed: update this test')
+
+% README quick tutorial: its MATLAB blocks in order, reading the sample data
+% from the scratch copy
+blk = regexp(fileread(fullfile(bbroot,'README.md')), '```matlab\s*(.*?)```', 'tokens');
+code = strjoin(cellfun(@(c) c{1}, blk, 'UniformOutput', false), newline);
+code = regexprep(code, '(?m)^eeglab[^\n]*\n', '');
+samplePath = 'fullfile(fileparts(which(''brainbeats_process'')), ''sample_data'')';
+assert(numel(blk) >= 3 && contains(code, samplePath), 'The README tutorial changed: update this test')
+S(end+1) = struct('name','README: quick tutorial','code',strrep(code, samplePath, 'dpath'));
 
 % Stubs: dialogs printed, brainbeats_process with plots and gong off
 stubs = fullfile(tempdir,'brainbeats_cmdline_stubs');

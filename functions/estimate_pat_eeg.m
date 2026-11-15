@@ -8,7 +8,7 @@
 % beats, average reference, 5-30 Hz) therefore shows the QRS field before
 % the pulse: the latency of the global field power (GFP) peak between -650
 % and -50 ms gives the PAT. Checked on 6 ds003838 recordings with
-% tests/compare_ppg_transit.m (see the README).
+% tests/compare_ppg_transit.m (see docs/methods.md).
 %
 % Usage:
 %   [pat, info] = estimate_pat_eeg(X, fs, ppgbeats)

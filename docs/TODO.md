@@ -1,12 +1,11 @@
 # BrainBeats TODO
 
-Open items only. What was done, with its numbers, is in the README version history and in the
+Open items only. What was done, with its numbers, is in CHANGELOG.md, docs/methods.md and the
 headers of the test and validation scripts.
 
 ## Before the v1.7 release
-- [ ] Update the installed plugin first: eeglab/plugins/BrainBeats (a clone, what EEGLAB
-      runs) was at 9c34514 with 26 local changes on 2026-11-11, so the GUI would run older code.
-- [ ] Click through the GUI in the MATLAB desktop: 'BrainBeats' in the EEGLAB menu bar, main
+- [ ] Click through the GUI in the MATLAB desktop (EEGLAB runs eeglab/plugins/BrainBeats, a
+      clone: `git pull` there first after each push): 'BrainBeats' in the EEGLAB menu bar, main
       window (Load dataset / Sample dataset, analysis, heart channels and the '...' list,
       'Perform analysis on'), parameters window for HEP and for features (heart artifact
       removal options, PPG pulse arrival time options), and that the HEP output appears as a
@@ -19,7 +18,7 @@ headers of the test and validation scripts.
       now). Rename ASCENT's compute_psd first: BrainBeats 1.5-1.6 (1.5 is on the extension
       manager) has a compute_psd with another signature, and whichever comes first on the path
       breaks the other plugin.
-- [ ] Release: date in the README version history, tag `eeglab_brainbeats_v1.7`, GitHub
+- [ ] Release: date in CHANGELOG.md, tag `eeglab_brainbeats_v1.7`, GitHub
       release (zip), EEGLAB extension manager.
 
 ## v1.8: brain-heart coupling
