@@ -54,12 +54,17 @@ function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
 % the QRS contributes little), as a robust z score (median, 1.4826 x MAD,
 % so artifacts do not inflate their own baseline); then a 60% majority
 % filter, the optional slow-amplitude mask, the MinArtSec and MinGapSec rules.
-% 'window': per window of WinSec, every StepSec, the log mean > HFcutoff power
-% and the range (max - min) of the < 5 Hz signal, each as a robust z score
-% across the recording's windows; a sample is flagged when any window holding
-% it is flagged, then the MinArtSec and MinGapSec rules. The range of a window
-% catches a slow movement excursion whole, where the sample-by-sample < 5 Hz
-% amplitude flags only its extremes. On an overnight sleep ECG (200 Hz),
+% 'window': on the ECG high-passed at HighPass Hz, per window of WinSec,
+% every StepSec, the log mean > HFcutoff power as a robust z score across the
+% recording's windows, and the range (max - min) of the < 5 Hz signal as a
+% ratio to the median range of the windows within AmpLocalSec; a sample is
+% flagged when any window holding it is flagged, then the MinArtSec and
+% MinGapSec rules. The range of a window catches a slow movement excursion
+% whole, where the sample-by-sample < 5 Hz amplitude flags only its extremes.
+% Limits: a movement lasting about AmpLocalSec or longer raises its own local
+% reference and is not flagged by the range rule (only by HFthresh, if it
+% carries high-frequency power); the last StepSec or less after the last
+% full window is not assessed. On an overnight sleep ECG (200 Hz),
 % scored against each heartbeat's own ECG shape (correlation < 0.8 with the
 % median heartbeat, or peak amplitude outside 0.5-2x; 180 distorted
 % heartbeats in REM and N2 sleep, all of abnormal shape), 'window' with its

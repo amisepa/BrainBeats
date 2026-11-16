@@ -9,6 +9,9 @@ function test_detect_ecg_artifacts
 %   3. 'window' gives the same mask in uV and in V.
 %   4. 'window' does not flag a slow baseline drift under clean R waves
 %      (its 1-Hz high-pass), and does without the high-pass.
+%   5. 'window' does not flag a 2-min stretch of 3x taller heartbeats (the
+%      movement rule's local reference), and does against the recording's
+%      median range.
 %
 % Copyright (C) - Cedric Cannard, 2026
 
@@ -25,6 +28,7 @@ while b < n - fs
               + 200*exp(-((1:n) - b - round(0.25*fs)).^2 / (2*(0.04*fs)^2));  % T wave
     b = b + ibi(k); k = k + 1;
 end
+beats = ecg;                                         % heartbeats alone (test 5)
 ecg = ecg + 15*randn(1, n) + 100*sin(2*pi*0.25*t);   % noise, respiration drift
 
 % artifacts
@@ -75,6 +79,16 @@ assert(mean(m(inner)) < 0.01, 'window: %.0f%% of the drift flagged', 100*mean(m(
 m4 = evalc_detect(ecg, fs, 'Method','window', 'HighPass', 0);
 assert(mean(m4(inner)) > 0.2, 'window without high-pass: drift not flagged (check is void)')
 fprintf('4 OK: drift flagged %.0f%% (%.0f%% without the high-pass)\n', 100*mean(m(inner)), 100*mean(m4(inner)));
+
+% 5. a stretch of taller heartbeats (e.g. after a change of posture): not an artifact
+tall = round(150*fs):round(270*fs);
+ecg5 = ecg; ecg5(tall) = ecg5(tall) + 2 * beats(tall);   % heartbeats 3x, same noise
+mid  = round(160*fs):round(260*fs);
+m5 = evalc_detect(ecg5, fs, 'Method','window', 'HFthresh', Inf);   % the range rule alone
+assert(mean(m5(mid)) < 0.05, 'window: %.0f%% of the taller heartbeats flagged', 100*mean(m5(mid)))
+m5g = evalc_detect(ecg5, fs, 'Method','window', 'HFthresh', Inf, 'AmpLocalSec', 1e6);   % one reference for all
+assert(mean(m5g(mid)) > 0.5, 'window with the recording median: taller heartbeats not flagged (check is void)')
+fprintf('5 OK: taller heartbeats flagged %.0f%% (%.0f%% against the recording median)\n', 100*mean(m5(mid)), 100*mean(m5g(mid)));
 end
 
 function [m, seg] = evalc_detect(x, fs, varargin)
