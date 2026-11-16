@@ -15,7 +15,7 @@ results and the date they were obtained). Run them from this folder, with EEGLAB
 | `test_compute_hep_tf.m` | HEP/HRSP/HRPC and surrogate statistics on synthetic data (no EEGLAB needed) | ~2 min |
 | `test_clean_rr_ectopic.m` | Ectopic-beat replacement and RR_ALTERNATION on synthetic RR series | seconds |
 | `test_thresholds.m` | Thresholds that must not depend on the data's units (rank, ECG flatline, PPG clipping) | seconds |
-| `test_detect_ecg_artifacts.m` | ECG artifact detection on a synthetic ECG with a muscle burst, a movement excursion and two close bursts ('window' and 'moving'; same mask in uV and V) | seconds |
+| `test_detect_ecg_artifacts.m` | ECG artifact detection on a synthetic ECG with a muscle burst, a movement excursion and two close bursts and a baseline drift that must not be flagged ('window' and 'moving'; same mask in uV and V) | seconds |
 | `test_fuzzy_fractal.m` | Fuzzy entropy and fractal dimension from ASCENT (values, warnings, NaN without ASCENT) | seconds |
 | `test_features_synthetic.m` | HRV and EEG features against synthetic data with known values, and through the whole 'features' pipeline from a synthetic ECG | ~1 min |
 | `make_readme_figures.m` | Regenerates the README figures (`figures/`) from the sample data | ~15 min |

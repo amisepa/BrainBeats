@@ -22,7 +22,11 @@ function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
 %                  (default 5; ~15 to catch only gross artifacts;
 %                  'window': 8, on log power)
 %   'AmpThresh'  - robust z threshold on the < 5 Hz amplitude (default Inf =
-%                  off; 'window': 20, on the < 5 Hz range of each window)
+%                  off; 'window': 6, on the < 5 Hz range of each window)
+%   'HighPass'   - the ECG is first high-passed at this edge (Hz) as
+%                  pop_eegfiltnew(EEG,'locutoff',HighPass) does (default 0 =
+%                  off; 'window': 1). Baseline drift is not an artifact: on an
+%                  unfiltered ECG the < 5 Hz rule flags it.
 %   'WinSec'     - window of the HF power (s, default 0.5; 'window': 1):
 %                  short enough to isolate a burst, long enough that one QRS
 %                  does not register as one
@@ -52,10 +56,10 @@ function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
 % amplitude flags only its extremes. On an overnight sleep ECG (200 Hz),
 % scored against each heartbeat's own ECG shape (correlation < 0.8 with the
 % median heartbeat, or peak amplitude outside 0.5-2x; 180 distorted
-% heartbeats in REM and N2 sleep), 'window' with its defaults caught 160 and
-% dropped 2.3% of the clean REM heartbeats (those within 2 s of a flag;
-% AmpThresh 10: 172 and 3.9%, but most of the extra heartbeats it dropped had
-% a clean shape);
+% heartbeats in REM and N2 sleep), 'window' with its defaults caught 158 and
+% dropped 1.7% of the clean REM heartbeats (those within 2 s of a flag;
+% without the high-pass, AmpThresh 20 caught 160 for 2.3% and flagged drift
+% under clean R waves);
 % 'moving' with HFthresh 5 caught 168 with AmpThresh 6 (7.6% dropped) and 9
 % with AmpThresh Inf. On a second night (2 distorted heartbeats), 'window'
 % caught both and dropped no clean REM heartbeat, 'moving' neither.
@@ -78,6 +82,7 @@ ip = inputParser;
 addParameter(ip, 'SampleRate', []);
 addParameter(ip, 'Method',    'moving', @(x) any(strcmpi(x, {'moving','window'})));
 addParameter(ip, 'StepSec',   0.3);
+addParameter(ip, 'HighPass',  0);
 addParameter(ip, 'HFcutoff',  30);
 addParameter(ip, 'HFthresh',  5);
 addParameter(ip, 'AmpThresh', Inf);
@@ -98,12 +103,14 @@ erodeWin  = ip.Results.ErodeWin;
 doPlot    = ip.Results.Plot;
 method    = lower(char(ip.Results.Method));
 stepSec   = ip.Results.StepSec;
+hpEdge    = ip.Results.HighPass;
 if strcmp(method, 'window')
     % the window method's own defaults, for the values not given
     dflt = ip.UsingDefaults;
     if ismember('WinSec', dflt),    winSec = 1;  end
     if ismember('HFthresh', dflt),  hfThr  = 8;  end
-    if ismember('AmpThresh', dflt), ampThr = 20; end
+    if ismember('AmpThresh', dflt), ampThr = 6;  end
+    if ismember('HighPass', dflt),  hpEdge = 1;  end
     if ismember('MinGapSec', dflt), minGap = 1;  end
 end
 
@@ -144,6 +151,9 @@ if any(nonfinite_mask)
     fprintf('    Warning: %d non-finite samples in ECG (%.2f%%) -- replacing with 0 for filtering.\n', ...
         sum(nonfinite_mask), 100*mean(nonfinite_mask));
     sig(nonfinite_mask) = 0;
+end
+if hpEdge > 0
+    sig = highpass_eegfiltnew(sig, sr, hpEdge);
 end
 
 % High-frequency (noise) band: FIR highpass, even order, zero-phase
@@ -290,6 +300,24 @@ end
 end
 
 %% Helpers
+function y = highpass_eegfiltnew(x, sr, edge)
+% High-pass as pop_eegfiltnew(EEG,'locutoff',edge) without EEGLAB: firws
+% windowed sinc (Hamming), transition band min(max(0.25*edge, 2), edge) Hz,
+% -6 dB at edge minus half of it, order 3.3/(band/sr) rounded up to even, one
+% pass made zero-phase, the signal padded with its first and last values.
+df    = min(max(0.25 * edge, 2), edge);
+m     = ceil(3.3 / (df / sr) / 2) * 2;
+fc    = (edge - df/2) / sr;                % cycles per sample
+k     = -m/2:m/2;
+b     = sin(2*pi*fc*k) ./ k;
+b(k == 0) = 2*pi*fc;
+b     = b .* hamming(m + 1)';
+b     = -b / sum(b);                       % unity gain at DC, then spectral inversion
+b(m/2 + 1) = b(m/2 + 1) + 1;
+h     = m / 2;
+y     = conv([repmat(x(1), 1, h) x repmat(x(end), 1, h)], b, 'valid');
+end
+
 function z = robust_z(x)
 % Robust z score (median, 1.4826 x MAD); empty when the spread is zero.
 s = 1.4826 * mad(x, 1);

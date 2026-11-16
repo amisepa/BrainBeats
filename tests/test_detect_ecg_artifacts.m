@@ -7,6 +7,8 @@ function test_detect_ecg_artifacts
 %   2. 'moving' with AmpThresh flags the excursion only at its extremes,
 %      the reason for 'window'.
 %   3. 'window' gives the same mask in uV and in V.
+%   4. 'window' does not flag a slow baseline drift under clean R waves
+%      (its 1-Hz high-pass), and does without the high-pass.
 %
 % Copyright (C) - Cedric Cannard, 2026
 
@@ -37,6 +39,8 @@ exc = round(300*fs):round(305*fs);                                       % 5-s e
 ecg(exc) = ecg(exc) + 5000*sin(pi*(0:numel(exc)-1)/(numel(exc)-1)).^2;
 
 truth = burst | pair; truth(exc) = true;
+drift = round(460*fs):round(480*fs);                                     % 20-s baseline drift
+ecg(drift) = ecg(drift) + 8000*sin(pi*(0:numel(drift)-1)/(numel(drift)-1)).^2;
 
 % 1. window
 [m, seg] = evalc_detect(ecg, fs, 'Method','window');
@@ -64,6 +68,13 @@ fprintf('2 OK: moving flags %.0f%% of the excursion, window 100%%\n', 100*cov2);
 m3 = evalc_detect(1e-6*ecg, fs, 'Method','window');
 assert(isequal(m, m3), 'window: uV and V masks differ')
 fprintf('3 OK: same mask in uV and V\n');
+
+% 4. drift: not an artifact
+inner = round(462*fs):round(478*fs);
+assert(mean(m(inner)) < 0.01, 'window: %.0f%% of the drift flagged', 100*mean(m(inner)))
+m4 = evalc_detect(ecg, fs, 'Method','window', 'HighPass', 0);
+assert(mean(m4(inner)) > 0.2, 'window without high-pass: drift not flagged (check is void)')
+fprintf('4 OK: drift flagged %.0f%% (%.0f%% without the high-pass)\n', 100*mean(m(inner)), 100*mean(m4(inner)));
 end
 
 function [m, seg] = evalc_detect(x, fs, varargin)
