@@ -11,8 +11,9 @@ headers of the test and validation scripts.
       removal options, PPG pulse arrival time options), and that the HEP output appears as a
       new dataset. Automated tests check the parameters and the history command but draw no
       window.
-- [ ] Look at the README figures in the MATLAB desktop once (made by
-      `tests/make_readme_figures`).
+- [ ] Regenerate the README figures (`tests/make_readme_figures`, ~15-20 min), look at them in
+      the MATLAB desktop, and commit them: they date from 2026-11-06 (the ECG plot still says
+      uV, now a.u.; HRV values from before the sub-sample beat times).
 - [ ] ASCENT 2.1 or later on the EEGLAB extension manager, under the name 'ASCENT': BrainBeats
       installs it from there for the fuzzy entropy and fractal dimension (it is only on GitHub
       now). Rename ASCENT's compute_psd first: BrainBeats 1.5-1.6 (1.5 is on the extension
@@ -23,12 +24,13 @@ headers of the test and validation scripts.
 
 ## v1.8: brain-heart coupling
 - Merge branch `brain-heart` (coupling replaces the experimental coherence analysis; plan in
-  docs/brain-heart-plan.md on that branch) after the v1.7 review fixes are committed, then the
-  release check.
+  docs/brain-heart-plan.md on that branch) after the v1.7 release, then the release check.
 - Conflicts to expect: brainbeats_process.m (help: main dropped 'asr_mem' and documents the
   ASCENT features; the coupling section and history), clean_eeg.m (the branch renames
   'coherence' to 'coupling' in the ASR branch; main replaced the RAM-sized ASR call there),
-  getparams_cmd.m ('asr_mem' now warns), README.md, docs/TODO.md, brainbeats_tutorial.m,
+  getparams_cmd.m ('asr_mem' now warns), README.md (restructured on 2026-11-15: a short
+  tutorial; method details in docs/methods.md, version history in CHANGELOG.md, so the
+  branch's coupling text goes there), docs/TODO.md, brainbeats_tutorial.m,
   tests/run_tutorial_headless.m, tests/make_readme_figures.m. The branch calls none of the
   renamed or removed functions (compute_psd, scrollplot, compute_fe, fractal_volatility).
 - The coupling cleaning gets main's fixed ASR chunks: the branch's cohort numbers and
