@@ -21,8 +21,14 @@ function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
 %   'HFthresh'   - robust z threshold on HF power; lower flags more
 %                  (default 5; ~15 to catch only gross artifacts;
 %                  'window': 8, on log power)
-%   'AmpThresh'  - robust z threshold on the < 5 Hz amplitude (default Inf =
-%                  off; 'window': 6, on the < 5 Hz range of each window)
+%   'AmpThresh'  - 'moving' only: robust z threshold on the < 5 Hz amplitude
+%                  (default Inf = off)
+%   'AmpRatio'   - 'window' only: a window is flagged when the range of its
+%                  < 5 Hz signal exceeds AmpRatio x the median range of the
+%                  windows within AmpLocalSec (default 2.5; Inf = off)
+%   'AmpLocalSec'- 'window' only: half-width of that local reference (s,
+%                  default 60): a stretch of taller R waves raises its own
+%                  reference, a movement of a few seconds does not
 %   'HighPass'   - the ECG is first high-passed at this edge (Hz) as
 %                  pop_eegfiltnew(EEG,'locutoff',HighPass) does (default 0 =
 %                  off; 'window': 1). Baseline drift is not an artifact: on an
@@ -56,10 +62,12 @@ function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
 % amplitude flags only its extremes. On an overnight sleep ECG (200 Hz),
 % scored against each heartbeat's own ECG shape (correlation < 0.8 with the
 % median heartbeat, or peak amplitude outside 0.5-2x; 180 distorted
-% heartbeats in REM and N2 sleep), 'window' with its defaults caught 158 and
-% dropped 1.7% of the clean REM heartbeats (those within 2 s of a flag;
-% without the high-pass, AmpThresh 20 caught 160 for 2.3% and flagged drift
-% under clean R waves);
+% heartbeats in REM and N2 sleep, all of abnormal shape), 'window' with its
+% defaults caught 137 and dropped 0.98% of the clean REM heartbeats (those
+% within 2 s of a flag). Against the night's median range instead of the
+% local one (a robust z of 6: 1.6 x the median) it caught 158 for 1.7%, and
+% flagged stretches of clean, taller R waves; without the amplitude rule, 61
+% (bursts and saturation only); without the high-pass, baseline drift;
 % 'moving' with HFthresh 5 caught 168 with AmpThresh 6 (7.6% dropped) and 9
 % with AmpThresh Inf. On a second night (2 distorted heartbeats), 'window'
 % caught both and dropped no clean REM heartbeat, 'moving' neither.
@@ -83,6 +91,8 @@ addParameter(ip, 'SampleRate', []);
 addParameter(ip, 'Method',    'moving', @(x) any(strcmpi(x, {'moving','window'})));
 addParameter(ip, 'StepSec',   0.3);
 addParameter(ip, 'HighPass',  0);
+addParameter(ip, 'AmpRatio',  2.5);
+addParameter(ip, 'AmpLocalSec', 60);
 addParameter(ip, 'HFcutoff',  30);
 addParameter(ip, 'HFthresh',  5);
 addParameter(ip, 'AmpThresh', Inf);
@@ -104,12 +114,13 @@ doPlot    = ip.Results.Plot;
 method    = lower(char(ip.Results.Method));
 stepSec   = ip.Results.StepSec;
 hpEdge    = ip.Results.HighPass;
+ampRatio  = ip.Results.AmpRatio;
+ampLocal  = ip.Results.AmpLocalSec;
 if strcmp(method, 'window')
     % the window method's own defaults, for the values not given
     dflt = ip.UsingDefaults;
     if ismember('WinSec', dflt),    winSec = 1;  end
     if ismember('HFthresh', dflt),  hfThr  = 8;  end
-    if ismember('AmpThresh', dflt), ampThr = 6;  end
     if ismember('HighPass', dflt),  hpEdge = 1;  end
     if ismember('MinGapSec', dflt), minGap = 1;  end
 end
@@ -188,18 +199,16 @@ if strcmp(method, 'window')
         bad = hf_z > hfThr;
     end
     fprintf('    HF burst windows (>%g Hz):  %.2f%%\n', hfCut, 100*mean(bad));
-    if isfinite(ampThr)
+    if isfinite(ampRatio)
         b_lf   = fir1(order, 5/nyq, 'low');
         lf_sig = filtfilt(b_lf, 1, sig);
         rng_lf = movmax(lf_sig, [0 w-1]) - movmin(lf_sig, [0 w-1]);
-        amp_z  = robust_z(rng_lf(starts));
-        if isempty(amp_z)
-            warning('detect_ecg_artifacts:degenerateScale', ...
-                'Low-frequency amplitude has zero spread; no movement artifact can be detected.');
-        else
-            fprintf('    Slow movement windows (<5Hz): %.2f%%\n', 100*mean(amp_z > ampThr));
-            bad = bad | amp_z > ampThr;
-        end
+        rng_lf = rng_lf(starts);
+        k      = round(ampLocal * sr / st);          % windows on each side
+        loc    = movmedian(rng_lf, [k k]);           % ends: shrinking window
+        badA   = rng_lf > ampRatio * loc;
+        fprintf('    Slow movement windows (<5Hz): %.2f%%\n', 100*mean(badA));
+        bad = bad | badA;
     end
     % a sample is flagged when any flagged window covers it
     d = accumarray(starts(bad)', 1, [n+1 1])' - accumarray((starts(bad) + w)', 1, [n+1 1])';

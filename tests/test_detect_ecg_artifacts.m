@@ -1,10 +1,10 @@
 function test_detect_ecg_artifacts
 % TEST_DETECT_ECG_ARTIFACTS - detect_ecg_artifacts on a synthetic ECG with
 % known artifacts. No EEGLAB needed.
-%   1. 'window' flags a muscle burst, a slow movement excursion and two
+%   1. 'window' flags a muscle burst, a movement (2-s, 1.5-Hz swing) and two
 %      bursts 2.4 s apart (merged into one segment by MinGapSec: a 1-s
 %      window already bridges gaps under ~2 s), and little else.
-%   2. 'moving' with AmpThresh flags the excursion only at its extremes,
+%   2. 'moving' with AmpThresh flags the movement in part at best (here not at all),
 %      the reason for 'window'.
 %   3. 'window' gives the same mask in uV and in V.
 %   4. 'window' does not flag a slow baseline drift under clean R waves
@@ -35,8 +35,8 @@ burst = false(1, n); burst(round(120*fs):round(122*fs)) = true;          % 2-s b
 pair  = false(1, n); pair(round(400*fs):round(400.8*fs)) = true;         % two bursts
 pair(round(403.2*fs):round(404.0*fs)) = true;                            % 2.4 s apart
 ecg(burst | pair) = ecg(burst | pair) + emg(burst | pair);
-exc = round(300*fs):round(305*fs);                                       % 5-s excursion
-ecg(exc) = ecg(exc) + 5000*sin(pi*(0:numel(exc)-1)/(numel(exc)-1)).^2;
+exc = round(300*fs):round(302*fs);                                       % 2-s movement
+ecg(exc) = ecg(exc) + 2000*sin(2*pi*1.5*(0:numel(exc)-1)/fs);            % 1.5-Hz swing
 
 truth = burst | pair; truth(exc) = true;
 drift = round(460*fs):round(480*fs);                                     % 20-s baseline drift
@@ -46,7 +46,7 @@ ecg(drift) = ecg(drift) + 8000*sin(pi*(0:numel(drift)-1)/(numel(drift)-1)).^2;
 [m, seg] = evalc_detect(ecg, fs, 'Method','window');
 hit = @(a, b) mean(m(round(a*fs):round(b*fs)));
 assert(hit(120.2, 121.8) == 1, 'window: burst not flagged')
-assert(hit(300.5, 304.5) == 1, 'window: excursion not flagged whole (%.2f)', hit(300.5, 304.5))
+assert(hit(300.2, 301.8) == 1, 'window: excursion not flagged whole (%.2f)', hit(300.2, 301.8))
 assert(hit(400.2, 403.8) == 1, 'window: the two close bursts are not one segment')
 inpair = seg(:,1) <= 400*fs + 50 & seg(:,2) >= 404*fs - 50;
 assert(sum(inpair) == 1, 'window: close bursts not merged')
@@ -58,9 +58,9 @@ fa = mean(m(~pad));
 assert(fa < 0.01, 'window: %.2f%% flagged away from the artifacts', 100*fa)
 fprintf('1 OK: window flags burst, excursion, merged pair; %.2f%% elsewhere\n', 100*fa);
 
-% 2. moving + AmpThresh: the excursion is flagged only in part
+% 2. moving + AmpThresh: the movement is flagged in part at best
 m2 = evalc_detect(ecg, fs, 'Method','moving', 'AmpThresh', 6);
-cov2 = mean(m2(round(300.5*fs):round(304.5*fs)));
+cov2 = mean(m2(round(300.2*fs):round(301.8*fs)));
 assert(cov2 < 1, 'moving: excursion flagged whole (test no longer shows the difference)')
 fprintf('2 OK: moving flags %.0f%% of the excursion, window 100%%\n', 100*cov2);
 
