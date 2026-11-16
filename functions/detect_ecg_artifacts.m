@@ -22,7 +22,7 @@ function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
 %                  (default 5; ~15 to catch only gross artifacts;
 %                  'window': 8, on log power)
 %   'AmpThresh'  - robust z threshold on the < 5 Hz amplitude (default Inf =
-%                  off; 'window': 10, on the < 5 Hz range of each window)
+%                  off; 'window': 20, on the < 5 Hz range of each window)
 %   'WinSec'     - window of the HF power (s, default 0.5; 'window': 1):
 %                  short enough to isolate a burst, long enough that one QRS
 %                  does not register as one
@@ -52,8 +52,10 @@ function [mask, badSegments] = detect_ecg_artifacts(ECG, varargin)
 % amplitude flags only its extremes. On an overnight sleep ECG (200 Hz),
 % scored against each heartbeat's own ECG shape (correlation < 0.8 with the
 % median heartbeat, or peak amplitude outside 0.5-2x; 180 distorted
-% heartbeats in REM and N2 sleep), 'window' with its defaults caught 172 and
-% dropped 3.9% of the clean REM heartbeats (those within 2 s of a flag);
+% heartbeats in REM and N2 sleep), 'window' with its defaults caught 160 and
+% dropped 2.3% of the clean REM heartbeats (those within 2 s of a flag;
+% AmpThresh 10: 172 and 3.9%, but most of the extra heartbeats it dropped had
+% a clean shape);
 % 'moving' with HFthresh 5 caught 168 with AmpThresh 6 (7.6% dropped) and 9
 % with AmpThresh Inf. On a second night (2 distorted heartbeats), 'window'
 % caught both and dropped no clean REM heartbeat, 'moving' neither.
@@ -101,7 +103,7 @@ if strcmp(method, 'window')
     dflt = ip.UsingDefaults;
     if ismember('WinSec', dflt),    winSec = 1;  end
     if ismember('HFthresh', dflt),  hfThr  = 8;  end
-    if ismember('AmpThresh', dflt), ampThr = 10; end
+    if ismember('AmpThresh', dflt), ampThr = 20; end
     if ismember('MinGapSec', dflt), minGap = 1;  end
 end
 
